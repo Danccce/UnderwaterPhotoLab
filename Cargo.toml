@@ -2,6 +2,7 @@
 members = [
     "crates/uwcc-core",
     "crates/uwcc-plugin",
+    "crates/uwcc-plugin-red",
     "crates/uwcc-analyze",
     "crates/uwcc-plugin-tests",
 ]

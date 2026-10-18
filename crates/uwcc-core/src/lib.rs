@@ -8,6 +8,8 @@
 //! `no_std`, damit das PhotoCraft-Plug-in denselben Code nutzen kann.
 #![no_std]
 
+pub mod params;
+
 use core::f64::consts::PI;
 
 const THRESHOLD_RATIO: f64 = 2000.0;

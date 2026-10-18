@@ -1,5 +1,5 @@
-//! Lädt `underwater_color_correction.wasm` mit wasmi, wie PhotoCraft es tut.
-//! Die Datei muss vorher mit `cargo plugin` gebaut werden.
+//! Lädt die gebauten Plug-ins mit wasmi, wie PhotoCraft es tut.
+//! Die Dateien müssen vorher mit `cargo plugin` gebaut werden.
 
 use std::path::PathBuf;
 
@@ -9,19 +9,18 @@ use wasmi::{Engine, Instance, Linker, Module, Store};
 type FilterArgs = (i32, i32, i32, i32, i32, i32, i32, i32);
 
 const RGB8_ALPHA: i32 = 8 | 1 << 8 | 3 << 16;
+const EXPERT: &str = "underwater_color_correction";
+const RED: &str = "underwater_red_restore";
 
-fn wasm_path() -> PathBuf {
-    if let Ok(p) = std::env::var("UWCC_PLUGIN_WASM") {
-        return p.into();
-    }
+fn wasm_path(name: &str) -> PathBuf {
     let target = std::env::var("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target"));
-    target.join("wasm32-unknown-unknown/release/underwater_color_correction.wasm")
+    target.join(format!("wasm32-unknown-unknown/release/{name}.wasm"))
 }
 
-fn load() -> (Engine, Module) {
-    let path = wasm_path();
+fn load(name: &str) -> (Engine, Module) {
+    let path = wasm_path(name);
     let wasm = std::fs::read(&path)
         .unwrap_or_else(|e| panic!("{}: {e} (erst `cargo plugin` ausführen)", path.display()));
     let engine = Engine::default();
@@ -37,8 +36,24 @@ fn instantiate(engine: &Engine, module: &Module) -> (Store<()>, Instance) {
     (store, instance)
 }
 
-fn run_filter(px: &[f32], channels: i32, format: i32, params: &str) -> (i32, Vec<f32>) {
-    let (engine, module) = load();
+fn manifest(name: &str) -> serde_json::Value {
+    let (engine, module) = load(name);
+    let (mut store, inst) = instantiate(&engine, &module);
+    let m = inst
+        .get_typed_func::<(), i64>(&store, "pc_manifest")
+        .unwrap()
+        .call(&mut store, ())
+        .unwrap() as u64;
+    let mut buf = vec![0u8; (m >> 32) as usize];
+    inst.get_memory(&store, "memory")
+        .unwrap()
+        .read(&store, (m & 0xffff_ffff) as usize, &mut buf)
+        .unwrap();
+    serde_json::from_slice(&buf).unwrap()
+}
+
+fn run_filter(name: &str, px: &[f32], channels: i32, format: i32, params: &str) -> (i32, Vec<f32>) {
+    let (engine, module) = load(name);
     let (mut store, inst) = instantiate(&engine, &module);
     let mem = inst.get_memory(&store, "memory").unwrap();
     let alloc = inst.get_typed_func::<i32, i32>(&store, "pc_alloc").unwrap();
@@ -75,6 +90,22 @@ fn sample_pixels() -> Vec<f32> {
         .collect()
 }
 
+/// Erwartetes Ergebnis: `t` angewendet, auf 0–1 begrenzt, mit `strength` überblendet; nur die
+/// Kanäle in `channels` ändern sich.
+fn reference(px: &[f32], t: &Transform, strength: f32, channels: &[usize]) -> Vec<f32> {
+    px.chunks(4)
+        .flat_map(|p| {
+            let (r, g, b) = t.apply(p[0], p[1], p[2]);
+            let mut out = [p[0], p[1], p[2], p[3]];
+            for &i in channels {
+                let n = [r, g, b][i];
+                out[i] = p[i] + (n.clamp(0.0, 1.0) - p[i]) * strength;
+            }
+            out
+        })
+        .collect()
+}
+
 fn assert_close(a: &[f32], b: &[f32]) {
     assert_eq!(a.len(), b.len());
     for (i, (x, y)) in a.iter().zip(b).enumerate() {
@@ -84,57 +115,52 @@ fn assert_close(a: &[f32], b: &[f32]) {
 
 #[test]
 fn module_shape() {
-    let (engine, module) = load();
-    assert_eq!(module.imports().count(), 0, "PhotoCraft lehnt Imports ab");
-    let mut exports: Vec<_> = module.exports().map(|e| e.name().to_owned()).collect();
-    exports.sort();
-    assert_eq!(
-        exports,
-        ["memory", "pc_abi_version", "pc_alloc", "pc_filter", "pc_manifest"]
-    );
+    for name in [EXPERT, RED] {
+        let (engine, module) = load(name);
+        assert_eq!(module.imports().count(), 0, "{name}: PhotoCraft lehnt Imports ab");
+        let mut exports: Vec<_> = module.exports().map(|e| e.name().to_owned()).collect();
+        exports.sort();
+        assert_eq!(
+            exports,
+            ["memory", "pc_abi_version", "pc_alloc", "pc_filter", "pc_manifest"],
+            "{name}"
+        );
 
-    let (mut store, inst) = instantiate(&engine, &module);
-    let abi = inst
-        .get_typed_func::<(), i32>(&store, "pc_abi_version")
-        .unwrap()
-        .call(&mut store, ())
-        .unwrap();
-    assert_eq!(abi, 1);
+        let (mut store, inst) = instantiate(&engine, &module);
+        let abi = inst
+            .get_typed_func::<(), i32>(&store, "pc_abi_version")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap();
+        assert_eq!(abi, 1, "{name}");
+    }
 }
 
 #[test]
-fn manifest_names_original_author() {
-    let (engine, module) = load();
-    let (mut store, inst) = instantiate(&engine, &module);
-    let m = inst
-        .get_typed_func::<(), i64>(&store, "pc_manifest")
-        .unwrap()
-        .call(&mut store, ())
-        .unwrap() as u64;
-    let mut buf = vec![0u8; (m >> 32) as usize];
-    inst.get_memory(&store, "memory")
-        .unwrap()
-        .read(&store, (m & 0xffff_ffff) as usize, &mut buf)
-        .unwrap();
-    let manifest: serde_json::Value = serde_json::from_slice(&buf).unwrap();
-
-    assert_eq!(manifest["id"], "local.underwater-color-correction");
-    assert_eq!(manifest["kind"], "filter");
-    assert!(manifest["author"].as_str().unwrap().contains("Nikolaj Bech Andersen"));
-    assert!(manifest["description"].as_str().unwrap().contains("Nikolaj Bech Andersen"));
-    assert!(manifest["name"].as_str().unwrap().chars().count() <= 64);
+fn manifests_name_original_author() {
+    for (name, id) in [
+        (EXPERT, "local.underwater-color-correction"),
+        (RED, "local.underwater-red-restore"),
+    ] {
+        let m = manifest(name);
+        assert_eq!(m["id"], id);
+        assert_eq!(m["kind"], "filter");
+        assert!(m["author"].as_str().unwrap().contains("Nikolaj Bech Andersen"), "{name}");
+        assert!(m["description"].as_str().unwrap().contains("Nikolaj Bech Andersen"), "{name}");
+        assert!(m["name"].as_str().unwrap().chars().count() <= 64, "{name}");
+    }
 }
 
 #[test]
-fn defaults_leave_pixels_unchanged() {
+fn expert_defaults_leave_pixels_unchanged() {
     let px = sample_pixels();
-    let (rc, out) = run_filter(&px, 4, RGB8_ALPHA, "{}");
+    let (rc, out) = run_filter(EXPERT, &px, 4, RGB8_ALPHA, "{}");
     assert_eq!(rc, 0);
     assert_close(&out, &px);
 }
 
 #[test]
-fn matches_core_transform() {
+fn expert_matches_core_transform() {
     let c = Correction {
         hue_shift: 47.0,
         red: Levels { low: 12.0, high: 190.0 },
@@ -146,25 +172,44 @@ fn matches_core_transform() {
         "_image": {"x": 0, "y": 0, "width": 64, "height": 1, "overlap": 0, "mode": "rgb", "depth": 8, "alpha": true, "channels": 4}}"#;
 
     let px = sample_pixels();
-    let t = Transform::new(&c);
-    let expected: Vec<f32> = px
-        .chunks(4)
-        .flat_map(|p| {
-            let (r, g, b) = t.apply(p[0], p[1], p[2]);
-            let mix = |o: f32, n: f32| o + (n.clamp(0.0, 1.0) - o) * 0.5;
-            [mix(p[0], r), mix(p[1], g), mix(p[2], b), p[3]]
-        })
-        .collect();
-
-    let (rc, out) = run_filter(&px, 4, RGB8_ALPHA, params);
+    let expected = reference(&px, &Transform::new(&c), 0.5, &[0, 1, 2]);
+    let (rc, out) = run_filter(EXPERT, &px, 4, RGB8_ALPHA, params);
     assert_eq!(rc, 0);
     assert_close(&out, &expected);
 }
 
 #[test]
+fn red_default_matches_manifest_and_core() {
+    let default = manifest(RED)["params"]["hueShift"]["default"].as_f64().unwrap();
+    let t = Transform::new(&Correction { hue_shift: default, ..Correction::NONE });
+
+    let px = sample_pixels();
+    let expected = reference(&px, &t, 1.0, &[0]);
+    let (rc, out) = run_filter(RED, &px, 4, RGB8_ALPHA, "{}");
+    assert_eq!(rc, 0);
+    assert_close(&out, &expected);
+    assert_ne!(out[0], px[0], "Rot muss sich ändern");
+}
+
+#[test]
+fn red_strength_and_zero_shift() {
+    let px = sample_pixels();
+    let t = Transform::new(&Correction { hue_shift: 100.0, ..Correction::NONE });
+    let (rc, out) = run_filter(RED, &px, 4, RGB8_ALPHA, r#"{"hueShift": 100, "strength": 25}"#);
+    assert_eq!(rc, 0);
+    assert_close(&out, &reference(&px, &t, 0.25, &[0]));
+
+    let (rc, out) = run_filter(RED, &px, 4, RGB8_ALPHA, r#"{"hueShift": 0}"#);
+    assert_eq!(rc, 0);
+    assert_close(&out, &px);
+}
+
+#[test]
 fn rejects_non_rgb() {
     let gray = [0.2f32, 1.0, 0.5, 1.0];
-    let (rc, out) = run_filter(&gray, 2, 8 | 1 << 8 | 1 << 16, "{}");
-    assert_eq!(rc, 2);
-    assert_close(&out, &gray);
+    for name in [EXPERT, RED] {
+        let (rc, out) = run_filter(name, &gray, 2, 8 | 1 << 8 | 1 << 16, "{}");
+        assert_eq!(rc, 2, "{name}");
+        assert_close(&out, &gray);
+    }
 }

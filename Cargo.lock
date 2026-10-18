@@ -390,6 +390,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "uwcc-plugin-red"
+version = "0.1.0"
+dependencies = [
+ "uwcc-core",
+]
+
+[[package]]
 name = "uwcc-plugin-tests"
 version = "0.1.0"
 dependencies = [

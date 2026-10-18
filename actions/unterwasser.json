@@ -1,0 +1,4 @@
+[
+  {"command": "plugin.run", "params": {"id": "local.underwater-red-restore", "params": {"hueShift": 80, "strength": 100}}},
+  {"command": "image.autoTone", "params": {}}
+]
