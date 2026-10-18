@@ -5,7 +5,7 @@
 //!
 //! `no_std`, kein Allocator, keine Imports: PhotoCraft lehnt Module mit Host-Imports ab.
 //! Das Plug-in sieht immer nur einen Streifen des Bildes; die Werte für das ganze Bild
-//! ermittelt `uwcc-analyze`.
+//! ermitteln `uwcc-gui` (unterwasser-analyse.exe) oder `uwcc-analyze`.
 #![cfg(target_arch = "wasm32")]
 #![no_std]
 
@@ -22,7 +22,7 @@ const MANIFEST: &str = r#"{
   "version": "0.1.0",
   "kind": "filter",
   "author": "Nikolaj Bech Andersen (Algorithmus), Marc Lob (PhotoCraft-Plug-in)",
-  "description": "Stellt das von Wasser geschluckte Rot wieder her und spreizt die Farbkanäle, 1:1 wie das Original. Algorithmus: underwater-image-color-correction von Nikolaj Bech Andersen, github.com/nikolajbech/underwater-image-color-correction (GPL-3.0). Die Werte für ein Foto ermittelt uwcc-analyze.",
+  "description": "Stellt das von Wasser geschluckte Rot wieder her und spreizt die Farbkanäle, 1:1 wie das Original. Algorithmus: underwater-image-color-correction von Nikolaj Bech Andersen, github.com/nikolajbech/underwater-image-color-correction (GPL-3.0). Die Werte für ein Foto ermittelt das Programm unterwasser-analyse.",
   "params": {
     "hueShift":  {"type": "int", "min": 0, "max": 180, "default": 0},
     "redLow":    {"type": "int", "min": 0, "max": 255, "default": 0},

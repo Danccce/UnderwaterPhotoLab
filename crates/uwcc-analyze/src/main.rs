@@ -61,7 +61,7 @@ fn main() -> ExitCode {
 
     println!("{path} ({width} × {height} px)");
     println!();
-    println!("Werte für Filter › Plug-ins › Unterwasser-Farbkorrektur…:");
+    println!("Werte für Filter › Plug-ins › Unterwasser-Farbkorrektur (Experte)…:");
     println!("  hueShift   {}", c.hue_shift);
     println!("  redLow     {:<6} redHigh    {}", c.red.low, c.red.high);
     println!("  greenLow   {:<6} greenHigh  {}", c.green.low, c.green.high);

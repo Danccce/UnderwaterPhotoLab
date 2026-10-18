@@ -4,6 +4,7 @@ members = [
     "crates/uwcc-plugin",
     "crates/uwcc-plugin-red",
     "crates/uwcc-analyze",
+    "crates/uwcc-gui",
     "crates/uwcc-plugin-tests",
 ]
 resolver = "2"

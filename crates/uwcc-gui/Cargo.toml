@@ -1,0 +1,26 @@
+[package]
+name = "uwcc-gui"
+description = "Drag-and-drop analysis window for the underwater colour correction"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "unterwasser-analyse"
+path = "src/main.rs"
+
+[dependencies]
+uwcc-core.workspace = true
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
+slint = { version = "~1.18", features = ["unstable-winit-030"] }
+arboard = { version = "3", default-features = false }
+rfd = "0.15"
+serde_json = "1"
+
+[dev-dependencies]
+base64 = "0.22"
+
+[build-dependencies]
+slint-build = "~1.18"
