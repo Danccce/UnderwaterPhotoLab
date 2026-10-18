@@ -1,2 +1,3 @@
-[build]
-target = "wasm32-unknown-unknown"
+[alias]
+plugin = "build --release -p uwcc-plugin --target wasm32-unknown-unknown"
+analyze = "run --release -q -p uwcc-analyze --"

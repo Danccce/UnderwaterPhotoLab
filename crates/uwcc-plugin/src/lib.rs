@@ -1,7 +1,15 @@
 //! Unterwasser-Farbkorrektur als PhotoCraft-Plug-in (Plug-in-ABI v1).
 //!
+//! Algorithmus: „underwater-image-color-correction“ von Nikolaj Bech Andersen,
+//! <https://github.com/nikolajbech/underwater-image-color-correction> (GPL-3.0).
+//!
 //! `no_std`, kein Allocator, keine Imports: PhotoCraft lehnt Module mit Host-Imports ab.
+//! Das Plug-in sieht immer nur einen Streifen des Bildes; die Werte für das ganze Bild
+//! ermittelt `uwcc-analyze`.
+#![cfg(target_arch = "wasm32")]
 #![no_std]
+
+use uwcc_core::{Correction, Levels, Transform};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -13,9 +21,18 @@ const MANIFEST: &str = r#"{
   "name": "Unterwasser-Farbkorrektur…",
   "version": "0.1.0",
   "kind": "filter",
-  "author": "marcl",
-  "description": "Korrigiert den Blau-/Grünstich von Unterwasserfotos.",
-  "params": {},
+  "author": "Nikolaj Bech Andersen (Algorithmus), Marc Lob (PhotoCraft-Plug-in)",
+  "description": "Stellt das von Wasser geschluckte Rot wieder her und spreizt die Farbkanäle. Algorithmus: underwater-image-color-correction von Nikolaj Bech Andersen, github.com/nikolajbech/underwater-image-color-correction (GPL-3.0). Die Werte für ein Foto ermittelt uwcc-analyze.",
+  "params": {
+    "hueShift":  {"type": "int", "min": 0, "max": 180, "default": 0},
+    "redLow":    {"type": "int", "min": 0, "max": 255, "default": 0},
+    "redHigh":   {"type": "int", "min": 1, "max": 256, "default": 256},
+    "greenLow":  {"type": "int", "min": 0, "max": 255, "default": 0},
+    "greenHigh": {"type": "int", "min": 1, "max": 256, "default": 256},
+    "blueLow":   {"type": "int", "min": 0, "max": 255, "default": 0},
+    "blueHigh":  {"type": "int", "min": 1, "max": 256, "default": 256},
+    "strength":  {"type": "number", "min": 0, "max": 100, "default": 100}
+  },
   "overlap": 0,
   "area": "content"
 }"#;
@@ -31,11 +48,33 @@ const ERR_NO_CHANNELS: i32 = 1;
 const ERR_UNSUPPORTED_MODE: i32 = 2;
 const ERR_BAD_PARAMS: i32 = 3;
 
-struct FilterParams {}
+struct FilterParams {
+    correction: Correction,
+    /// 0.0 = Original, 1.0 = volle Korrektur.
+    strength: f32,
+}
 
 impl FilterParams {
-    fn parse(_json: &[u8]) -> Option<Self> {
-        Some(Self {})
+    fn parse(json: &[u8]) -> Option<Self> {
+        let num = |key: &[u8], default: f64| match top_level_value(json, key) {
+            Some(v) => parse_f64(v),
+            None => Some(default),
+        };
+        let levels = |low: &[u8], high: &[u8]| {
+            Some(Levels {
+                low: num(low, Levels::FULL.low)?,
+                high: num(high, Levels::FULL.high)?,
+            })
+        };
+        Some(Self {
+            correction: Correction {
+                hue_shift: num(b"hueShift", 0.0)?,
+                red: levels(b"redLow", b"redHigh")?,
+                green: levels(b"greenLow", b"greenHigh")?,
+                blue: levels(b"blueLow", b"blueHigh")?,
+            },
+            strength: (num(b"strength", 100.0)? / 100.0) as f32,
+        })
     }
 }
 
@@ -86,16 +125,26 @@ pub unsafe extern "C" fn pc_filter(
     } else {
         unsafe { core::slice::from_raw_parts(params, params_len as usize) }
     };
-    let Some(_p) = FilterParams::parse(json) else {
+    let Some(p) = FilterParams::parse(json) else {
         return ERR_BAD_PARAMS;
     };
     let px = unsafe { core::slice::from_raw_parts_mut(buf, len as usize / 4) };
     let colour = if format & HAS_ALPHA != 0 { n - 1 } else { n };
+    // 32-Bit-Dokumente dürfen Werte über 1 enthalten.
+    let max = if format & 0xff == 32 { f32::INFINITY } else { 1.0 };
 
     match (colour, (format >> 16) & 0xff) {
         (3, MODE_RGB | MODE_INDEXED) => {
-            for _c in px.chunks_exact_mut(n) {
-                // Farbkorrektur folgt.
+            let t = Transform::new(&p.correction);
+            let s = p.strength;
+            for c in px.chunks_exact_mut(n) {
+                let r = c[0];
+                let g = c[1];
+                let b = c[2];
+                let (nr, ng, nb) = t.apply(r, g, b);
+                c[0] = r + (nr.clamp(0.0, max) - r) * s;
+                c[1] = g + (ng.clamp(0.0, max) - g) * s;
+                c[2] = b + (nb.clamp(0.0, max) - b) * s;
             }
         }
         _ => return ERR_UNSUPPORTED_MODE,
@@ -105,7 +154,6 @@ pub unsafe extern "C" fn pc_filter(
 
 /// Wert eines Schlüssels auf oberster Ebene des Parameter-JSON (Strings ohne Anführungszeichen).
 /// Verschachtelte Objekte wie `_image` werden übersprungen, sie enthalten ebenfalls `"mode"`.
-#[allow(dead_code)]
 fn top_level_value<'a>(json: &'a [u8], key: &[u8]) -> Option<&'a [u8]> {
     let mut depth = 0u32;
     let mut i = 0;
@@ -163,7 +211,6 @@ fn scalar_at(json: &[u8], i: usize) -> Option<&[u8]> {
     Some(&rest[..len])
 }
 
-#[allow(dead_code)]
-fn parse_f32(v: &[u8]) -> Option<f32> {
+fn parse_f64(v: &[u8]) -> Option<f64> {
     core::str::from_utf8(v).ok()?.parse().ok()
 }

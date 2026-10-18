@@ -1,0 +1,15 @@
+[package]
+name = "uwcc-plugin"
+description = "PhotoCraft WebAssembly filter plug-in: underwater colour correction"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[lib]
+name = "underwater_color_correction"
+crate-type = ["cdylib"]
+
+[dependencies]
+uwcc-core.workspace = true

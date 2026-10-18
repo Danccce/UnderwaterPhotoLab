@@ -1,14 +1,21 @@
-[package]
-name = "underwater-color-correction"
-description = "PhotoCraft WebAssembly filter plug-in: underwater colour correction"
+[workspace]
+members = [
+    "crates/uwcc-core",
+    "crates/uwcc-plugin",
+    "crates/uwcc-analyze",
+    "crates/uwcc-plugin-tests",
+]
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+license = "GPL-3.0-only"
+authors = ["Marc Lob", "Nikolaj Bech Andersen (original algorithm)"]
 publish = false
 
-[lib]
-crate-type = ["cdylib"]
-
-[dependencies]
+[workspace.dependencies]
+uwcc-core = { path = "crates/uwcc-core" }
 
 [profile.release]
 opt-level = "s"
