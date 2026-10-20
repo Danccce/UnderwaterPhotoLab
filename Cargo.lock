@@ -4879,6 +4879,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "uwcc-lab"
+version = "0.1.0"
+dependencies = [
+ "rfd",
+ "slint",
+ "slint-build",
+ "uwcc-core",
+ "uwcc-photo",
+]
+
+[[package]]
 name = "uwcc-photo"
 version = "0.1.0"
 dependencies = [

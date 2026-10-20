@@ -93,13 +93,16 @@ ein Bild öffnen ≈ 0,4 s, Export in voller Auflösung ≈ 1,8 s (für Phase 6:
 
 ### Phase 2 – App-Gerüst (`uwcc-lab`)
 
-- [ ] 2.1 Neues Crate mit Slint (`~1.18`), Fenster „UnderwaterPhotoLab“
-- [ ] 2.2 Layout: große Vorschau (Mitte), Reglerleiste (rechts, ca. 300 px), Bildleiste (unten, ca. 130 px)
-- [ ] 2.3 „Ordner öffnen“ (Dialog) und Ordner per Drag-and-drop; Startargument = Ordner oder Bild
-- [ ] 2.4 Bildleiste: waagerecht scrollbar (`ScrollView`/`Flickable`), Platzhalter sofort, Vorschaubilder im Hintergrund nachladen (EXIF-Vorschaubild zuerst)
-- [ ] 2.5 Begrenzte Hintergrund-Threads (z. B. 4), damit der Speicher bei 24-MP-Bildern im Rahmen bleibt
+- [x] 2.1 Neues Crate mit Slint (`~1.18`), Fenster „UnderwaterPhotoLab“
+- [x] 2.2 Layout: große Vorschau (Mitte), Reglerleiste (rechts, ca. 300 px), Bildleiste (unten, ca. 130 px)
+- [x] 2.3 „Ordner öffnen“ (Dialog) und Ordner per Drag-and-drop; Startargument = Ordner oder Bild
+- [x] 2.4 Bildleiste: waagerecht scrollbar (`ScrollView`/`Flickable`), Platzhalter sofort, Vorschaubilder im Hintergrund nachladen (EXIF-Vorschaubild zuerst)
+- [x] 2.5 Begrenzte Hintergrund-Threads (z. B. 4), damit der Speicher bei 24-MP-Bildern im Rahmen bleibt
 
 Abnahme: Ordner mit ca. 200 JPGs zeigt die Leiste nach < 2 s, das Fenster bleibt bedienbar.
+Erledigt: `uw-fotos` mit 402 Bildern, alle Vorschaubilder in 0,22 s. Fenster startet maximiert, dunkles Design,
+senkrechtes Mausrad scrollt die Leiste seitwärts. Per Screenshot geprüft: Start mit Ordner als Argument;
+Drag-and-drop, Dialog und Klick-Auswahl sind gebaut, aber noch nicht von Hand getestet.
 
 ### Phase 3 – Vorschau und Vergleich
 

@@ -1,0 +1,176 @@
+import { Button, Palette, ScrollView } from "std-widgets.slint";
+
+export struct Thumb {
+    image: image,
+    name: string,
+    loaded: bool,
+    failed: bool,
+}
+
+export component LabWindow inherits Window {
+    title: "UnderwaterPhotoLab";
+    preferred-width: 1200px;
+    preferred-height: 780px;
+    min-width: 960px;
+    min-height: 620px;
+
+    in property <[Thumb]> thumbs;
+    in-out property <int> current: -1;
+    in property <string> folder;
+    in property <string> status;
+    in property <bool> drag-over;
+    in property <image> preview;
+    in property <bool> has-preview;
+
+    callback open-folder();
+    callback thumb-clicked(int);
+
+    property <length> cell-width: 132px;
+    property <length> cell-gap: 8px;
+
+    init => {
+        Palette.color-scheme = ColorScheme.dark;
+    }
+
+    VerticalLayout {
+        HorizontalLayout {
+            vertical-stretch: 1;
+
+            // Vorschau
+            Rectangle {
+                horizontal-stretch: 1;
+                background: #141518;
+
+                if root.has-preview: Image {
+                    width: 100%;
+                    height: 100%;
+                    source: root.preview;
+                    image-fit: contain;
+                }
+                if !root.has-preview: Text {
+                    text: root.thumbs.length == 0 ? "Ordner öffnen oder hierher ziehen" : "Bild in der Leiste auswählen";
+                    color: #8a8f98;
+                    font-size: 20px;
+                }
+                if root.drag-over: Rectangle {
+                    border-width: 3px;
+                    border-color: #2a7fff;
+                    background: #2a7fff22;
+                }
+            }
+
+            // Reglerleiste
+            Rectangle {
+                width: 300px;
+                background: Palette.alternate-background;
+
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 10px;
+
+                    Button {
+                        text: "Ordner öffnen …";
+                        primary: true;
+                        clicked => {
+                            root.open-folder();
+                        }
+                    }
+                    Text {
+                        text: root.folder;
+                        wrap: word-wrap;
+                        color: #8a8f98;
+                        font-size: 12px;
+                    }
+                    Rectangle {
+                        vertical-stretch: 1;
+                    }
+                    Text {
+                        text: root.status;
+                        wrap: word-wrap;
+                        color: #8a8f98;
+                        font-size: 12px;
+                    }
+                }
+            }
+        }
+
+        // Bildleiste
+        Rectangle {
+            height: 150px;
+            background: Palette.alternate-background;
+
+            Rectangle {
+                y: 0;
+                height: 1px;
+                background: #00000060;
+            }
+
+            // Slint scrollt eine nur waagerecht scrollbare Liste nicht mit dem senkrechten Mausrad.
+            TouchArea {
+                scroll-event(event) => {
+                    if event.delta-y == 0px {
+                        return reject;
+                    }
+                    strip.content-x = clamp(
+                        strip.content-x + event.delta-y,
+                        min(0px, strip.visible-width - strip.content-width),
+                        0px);
+                    accept
+                }
+
+                strip := ScrollView {
+                    width: 100%;
+                    height: 100%;
+                    content-width: root.thumbs.length * (root.cell-width + root.cell-gap) + root.cell-gap;
+                    content-height: self.visible-height;
+
+                    for thumb[i] in root.thumbs: Rectangle {
+                        x: root.cell-gap + i * (root.cell-width + root.cell-gap);
+                        y: 10px;
+                        width: root.cell-width;
+                        height: 118px;
+                        border-radius: 6px;
+                        border-width: 2px;
+                        border-color: i == root.current ? #2a7fff : transparent;
+                        background: i == root.current ? #2a7fff33 : #2b2d31;
+
+                        Image {
+                            x: 6px;
+                            y: 6px;
+                            width: parent.width - 12px;
+                            height: 88px;
+                            source: thumb.image;
+                            image-fit: contain;
+                        }
+                        if !thumb.loaded: Text {
+                            y: 40px;
+                            text: "…";
+                            color: #6b7078;
+                        }
+                        if thumb.failed: Text {
+                            y: 40px;
+                            text: "nicht lesbar";
+                            color: #e5484d;
+                            font-size: 11px;
+                        }
+                        Text {
+                            x: 6px;
+                            y: 98px;
+                            width: parent.width - 12px;
+                            text: thumb.name;
+                            font-size: 11px;
+                            color: #c8ccd2;
+                            overflow: elide;
+                            horizontal-alignment: center;
+                        }
+                        TouchArea {
+                            clicked => {
+                                root.thumb-clicked(i);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
