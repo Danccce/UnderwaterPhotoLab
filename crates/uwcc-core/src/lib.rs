@@ -8,7 +8,10 @@
 //! `no_std`, damit das PhotoCraft-Plug-in denselben Code nutzen kann.
 #![no_std]
 
+pub mod adjust;
 pub mod params;
+
+pub use adjust::{process_rgba8, Delta, LevelsDelta, Settings};
 
 use core::f64::consts::PI;
 

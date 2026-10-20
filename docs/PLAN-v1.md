@@ -65,15 +65,16 @@ Jede Phase endet mit grünen Tests und einem eigenen Commit.
 
 ### Phase 0 – Kern erweitern (`uwcc-core`)
 
-- [ ] 0.1 `Settings` und `Delta` wie oben anlegen, inkl. Standardwerten (= reine Auto-Korrektur, 100 %)
-- [ ] 0.2 `Settings::resolve(auto: Correction) -> Correction` (Auto + Abweichung, Grenzen einhalten)
-- [ ] 0.3 Rotverstärkung begrenzen (`red_limit` auf die Rot-Zeile der Matrix)
-- [ ] 0.4 Weißabgleich: Temperatur/Tint → Kanalfaktoren; Funktion `neutral_from_sample(r, g, b)` für die Pipette
-- [ ] 0.5 Vibrance (schwach gesättigte Farben stärker anheben als gesättigte)
-- [ ] 0.6 `process_rgba8(pixels, &Settings, &Correction)` als einzige Pipeline-Funktion
-- [ ] 0.7 Tests: Standardwerte = bisheriges Ergebnis; Stärke 0 = Original; Pipette auf Grau ergibt Grau; Alpha bleibt
+- [x] 0.1 `Settings` und `Delta` wie oben anlegen, inkl. Standardwerten (= reine Auto-Korrektur, 100 %)
+- [x] 0.2 `Settings::resolve(auto: Correction) -> Correction` (Auto + Abweichung, Grenzen einhalten)
+- [x] 0.3 Rotverstärkung begrenzen (`red_limit`: höchstens Faktor 4 Spreizung im Rotkanal, einstellbar)
+- [x] 0.4 Weißabgleich: Temperatur/Tint → Kanalfaktoren (Grau bleibt gleich hell); Pipette `Settings::white_balance_from_sample`
+- [x] 0.5 Vibrance (schwach gesättigte Farben stärker anheben als gesättigte)
+- [x] 0.6 `process_rgba8(pixels, &Settings, &Correction)` als einzige Pipeline-Funktion
+- [x] 0.7 Tests: Standardwerte = bisheriges Ergebnis; Stärke 0 = Original; Pipette auf Grau ergibt Grau; Alpha bleibt
 
 Abnahme: bisherige Tests weiterhin grün, Abgleich mit dem Original-`index.js` unverändert exakt.
+Erledigt: 10 Kern-Tests und 7 Plug-in-Tests grün, Abgleich auf den drei Beispielbildern weiterhin exakt (Abweichung 0).
 
 ### Phase 1 – Bilddateien (`uwcc-photo`)
 
