@@ -3,6 +3,7 @@ members = [
     "crates/uwcc-core",
     "crates/uwcc-plugin",
     "crates/uwcc-plugin-red",
+    "crates/uwcc-photo",
     "crates/uwcc-analyze",
     "crates/uwcc-gui",
     "crates/uwcc-plugin-tests",
@@ -18,6 +19,7 @@ publish = false
 
 [workspace.dependencies]
 uwcc-core = { path = "crates/uwcc-core" }
+uwcc-photo = { path = "crates/uwcc-photo" }
 
 [profile.release]
 opt-level = "s"

@@ -4879,6 +4879,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "uwcc-photo"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "uwcc-core",
+]
+
+[[package]]
 name = "uwcc-plugin"
 version = "0.1.0"
 dependencies = [

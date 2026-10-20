@@ -78,13 +78,18 @@ Erledigt: 10 Kern-Tests und 7 Plug-in-Tests grün, Abgleich auf den drei Beispie
 
 ### Phase 1 – Bilddateien (`uwcc-photo`)
 
-- [ ] 1.1 `Photo::open`: Pixel, EXIF, ICC-Profil und Ausrichtung lesen
-- [ ] 1.2 `Photo::preview(max)`: verkleinert und richtig gedreht
-- [ ] 1.3 EXIF-Vorschaubild auslesen (JPEG im IFD1); Rückfall auf Dekodieren, wenn keins vorhanden ist
-- [ ] 1.4 `scan_folder`: unterstützte Bilder sortiert, ohne `uw-korrigiert\` und `*_uw.*`
-- [ ] 1.5 Export: JPG (Qualität 95) mit EXIF und ICC, erst in Temp-Datei schreiben, dann umbenennen; ein vorhandenes Ergebnis wird ersetzt, ein Original nie (Prüfung: Zielpfad ≠ Quellpfad)
-- [ ] 1.6 Ausgabepfad je nach Modus (`uw-korrigiert\name.jpg` oder `name_uw.jpg`)
-- [ ] 1.7 Tests: EXIF/Orientation bleiben erhalten; Scan ignoriert Ergebnisse; Export überschreibt kein Original
+- [x] 1.1 `Photo::open`: Pixel, EXIF, ICC-Profil und Ausrichtung lesen
+- [x] 1.2 `Photo::preview(max)`: verkleinert und richtig gedreht
+- [x] 1.3 EXIF-Vorschaubild auslesen (JPEG im IFD1); Rückfall auf Dekodieren, wenn keins vorhanden ist
+- [x] 1.4 `scan_folder`: unterstützte Bilder sortiert, ohne `uw-korrigiert\` und `*_uw.*`
+- [x] 1.5 Export: JPG (Qualität 95) mit EXIF und ICC, erst in Temp-Datei schreiben, dann umbenennen; ein vorhandenes Ergebnis wird ersetzt, ein Original nie (Prüfung: Zielpfad ≠ Quellpfad)
+- [x] 1.6 Ausgabepfad je nach Modus (`uw-korrigiert\name.jpg` oder `name_uw.jpg`)
+- [x] 1.7 Tests: EXIF/Orientation bleiben erhalten; Scan ignoriert Ergebnisse; Export überschreibt kein Original
+
+Erledigt: 6 Tests mit erzeugten Bildern grün. Mit `uw-fotos` (296 Bilder, Olympus E-M10 II mit 16 MP
+und XZ-1 mit 10 MP; Upload der E-M1-Bilder lief noch):
+alle EXIF-Vorschaubilder in 0,28 s (≈ 1 ms pro Bild), die 3 Hochformate werden richtig gedreht;
+ein Bild öffnen ≈ 0,4 s, Export in voller Auflösung ≈ 1,8 s (für Phase 6: Stapel-Export parallel).
 
 ### Phase 2 – App-Gerüst (`uwcc-lab`)
 

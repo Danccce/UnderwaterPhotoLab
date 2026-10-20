@@ -1,0 +1,12 @@
+[package]
+name = "uwcc-photo"
+description = "Loads photos with metadata, reads EXIF thumbnails, scans folders and exports corrected JPGs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+uwcc-core.workspace = true
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
