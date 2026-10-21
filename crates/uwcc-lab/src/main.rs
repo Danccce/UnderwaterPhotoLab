@@ -120,6 +120,12 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
     let weak = app.as_weak();
+    app.on_reset_field(move |field| {
+        if let Some(app) = weak.upgrade() {
+            controls::reset_field(&app, &field);
+        }
+    });
+    let weak = app.as_weak();
     app.on_pick(move |x, y, w, h| {
         if let Some(app) = weak.upgrade() {
             controls::pick(&app, x, y, w, h);

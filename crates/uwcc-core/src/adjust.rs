@@ -203,6 +203,43 @@ impl Settings {
     }
 }
 
+impl Settings {
+    /// Setzt nur `field` auf den Wert, den es nach „Zurücksetzen“ hätte (Standard bzw. der
+    /// Auto-Wert), ohne die anderen Felder zu ändern. Ist Auto aus, wird die Abweichung so
+    /// gewählt, dass der Auto-Wert trotzdem erreicht wird.
+    pub fn reset_field(&mut self, field: Field, auto: &Correction) {
+        let defaults = Settings::default();
+        let target = |auto_value: f64, none_value: f64| if self.auto { 0.0 } else { auto_value - none_value };
+        let none = Correction::NONE;
+        let value_of = |c: &Correction| match field {
+            Field::HueShift => c.hue_shift,
+            Field::RedLow => c.red.low,
+            Field::RedHigh => c.red.high,
+            Field::GreenLow => c.green.low,
+            Field::GreenHigh => c.green.high,
+            Field::BlueLow => c.blue.low,
+            Field::BlueHigh => c.blue.high,
+            _ => 0.0,
+        };
+        let delta = target(value_of(auto), value_of(&none));
+        let d = &mut self.delta;
+        match field {
+            Field::Strength => self.strength = defaults.strength,
+            Field::Temperature => self.temperature = defaults.temperature,
+            Field::Tint => self.tint = defaults.tint,
+            Field::Vibrance => self.vibrance = defaults.vibrance,
+            Field::RedLimit => self.red_limit = defaults.red_limit,
+            Field::HueShift => d.hue_shift = delta,
+            Field::RedLow => d.red.low = delta,
+            Field::RedHigh => d.red.high = delta,
+            Field::GreenLow => d.green.low = delta,
+            Field::GreenHigh => d.green.high = delta,
+            Field::BlueLow => d.blue.low = delta,
+            Field::BlueHigh => d.blue.high = delta,
+        }
+    }
+}
+
 fn shift(l: Levels, d: LevelsDelta) -> Levels {
     let low = (l.low + d.low).clamp(0.0, 255.0);
     let high = (l.high + d.high).clamp(low + 1.0, 256.0);
@@ -331,6 +368,33 @@ mod tests {
 
         for f in Field::ALL {
             assert_eq!(Field::from_name(f.name()), Some(f));
+        }
+    }
+
+    #[test]
+    fn reset_field_touches_only_that_field() {
+        let mut s = Settings { temperature: 30.0, tint: -20.0, strength: 0.5, ..Settings::default() };
+        s.set_effective(Field::HueShift, 90.0, &AUTO);
+        s.set_effective(Field::BlueLow, 50.0, &AUTO);
+        let before = s;
+
+        s.reset_field(Field::Temperature, &AUTO);
+        assert_eq!(s.temperature, 0.0);
+        assert_eq!(Settings { temperature: before.temperature, ..s }, before, "nur Temperatur geändert");
+
+        s.reset_field(Field::HueShift, &AUTO);
+        assert_eq!(s.effective(Field::HueShift, &AUTO), 61.0, "zurück auf den Auto-Wert");
+        assert_eq!(s.effective(Field::BlueLow, &AUTO), 50.0);
+        assert_eq!(s.tint, -20.0);
+
+        s.auto = false;
+        s.reset_field(Field::HueShift, &AUTO);
+        assert_eq!(s.effective(Field::HueShift, &AUTO), 61.0, "auch ohne Auto der Wert von „Zurücksetzen“");
+
+        for f in Field::ALL {
+            let mut one = before;
+            one.reset_field(f, &AUTO);
+            assert_eq!(one.effective(f, &AUTO), Settings::default().effective(f, &AUTO), "{f:?}");
         }
     }
 

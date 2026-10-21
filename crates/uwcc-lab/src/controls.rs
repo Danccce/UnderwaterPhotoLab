@@ -27,6 +27,13 @@ pub fn reset(app: &LabWindow) {
     update(app, |s, _| *s = Settings::default());
 }
 
+/// Doppelklick auf einen Regler: nur dieses Feld zurücksetzen.
+pub fn reset_field(app: &LabWindow, field: &str) {
+    if let Some(field) = Field::from_name(field) {
+        update(app, |s, auto| s.reset_field(field, auto));
+    }
+}
+
 /// Pipette: `(x, y)` im Vorschaufeld der Größe `(w, h)`; setzt Temperatur und Tint so, dass
 /// die Stelle neutral grau wird.
 pub fn pick(app: &LabWindow, x: f32, y: f32, w: f32, h: f32) {

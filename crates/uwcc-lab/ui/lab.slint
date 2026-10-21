@@ -1,4 +1,4 @@
-import { Button, CheckBox, Palette, ScrollView, Slider } from "std-widgets.slint";
+import { Button, CheckBox, Palette, ScrollView } from "std-widgets.slint";
 
 export struct Thumb {
     image: image,
@@ -8,14 +8,82 @@ export struct Thumb {
     edited: bool,
 }
 
+// Eigener Regler statt `Slider`, weil dessen Doppelklick nicht abzufangen ist.
+component ValueSlider inherits Rectangle {
+    in property <float> minimum;
+    in property <float> maximum;
+    in-out property <float> value;
+    in property <bool> enabled: true;
+    callback changed(float);
+    callback released();
+    callback double-clicked();
+    height: 22px;
+
+    property <length> knob: 16px;
+    property <float> fraction: clamp((root.value - root.minimum) / (root.maximum - root.minimum), 0, 1);
+    property <brush> accent: root.enabled ? Palette.accent-background : #5a5d65;
+
+    function set-from(x: length) {
+        root.value = clamp(root.minimum + (x - root.knob / 2) / (root.width - root.knob) * (root.maximum - root.minimum), root.minimum, root.maximum);
+        root.changed(root.value);
+    }
+
+    Rectangle {
+        y: (root.height - 4px) / 2;
+        height: 4px;
+        border-radius: 2px;
+        background: #4a4d55;
+    }
+    Rectangle {
+        x: 0;
+        y: (root.height - 4px) / 2;
+        width: (root.width - root.knob) * root.fraction + root.knob / 2;
+        height: 4px;
+        border-radius: 2px;
+        background: root.accent;
+    }
+    Rectangle {
+        x: (root.width - root.knob) * root.fraction;
+        y: (root.height - root.knob) / 2;
+        width: root.knob;
+        height: root.knob;
+        border-radius: root.knob / 2;
+        background: root.accent;
+        border-width: 2px;
+        border-color: #1e1f22;
+    }
+    TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        pointer-event(event) => {
+            if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                root.set-from(self.mouse-x);
+            }
+            if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
+                root.released();
+            }
+        }
+        moved => {
+            if self.pressed {
+                root.set-from(self.mouse-x);
+            }
+        }
+        double-clicked => {
+            root.double-clicked();
+        }
+    }
+}
+
 component SliderRow inherits VerticalLayout {
     in property <string> label;
     in property <string> text;
+    in property <string> field;
     in-out property <float> value;
     in property <float> minimum;
     in property <float> maximum;
     in property <bool> enabled: true;
-    callback edited(float);
+    callback edited(string, float);
+    callback reset(string);
     callback released();
     spacing: 0px;
 
@@ -32,16 +100,19 @@ component SliderRow inherits VerticalLayout {
             color: root.enabled ? #c8ccd2 : #6b7078;
         }
     }
-    Slider {
+    ValueSlider {
         minimum: root.minimum;
         maximum: root.maximum;
         value <=> root.value;
         enabled: root.enabled;
         changed(v) => {
-            root.edited(v);
+            root.edited(root.field, v);
         }
         released => {
             root.released();
+        }
+        double-clicked => {
+            root.reset(root.field);
         }
     }
 }
@@ -110,6 +181,7 @@ export component LabWindow inherits Window {
     callback edited(string, float);
     callback auto-toggled(bool);
     callback reset();
+    callback reset-field(string);
     // Pipette: Klickposition und Größe der Vorschaufläche in logischen Pixeln.
     callback pick(float, float, float, float);
 
@@ -365,7 +437,9 @@ export component LabWindow inherits Window {
                                     maximum: 100;
                                     value <=> root.v-strength;
                                     enabled: root.controls-enabled;
-                                    edited(v) => { root.edited("strength", v); }
+                                    field: "strength";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
                                     released => { keys.focus(); }
                                 }
 
@@ -375,6 +449,12 @@ export component LabWindow inherits Window {
                                 Heading {
                                     text: "Farbe";
                                 }
+                                Text {
+                                    text: "Doppelklick auf einen Regler setzt nur diesen zurück.";
+                                    wrap: word-wrap;
+                                    color: #8a8f98;
+                                    font-size: 11px;
+                                }
                                 SliderRow {
                                     label: "Rot wiederherstellen";
                                     text: round(root.v-hue) + "°";
@@ -382,7 +462,9 @@ export component LabWindow inherits Window {
                                     maximum: 180;
                                     value <=> root.v-hue;
                                     enabled: root.controls-enabled;
-                                    edited(v) => { root.edited("hue", v); }
+                                    field: "hue";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
                                     released => { keys.focus(); }
                                 }
                                 SliderRow {
@@ -392,7 +474,9 @@ export component LabWindow inherits Window {
                                     maximum: 100;
                                     value <=> root.v-temperature;
                                     enabled: root.controls-enabled;
-                                    edited(v) => { root.edited("temperature", v); }
+                                    field: "temperature";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
                                     released => { keys.focus(); }
                                 }
                                 SliderRow {
@@ -402,7 +486,9 @@ export component LabWindow inherits Window {
                                     maximum: 100;
                                     value <=> root.v-tint;
                                     enabled: root.controls-enabled;
-                                    edited(v) => { root.edited("tint", v); }
+                                    field: "tint";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
                                     released => { keys.focus(); }
                                 }
                                 Button {
@@ -418,7 +504,9 @@ export component LabWindow inherits Window {
                                     maximum: 100;
                                     value <=> root.v-vibrance;
                                     enabled: root.controls-enabled;
-                                    edited(v) => { root.edited("vibrance", v); }
+                                    field: "vibrance";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
                                     released => { keys.focus(); }
                                 }
                                 SliderRow {
@@ -428,7 +516,9 @@ export component LabWindow inherits Window {
                                     maximum: 8;
                                     value <=> root.v-red-limit;
                                     enabled: root.controls-enabled;
-                                    edited(v) => { root.edited("red-limit", v); }
+                                    field: "red-limit";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
                                     released => { keys.focus(); }
                                 }
 
@@ -455,7 +545,9 @@ export component LabWindow inherits Window {
                                         maximum: 255;
                                         value <=> root.v-red-low;
                                         enabled: root.controls-enabled;
-                                        edited(v) => { root.edited("red-low", v); }
+                                        field: "red-low";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
                                         released => { keys.focus(); }
                                     }
                                     SliderRow {
@@ -465,7 +557,9 @@ export component LabWindow inherits Window {
                                         maximum: 256;
                                         value <=> root.v-red-high;
                                         enabled: root.controls-enabled;
-                                        edited(v) => { root.edited("red-high", v); }
+                                        field: "red-high";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
                                         released => { keys.focus(); }
                                     }
                                     SliderRow {
@@ -475,7 +569,9 @@ export component LabWindow inherits Window {
                                         maximum: 255;
                                         value <=> root.v-green-low;
                                         enabled: root.controls-enabled;
-                                        edited(v) => { root.edited("green-low", v); }
+                                        field: "green-low";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
                                         released => { keys.focus(); }
                                     }
                                     SliderRow {
@@ -485,7 +581,9 @@ export component LabWindow inherits Window {
                                         maximum: 256;
                                         value <=> root.v-green-high;
                                         enabled: root.controls-enabled;
-                                        edited(v) => { root.edited("green-high", v); }
+                                        field: "green-high";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
                                         released => { keys.focus(); }
                                     }
                                     SliderRow {
@@ -495,7 +593,9 @@ export component LabWindow inherits Window {
                                         maximum: 255;
                                         value <=> root.v-blue-low;
                                         enabled: root.controls-enabled;
-                                        edited(v) => { root.edited("blue-low", v); }
+                                        field: "blue-low";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
                                         released => { keys.focus(); }
                                     }
                                     SliderRow {
@@ -505,7 +605,9 @@ export component LabWindow inherits Window {
                                         maximum: 256;
                                         value <=> root.v-blue-high;
                                         enabled: root.controls-enabled;
-                                        edited(v) => { root.edited("blue-high", v); }
+                                        field: "blue-high";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
                                         released => { keys.focus(); }
                                     }
                                 }
