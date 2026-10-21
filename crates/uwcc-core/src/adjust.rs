@@ -9,8 +9,9 @@ use crate::{Correction, Levels, Transform};
 pub const DEFAULT_RED_LIMIT: f64 = 4.0;
 /// Größter Hue-Shift, wie im Experten-Plug-in.
 pub const MAX_HUE_SHIFT: f64 = 180.0;
-/// ±100 auf den Reglern entspricht einem Faktor e^±1 zwischen Rot und Blau bzw. für Grün.
-const WHITE_BALANCE_SCALE: f32 = 0.01;
+/// ±100 auf den Reglern ergibt Kanalfaktoren e^±0,25 (Rot zu Blau also bis ×1,65). Größere Stiche
+/// nimmt schon die Farbmatrix heraus; mehr Spielraum machte die Regler zu empfindlich.
+const WHITE_BALANCE_SCALE: f32 = 0.0025;
 
 /// Verschiebung von Schwarz- und Weißpunkt eines Kanals (Skala 0–255 wie [`Levels`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -438,16 +439,19 @@ mod tests {
     #[test]
     fn pipette_makes_the_sample_gray() {
         let plain = Settings { auto: false, ..Settings::default() };
-        let (r, g, b) = (90u8, 140u8, 160u8);
+        let (r, g, b) = (120u8, 140u8, 150u8);
         let f = |v: u8| v as f32 / 255.0;
         let (temperature, tint) = plain.white_balance_from_sample(&AUTO, f(r), f(g), f(b));
-        assert!(temperature > 0.0, "bläulich → wärmer");
+        assert!(temperature > 0.0 && temperature < 100.0, "bläulich → wärmer, im Bereich: {temperature}");
 
         let s = Settings { temperature, tint, ..plain };
         let mut px = [r, g, b, 255];
         process_rgba8(&mut px, &s, &AUTO);
         let spread = px[..3].iter().max().unwrap() - px[..3].iter().min().unwrap();
         assert!(spread <= 1, "nicht neutral: {px:?}");
+
+        let (strong, _) = plain.white_balance_from_sample(&AUTO, f(60), f(140), f(170));
+        assert_eq!(strong, 100.0, "starke Stiche enden am Reglerende");
     }
 
     #[test]
