@@ -123,7 +123,10 @@ die Regler kommen in Phase 4.
 - [x] 4.1 Gruppe „Auto“: Auto ein/aus, „Zurücksetzen“, Stärke
 - [x] 4.2 Gruppe „Farbe“: Rot wiederherstellen (Hue-Shift), Temperatur, Grün/Magenta, Dynamik, Rot-Obergrenze
 - [x] 4.3 Pipette: Klick auf neutrale Stelle (Sand, Flosse, Graukarte) setzt Temperatur/Tint
-- [x] 4.4 Einklappbare Gruppe „Experte“: Levels je Kanal (Low/High)
+- [x] 4.4 ~~Einklappbare Gruppe „Experte“: Levels je Kanal (Low/High)~~ – gebaut und auf Wunsch wieder aus dem
+  Fenster genommen: Die Levels stellt nur die Auto-Analyse ein, Feinarbeit an Kontrast/Schwarzpunkt im Nachbearbeitungsprogramm.
+  Der Kern behält die Levels (Experten-Plug-in, „Auto + Abweichung“).
+- [x] 4.6 Doppelklick auf einen Regler setzt nur diesen auf den Wert von „Zurücksetzen“ (`Settings::reset_field`, getestet)
 - [x] 4.5 Regler zeigen wirksame Werte; geänderte Bilder bekommen in der Leiste eine Markierung
 
 Erledigt: Regler-Logik im Kern (`Field`, `Settings::effective` / `set_effective`, getestet: ein Regler ändert

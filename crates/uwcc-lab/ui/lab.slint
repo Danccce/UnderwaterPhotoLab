@@ -168,14 +168,7 @@ export component LabWindow inherits Window {
     in-out property <float> v-tint;
     in-out property <float> v-vibrance;
     in-out property <float> v-red-limit: 4;
-    in-out property <float> v-red-low;
-    in-out property <float> v-red-high: 256;
-    in-out property <float> v-green-low;
-    in-out property <float> v-green-high: 256;
-    in-out property <float> v-blue-low;
-    in-out property <float> v-blue-high: 256;
     in-out property <bool> picking;
-    property <bool> show-expert;
     property <bool> controls-enabled: root.has-preview && !root.loading;
 
     callback edited(string, float);
@@ -520,96 +513,6 @@ export component LabWindow inherits Window {
                                     edited(f, v) => { root.edited(f, v); }
                                     reset(f) => { root.reset-field(f); keys.focus(); }
                                     released => { keys.focus(); }
-                                }
-
-                                Rectangle {
-                                    height: 6px;
-                                }
-                                TouchArea {
-                                    height: expert-heading.preferred-height;
-                                    clicked => {
-                                        root.show-expert = !root.show-expert;
-                                    }
-                                    expert-heading := Heading {
-                                        x: 0;
-                                        width: parent.width;
-                                        text: (root.show-expert ? "▾ " : "▸ ") + "Experte: Levels je Kanal";
-                                    }
-                                }
-                                if root.show-expert: VerticalLayout {
-                                    spacing: 8px;
-                                    SliderRow {
-                                        label: "Rot Schwarzpunkt";
-                                        text: round(root.v-red-low);
-                                        minimum: 0;
-                                        maximum: 255;
-                                        value <=> root.v-red-low;
-                                        enabled: root.controls-enabled;
-                                        field: "red-low";
-                                        edited(f, v) => { root.edited(f, v); }
-                                        reset(f) => { root.reset-field(f); keys.focus(); }
-                                        released => { keys.focus(); }
-                                    }
-                                    SliderRow {
-                                        label: "Rot Weißpunkt";
-                                        text: round(root.v-red-high);
-                                        minimum: 1;
-                                        maximum: 256;
-                                        value <=> root.v-red-high;
-                                        enabled: root.controls-enabled;
-                                        field: "red-high";
-                                        edited(f, v) => { root.edited(f, v); }
-                                        reset(f) => { root.reset-field(f); keys.focus(); }
-                                        released => { keys.focus(); }
-                                    }
-                                    SliderRow {
-                                        label: "Grün Schwarzpunkt";
-                                        text: round(root.v-green-low);
-                                        minimum: 0;
-                                        maximum: 255;
-                                        value <=> root.v-green-low;
-                                        enabled: root.controls-enabled;
-                                        field: "green-low";
-                                        edited(f, v) => { root.edited(f, v); }
-                                        reset(f) => { root.reset-field(f); keys.focus(); }
-                                        released => { keys.focus(); }
-                                    }
-                                    SliderRow {
-                                        label: "Grün Weißpunkt";
-                                        text: round(root.v-green-high);
-                                        minimum: 1;
-                                        maximum: 256;
-                                        value <=> root.v-green-high;
-                                        enabled: root.controls-enabled;
-                                        field: "green-high";
-                                        edited(f, v) => { root.edited(f, v); }
-                                        reset(f) => { root.reset-field(f); keys.focus(); }
-                                        released => { keys.focus(); }
-                                    }
-                                    SliderRow {
-                                        label: "Blau Schwarzpunkt";
-                                        text: round(root.v-blue-low);
-                                        minimum: 0;
-                                        maximum: 255;
-                                        value <=> root.v-blue-low;
-                                        enabled: root.controls-enabled;
-                                        field: "blue-low";
-                                        edited(f, v) => { root.edited(f, v); }
-                                        reset(f) => { root.reset-field(f); keys.focus(); }
-                                        released => { keys.focus(); }
-                                    }
-                                    SliderRow {
-                                        label: "Blau Weißpunkt";
-                                        text: round(root.v-blue-high);
-                                        minimum: 1;
-                                        maximum: 256;
-                                        value <=> root.v-blue-high;
-                                        enabled: root.controls-enabled;
-                                        field: "blue-high";
-                                        edited(f, v) => { root.edited(f, v); }
-                                        reset(f) => { root.reset-field(f); keys.focus(); }
-                                        released => { keys.focus(); }
-                                    }
                                 }
 
                                 Rectangle {
