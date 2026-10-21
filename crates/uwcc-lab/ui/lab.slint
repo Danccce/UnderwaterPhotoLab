@@ -7,165 +7,344 @@ export struct Thumb {
     failed: bool,
 }
 
+component Tag inherits Rectangle {
+    in property <string> text;
+    height: 24px;
+    width: label.preferred-width + 16px;
+    border-radius: 4px;
+    background: #000000a0;
+    label := Text {
+        text: root.text;
+        color: white;
+        font-size: 12px;
+    }
+}
+
 export component LabWindow inherits Window {
     title: "UnderwaterPhotoLab";
     preferred-width: 1200px;
     preferred-height: 780px;
     min-width: 960px;
     min-height: 620px;
+    forward-focus: keys;
 
     in property <[Thumb]> thumbs;
     in-out property <int> current: -1;
     in property <string> folder;
     in property <string> status;
+    in property <string> image-info;
     in property <bool> drag-over;
-    in property <image> preview;
+    in property <image> preview-original;
+    in property <image> preview-corrected;
     in property <bool> has-preview;
+    in property <bool> loading;
+    in-out property <bool> split;
+    in-out property <float> split-pos: 0.5;
 
     callback open-folder();
     callback thumb-clicked(int);
+    callback navigate(int);
 
     property <length> cell-width: 132px;
     property <length> cell-gap: 8px;
+    property <bool> space-held;
+    // Leertaste oder „Vorher“-Knopf: das ganze Bild als Original, auch in der Split-Ansicht.
+    property <bool> hold: root.space-held || before-button.pressed;
+    property <float> original-fraction: root.hold ? 1 : (root.split ? root.split-pos : 0);
+    property <length> current-left: root.cell-gap + root.current * (root.cell-width + root.cell-gap);
 
     init => {
         Palette.color-scheme = ColorScheme.dark;
     }
 
-    VerticalLayout {
-        HorizontalLayout {
-            vertical-stretch: 1;
-
-            // Vorschau
-            Rectangle {
-                horizontal-stretch: 1;
-                background: #141518;
-
-                if root.has-preview: Image {
-                    width: 100%;
-                    height: 100%;
-                    source: root.preview;
-                    image-fit: contain;
-                }
-                if !root.has-preview: Text {
-                    text: root.thumbs.length == 0 ? "Ordner öffnen oder hierher ziehen" : "Bild in der Leiste auswählen";
-                    color: #8a8f98;
-                    font-size: 20px;
-                }
-                if root.drag-over: Rectangle {
-                    border-width: 3px;
-                    border-color: #2a7fff;
-                    background: #2a7fff22;
-                }
+    // Das gewählte Bild in der Leiste sichtbar halten (Pfeiltasten, neuer Ordner).
+    changed current => {
+        if root.current >= 0 {
+            if root.current-left + strip.content-x < 0 {
+                strip.content-x = root.cell-gap - root.current-left;
+            } else if root.current-left + root.cell-width + strip.content-x > strip.visible-width {
+                strip.content-x = strip.visible-width - root.current-left - root.cell-width - root.cell-gap;
             }
+        }
+    }
 
-            // Reglerleiste
-            Rectangle {
-                width: 300px;
-                background: Palette.alternate-background;
+    keys := FocusScope {
+        width: 100%;
+        height: 100%;
 
-                VerticalLayout {
-                    padding: 14px;
-                    spacing: 10px;
-
-                    Button {
-                        text: "Ordner öffnen …";
-                        primary: true;
-                        clicked => {
-                            root.open-folder();
-                        }
-                    }
-                    Text {
-                        text: root.folder;
-                        wrap: word-wrap;
-                        color: #8a8f98;
-                        font-size: 12px;
-                    }
-                    Rectangle {
-                        vertical-stretch: 1;
-                    }
-                    Text {
-                        text: root.status;
-                        wrap: word-wrap;
-                        color: #8a8f98;
-                        font-size: 12px;
-                    }
-                }
+        key-pressed(event) => {
+            if event.text == " " {
+                root.space-held = true;
+                return accept;
+            }
+            if event.text == Key.LeftArrow {
+                root.navigate(-1);
+                return accept;
+            }
+            if event.text == Key.RightArrow {
+                root.navigate(1);
+                return accept;
+            }
+            if (event.text == "s" || event.text == "S") && root.has-preview {
+                root.split = !root.split;
+                return accept;
+            }
+            reject
+        }
+        key-released(event) => {
+            if event.text == " " {
+                root.space-held = false;
+                return accept;
+            }
+            reject
+        }
+        changed has-focus => {
+            if !self.has-focus {
+                root.space-held = false;
             }
         }
 
-        // Bildleiste
-        Rectangle {
-            height: 150px;
-            background: Palette.alternate-background;
+        VerticalLayout {
+            HorizontalLayout {
+                vertical-stretch: 1;
 
-            Rectangle {
-                y: 0;
-                height: 1px;
-                background: #00000060;
-            }
+                // Vorschau: unten das bearbeitete Bild, darüber das Original bis `original-fraction`.
+                preview-box := Rectangle {
+                    horizontal-stretch: 1;
+                    background: #141518;
+                    clip: true;
 
-            // Slint scrollt eine nur waagerecht scrollbare Liste nicht mit dem senkrechten Mausrad.
-            TouchArea {
-                scroll-event(event) => {
-                    if event.delta-y == 0px {
-                        return reject;
+                    if root.has-preview: Image {
+                        width: 100%;
+                        height: 100%;
+                        source: root.preview-corrected;
+                        image-fit: contain;
                     }
-                    strip.content-x = clamp(
-                        strip.content-x + event.delta-y,
-                        min(0px, strip.visible-width - strip.content-width),
-                        0px);
-                    accept
-                }
-
-                strip := ScrollView {
-                    width: 100%;
-                    height: 100%;
-                    content-width: root.thumbs.length * (root.cell-width + root.cell-gap) + root.cell-gap;
-                    content-height: self.visible-height;
-
-                    for thumb[i] in root.thumbs: Rectangle {
-                        x: root.cell-gap + i * (root.cell-width + root.cell-gap);
-                        y: 10px;
-                        width: root.cell-width;
-                        height: 118px;
-                        border-radius: 6px;
-                        border-width: 2px;
-                        border-color: i == root.current ? #2a7fff : transparent;
-                        background: i == root.current ? #2a7fff33 : #2b2d31;
-
+                    if root.has-preview && root.original-fraction > 0: Rectangle {
+                        x: 0;
+                        y: 0;
+                        width: preview-box.width * root.original-fraction;
+                        height: 100%;
+                        clip: true;
                         Image {
-                            x: 6px;
-                            y: 6px;
-                            width: parent.width - 12px;
-                            height: 88px;
-                            source: thumb.image;
+                            x: 0;
+                            y: 0;
+                            width: preview-box.width;
+                            height: preview-box.height;
+                            source: root.preview-original;
                             image-fit: contain;
                         }
-                        if !thumb.loaded: Text {
-                            y: 40px;
-                            text: "…";
-                            color: #6b7078;
+                    }
+                    if root.has-preview && root.split && !root.hold: Rectangle {
+                        x: preview-box.width * root.split-pos - 1px;
+                        width: 2px;
+                        height: 100%;
+                        background: white;
+                    }
+                    if root.has-preview && root.split && !root.hold: Rectangle {
+                        x: preview-box.width * root.split-pos - 14px;
+                        y: preview-box.height / 2 - 14px;
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 14px;
+                        background: white;
+                        Text {
+                            text: "◀▶";
+                            color: #141518;
+                            font-size: 10px;
                         }
-                        if thumb.failed: Text {
-                            y: 40px;
-                            text: "nicht lesbar";
-                            color: #e5484d;
-                            font-size: 11px;
+                    }
+                    if root.has-preview && root.split && !root.hold: Tag {
+                        x: 12px;
+                        y: 12px;
+                        text: "Vorher";
+                    }
+                    if root.has-preview && root.split && !root.hold: Tag {
+                        x: preview-box.width - self.width - 12px;
+                        y: 12px;
+                        text: "Nachher";
+                    }
+                    if root.has-preview && root.hold: Tag {
+                        x: 12px;
+                        y: 12px;
+                        text: "Original";
+                    }
+                    if root.loading: Tag {
+                        x: (preview-box.width - self.width) / 2;
+                        y: 12px;
+                        text: "Lade …";
+                    }
+                    if !root.has-preview: Text {
+                        text: root.thumbs.length == 0 ? "Ordner öffnen oder hierher ziehen" : "Bild in der Leiste auswählen";
+                        color: #8a8f98;
+                        font-size: 20px;
+                    }
+                    if root.drag-over: Rectangle {
+                        border-width: 3px;
+                        border-color: #2a7fff;
+                        background: #2a7fff22;
+                    }
+
+                    TouchArea {
+                        mouse-cursor: root.split && root.has-preview ? MouseCursor.ew-resize : MouseCursor.default;
+                        pointer-event(event) => {
+                            if event.kind == PointerEventKind.down {
+                                keys.focus();
+                                if root.split {
+                                    root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
+                                }
+                            }
+                        }
+                        moved => {
+                            if self.pressed && root.split {
+                                root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
+                            }
+                        }
+                    }
+                }
+
+                // Reglerleiste
+                Rectangle {
+                    width: 300px;
+                    background: Palette.alternate-background;
+
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 10px;
+
+                        Button {
+                            text: "Ordner öffnen …";
+                            primary: true;
+                            clicked => {
+                                root.open-folder();
+                                keys.focus();
+                            }
                         }
                         Text {
-                            x: 6px;
-                            y: 98px;
-                            width: parent.width - 12px;
-                            text: thumb.name;
-                            font-size: 11px;
-                            color: #c8ccd2;
-                            overflow: elide;
-                            horizontal-alignment: center;
+                            text: root.folder;
+                            wrap: word-wrap;
+                            color: #8a8f98;
+                            font-size: 12px;
                         }
-                        TouchArea {
+
+                        Text {
+                            text: "Ansicht";
+                            font-weight: 700;
+                        }
+                        before-button := Button {
+                            text: "Vorher (halten oder Leertaste)";
+                            enabled: root.has-preview;
                             clicked => {
-                                root.thumb-clicked(i);
+                                keys.focus();
+                            }
+                        }
+                        Button {
+                            text: "Split-Ansicht";
+                            checkable: true;
+                            checked <=> root.split;
+                            enabled: root.has-preview;
+                            clicked => {
+                                keys.focus();
+                            }
+                        }
+                        Text {
+                            text: "Bild wechseln: ← →    Split-Ansicht: S";
+                            color: #8a8f98;
+                            font-size: 12px;
+                        }
+
+                        Text {
+                            text: root.image-info;
+                            wrap: word-wrap;
+                            font-size: 12px;
+                        }
+                        Rectangle {
+                            vertical-stretch: 1;
+                        }
+                        Text {
+                            text: root.status;
+                            wrap: word-wrap;
+                            color: #8a8f98;
+                            font-size: 12px;
+                        }
+                    }
+                }
+            }
+
+            // Bildleiste
+            Rectangle {
+                height: 150px;
+                background: Palette.alternate-background;
+
+                Rectangle {
+                    y: 0;
+                    height: 1px;
+                    background: #00000060;
+                }
+
+                // Slint scrollt eine nur waagerecht scrollbare Liste nicht mit dem senkrechten Mausrad.
+                TouchArea {
+                    scroll-event(event) => {
+                        if event.delta-y == 0px {
+                            return reject;
+                        }
+                        strip.content-x = clamp(
+                            strip.content-x + event.delta-y,
+                            min(0px, strip.visible-width - strip.content-width),
+                            0px);
+                        accept
+                    }
+
+                    strip := ScrollView {
+                        width: 100%;
+                        height: 100%;
+                        content-width: root.thumbs.length * (root.cell-width + root.cell-gap) + root.cell-gap;
+                        content-height: self.visible-height;
+
+                        for thumb[i] in root.thumbs: Rectangle {
+                            x: root.cell-gap + i * (root.cell-width + root.cell-gap);
+                            y: 10px;
+                            width: root.cell-width;
+                            height: 118px;
+                            border-radius: 6px;
+                            border-width: 2px;
+                            border-color: i == root.current ? #2a7fff : transparent;
+                            background: i == root.current ? #2a7fff33 : #2b2d31;
+
+                            Image {
+                                x: 6px;
+                                y: 6px;
+                                width: parent.width - 12px;
+                                height: 88px;
+                                source: thumb.image;
+                                image-fit: contain;
+                            }
+                            if !thumb.loaded: Text {
+                                y: 40px;
+                                text: "…";
+                                color: #6b7078;
+                            }
+                            if thumb.failed: Text {
+                                y: 40px;
+                                text: "nicht lesbar";
+                                color: #e5484d;
+                                font-size: 11px;
+                            }
+                            Text {
+                                x: 6px;
+                                y: 98px;
+                                width: parent.width - 12px;
+                                text: thumb.name;
+                                font-size: 11px;
+                                color: #c8ccd2;
+                                overflow: elide;
+                                horizontal-alignment: center;
+                            }
+                            TouchArea {
+                                clicked => {
+                                    keys.focus();
+                                    root.thumb-clicked(i);
+                                }
                             }
                         }
                     }

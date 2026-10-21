@@ -12,9 +12,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub use image::RgbaImage;
 use image::{
     codecs::jpeg::JpegEncoder, imageops, metadata::Orientation, DynamicImage, ExtendedColorType,
-    ImageDecoder, ImageEncoder, ImageFormat, ImageReader, RgbaImage,
+    ImageDecoder, ImageEncoder, ImageFormat, ImageReader,
 };
 use uwcc_core::{analyze, process_rgba8, Correction, Settings};
 

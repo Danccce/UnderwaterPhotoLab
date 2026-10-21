@@ -106,11 +106,17 @@ Drag-and-drop, Dialog und Klick-Auswahl sind gebaut, aber noch nicht von Hand ge
 
 ### Phase 3 – Vorschau und Vergleich
 
-- [ ] 3.1 Klick in der Leiste lädt das Bild, analysiert es im Hintergrund und zeigt die Vorschau
-- [ ] 3.2 Vorschau neu rechnen bei jeder Regleränderung (auf max. 1280 px, flüssig beim Ziehen)
-- [ ] 3.3 Leertaste und Knopf „Vorher“ (gedrückt halten) zeigen 100 % Original
-- [ ] 3.4 Split-Modus (Schalter): Trennlinie per Maus ziehen, links Original, rechts bearbeitet
-- [ ] 3.5 Pfeiltasten links/rechts wechseln das Bild
+- [x] 3.1 Klick in der Leiste lädt das Bild, analysiert es im Hintergrund und zeigt die Vorschau
+- [x] 3.2 Vorschau neu rechnen bei jeder Regleränderung (auf max. 1280 px, flüssig beim Ziehen)
+- [x] 3.3 Leertaste und Knopf „Vorher“ (gedrückt halten) zeigen 100 % Original
+- [x] 3.4 Split-Modus (Schalter): Trennlinie per Maus ziehen, links Original, rechts bearbeitet
+- [x] 3.5 Pfeiltasten links/rechts wechseln das Bild
+
+Erledigt: Bis das Bild geladen ist, steht das Vorschaubild aus der Leiste in der Vorschau („Lade …“);
+schnelles Weiterblättern verwirft halb geladene Bilder. Zusätzlich Taste **S** für die Split-Ansicht.
+Die Leiste scrollt zum gewählten Bild mit. Per Screenshot geprüft: Pfeiltasten, Auto-Vorschau, Split-Ansicht.
+Noch nicht von Hand getestet: Leertaste/„Vorher“ halten, Trennlinie ziehen. 3.2 ist als `rerender` vorbereitet,
+die Regler kommen in Phase 4.
 
 ### Phase 4 – Regler
 
