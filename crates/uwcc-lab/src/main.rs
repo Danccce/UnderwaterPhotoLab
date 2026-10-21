@@ -6,11 +6,12 @@
 
 mod controls;
 mod preview;
+mod selection;
 mod strip;
 
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -36,6 +37,10 @@ struct State {
     current: Option<preview::Loaded>,
     /// Einstellungen je Bild in dieser Sitzung (gespeichert werden sie in Phase 6).
     settings: HashMap<PathBuf, uwcc_core::Settings>,
+    /// Ausgewählte Bilder (Indizes in `files`), das aktuelle Bild ist immer dabei.
+    selection: BTreeSet<usize>,
+    /// Vorherige Einstellungen der Bilder der letzten Übernahme (`None` = vorher keine).
+    undo: Option<Vec<(PathBuf, Option<uwcc_core::Settings>)>>,
 }
 
 thread_local! {
@@ -84,9 +89,9 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     let weak = app.as_weak();
-    app.on_thumb_clicked(move |i| {
+    app.on_thumb_pressed(move |i, ctrl, shift| {
         if let Some(app) = weak.upgrade() {
-            select(&app, i);
+            selection::press(&app, i, ctrl, shift);
         }
     });
 
@@ -97,7 +102,39 @@ fn main() -> Result<(), slint::PlatformError> {
             let next = (app.get_current() + step).clamp(0, last.max(0));
             if next != app.get_current() {
                 select(&app, next);
+                selection::single(&app, next);
             }
+        }
+    });
+
+    let weak = app.as_weak();
+    app.on_select_all(move || {
+        if let Some(app) = weak.upgrade() {
+            selection::select_all(&app);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_clear_selection(move || {
+        if let Some(app) = weak.upgrade() {
+            selection::clear(&app);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_transfer_fixed(move || {
+        if let Some(app) = weak.upgrade() {
+            selection::transfer(&app, selection::Transfer::Fixed);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_transfer_relative(move || {
+        if let Some(app) = weak.upgrade() {
+            selection::transfer(&app, selection::Transfer::Relative);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_undo_transfer(move || {
+        if let Some(app) = weak.upgrade() {
+            selection::undo(&app);
         }
     });
 
@@ -167,6 +204,7 @@ fn open(app: &LabWindow, path: &Path) {
                 loaded: false,
                 failed: false,
                 edited: st.settings.get(f).is_some_and(|s| *s != uwcc_core::Settings::default()),
+                selected: false,
             })
             .collect()
     });
@@ -186,10 +224,13 @@ fn open(app: &LabWindow, path: &Path) {
         st.dir = Some(dir);
         st.files = files.clone();
         st.current = None;
+        st.undo = None;
         (st.folder_generation.clone(), st.folder_generation.fetch_add(1, Ordering::SeqCst) + 1)
     });
+    app.set_can_undo_transfer(false);
     strip::load(app.as_weak(), files, counter, generation);
     select(app, selected as i32);
+    selection::single(app, selected as i32);
 }
 
 /// Wählt ein Bild: zeigt sofort das Vorschaubild aus der Leiste und lädt das Bild im Hintergrund.

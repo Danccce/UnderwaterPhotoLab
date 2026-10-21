@@ -77,6 +77,7 @@ fn update(app: &LabWindow, f: impl FnOnce(&mut Settings, &uwcc_core::Correction)
         Some(())
     });
     if changed.is_some() {
+        crate::selection::forget_undo(app);
         refresh(app);
     }
 }

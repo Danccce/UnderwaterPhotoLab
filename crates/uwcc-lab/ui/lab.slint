@@ -6,6 +6,7 @@ export struct Thumb {
     loaded: bool,
     failed: bool,
     edited: bool,
+    selected: bool,
 }
 
 // Eigener Regler statt `Slider`, weil dessen Doppelklick nicht abzufangen ist.
@@ -157,8 +158,17 @@ export component LabWindow inherits Window {
     in-out property <float> split-pos: 0.5;
 
     callback open-folder();
-    callback thumb-clicked(int);
+    // Klick in der Leiste: Index, Strg gedrückt, Umschalt gedrückt.
+    callback thumb-pressed(int, bool, bool);
     callback navigate(int);
+    callback select-all();
+    callback clear-selection();
+
+    in property <int> selected-count;
+    in property <bool> can-undo-transfer;
+    callback transfer-fixed();
+    callback transfer-relative();
+    callback undo-transfer();
 
     // Regler zeigen die wirksamen Werte; Rust schreibt sie nach jeder Änderung zurück.
     in-out property <bool> auto-on: true;
@@ -216,6 +226,14 @@ export component LabWindow inherits Window {
             }
             if event.text == Key.RightArrow {
                 root.navigate(1);
+                return accept;
+            }
+            if event.modifiers.control && (event.text == "a" || event.text == "A") {
+                root.select-all();
+                return accept;
+            }
+            if event.text == Key.Escape {
+                root.clear-selection();
                 return accept;
             }
             if (event.text == "s" || event.text == "S") && root.has-preview {
@@ -518,6 +536,56 @@ export component LabWindow inherits Window {
                                 Rectangle {
                                     height: 6px;
                                 }
+                                Heading {
+                                    text: "Mehrere Bilder";
+                                }
+                                Text {
+                                    text: root.selected-count > 1
+                                        ? root.selected-count + " Bilder ausgewählt. Einstellungen des blau umrandeten Bildes übernehmen:"
+                                        : "Weitere Bilder mit Strg+Klick oder Umschalt+Klick in der Leiste auswählen, Strg+A für alle.";
+                                    wrap: word-wrap;
+                                    color: #8a8f98;
+                                    font-size: 11px;
+                                }
+                                if root.selected-count > 1: Button {
+                                    text: "Gleiche Werte übernehmen";
+                                    enabled: root.controls-enabled;
+                                    clicked => {
+                                        root.transfer-fixed();
+                                        keys.focus();
+                                    }
+                                }
+                                if root.selected-count > 1: Text {
+                                    text: "Jedes Bild bekommt genau dieselbe Korrektur. Für eine Serie aus derselben Situation.";
+                                    wrap: word-wrap;
+                                    color: #8a8f98;
+                                    font-size: 11px;
+                                }
+                                if root.selected-count > 1: Button {
+                                    text: "Auto + Abweichung übernehmen";
+                                    enabled: root.controls-enabled;
+                                    clicked => {
+                                        root.transfer-relative();
+                                        keys.focus();
+                                    }
+                                }
+                                if root.selected-count > 1: Text {
+                                    text: "Jedes Bild behält seine eigene Auto-Analyse, deine Änderungen kommen dazu.";
+                                    wrap: word-wrap;
+                                    color: #8a8f98;
+                                    font-size: 11px;
+                                }
+                                if root.can-undo-transfer: Button {
+                                    text: "Letzte Übernahme rückgängig";
+                                    clicked => {
+                                        root.undo-transfer();
+                                        keys.focus();
+                                    }
+                                }
+
+                                Rectangle {
+                                    height: 6px;
+                                }
                                 Text {
                                     text: root.image-info;
                                     wrap: word-wrap;
@@ -572,8 +640,8 @@ export component LabWindow inherits Window {
                             height: 118px;
                             border-radius: 6px;
                             border-width: 2px;
-                            border-color: i == root.current ? #2a7fff : transparent;
-                            background: i == root.current ? #2a7fff33 : #2b2d31;
+                            border-color: i == root.current ? #2a7fff : (thumb.selected ? #7fb0ff90 : transparent);
+                            background: i == root.current ? #2a7fff33 : (thumb.selected ? #2a7fff1c : #2b2d31);
 
                             Image {
                                 x: 6px;
@@ -615,9 +683,11 @@ export component LabWindow inherits Window {
                                 horizontal-alignment: center;
                             }
                             TouchArea {
-                                clicked => {
-                                    keys.focus();
-                                    root.thumb-clicked(i);
+                                pointer-event(event) => {
+                                    if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                                        keys.focus();
+                                        root.thumb-pressed(i, event.modifiers.control, event.modifiers.shift);
+                                    }
                                 }
                             }
                         }

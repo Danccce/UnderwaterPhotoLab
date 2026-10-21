@@ -138,10 +138,16 @@ Noch nicht von Hand getestet: Regler ziehen, Pipette, Experte aufklappen. Bekann
 
 ### Phase 5 – Mehrfachauswahl
 
-- [ ] 5.1 Strg+Klick und Umschalt+Klick in der Leiste, „Alle auswählen“
-- [ ] 5.2 „Gleiche Werte übernehmen“: feste Werte des aktuellen Bildes auf die Auswahl
-- [ ] 5.3 „Auto + Abweichung übernehmen“: nur `delta` und die übrigen Regler auf die Auswahl, jedes Bild behält seine eigene Analyse
-- [ ] 5.4 Rückgängig für die letzte Übernahme
+- [x] 5.1 Strg+Klick und Umschalt+Klick in der Leiste, „Alle auswählen“
+- [x] 5.2 „Gleiche Werte übernehmen“: feste Werte des aktuellen Bildes auf die Auswahl
+- [x] 5.3 „Auto + Abweichung übernehmen“: nur `delta` und die übrigen Regler auf die Auswahl, jedes Bild behält seine eigene Analyse
+- [x] 5.4 Rückgängig für die letzte Übernahme
+
+Erledigt: Strg+A wählt alle, Esc hebt die Auswahl auf, Pfeiltasten wählen nur das neue Bild. Das blau umrandete
+(aktuelle) Bild ist die Quelle. „Gleiche Werte“ nutzt `Settings::fixed` (getestet: gleiche Wirkung auf jedem Bild,
+unabhängig von dessen Analyse). Rückgängig gilt für die letzte Übernahme und verfällt, sobald ein Regler bewegt wird,
+damit es keine späteren Änderungen überschreibt. Per Screenshot geprüft: Strg+A. Noch nicht von Hand getestet:
+Strg-/Umschalt-Klick, beide Übernahmen, Rückgängig.
 
 ### Phase 6 – Export und Einstellungen speichern
 

@@ -205,6 +205,24 @@ impl Settings {
 }
 
 impl Settings {
+    /// Dieselben Einstellungen als feste Werte: Auto aus und die Abweichung so, dass jedes Bild
+    /// genau die Korrektur bekommt, die `self` mit `auto` ergibt („gleiche Werte übernehmen“).
+    pub fn fixed(&self, auto: &Correction) -> Settings {
+        let c = self.resolve(auto);
+        let n = Correction::NONE;
+        let levels = |l: Levels, base: Levels| LevelsDelta { low: l.low - base.low, high: l.high - base.high };
+        Settings {
+            auto: false,
+            delta: Delta {
+                hue_shift: c.hue_shift - n.hue_shift,
+                red: levels(c.red, n.red),
+                green: levels(c.green, n.green),
+                blue: levels(c.blue, n.blue),
+            },
+            ..*self
+        }
+    }
+
     /// Setzt nur `field` auf den Wert, den es nach „Zurücksetzen“ hätte (Standard bzw. der
     /// Auto-Wert), ohne die anderen Felder zu ändern. Ist Auto aus, wird die Abweichung so
     /// gewählt, dass der Auto-Wert trotzdem erreicht wird.
@@ -370,6 +388,30 @@ mod tests {
         for f in Field::ALL {
             assert_eq!(Field::from_name(f.name()), Some(f));
         }
+    }
+
+    #[test]
+    fn fixed_settings_ignore_the_other_images_analysis() {
+        let other = Correction {
+            hue_shift: 100.0,
+            red: Levels { low: 30.0, high: 120.0 },
+            green: Levels { low: 0.0, high: 256.0 },
+            blue: Levels { low: 50.0, high: 230.0 },
+        };
+        let mut s = Settings { temperature: 12.0, vibrance: 30.0, ..Settings::default() };
+        s.set_effective(Field::HueShift, 75.0, &AUTO);
+
+        let fixed = s.fixed(&AUTO);
+        assert!(!fixed.auto);
+        assert_eq!(fixed.resolve(&other), s.resolve(&AUTO));
+        assert_eq!((fixed.temperature, fixed.vibrance), (12.0, 30.0));
+
+        let (mut a, mut b) = (sample(), sample());
+        process_rgba8(&mut a, &s, &AUTO);
+        process_rgba8(&mut b, &fixed, &other);
+        assert_eq!(a, b, "gleiche Wirkung auf jedem Bild");
+
+        assert_ne!(s.resolve(&other), s.resolve(&AUTO), "relativ übernommen hängt vom Bild ab");
     }
 
     #[test]
