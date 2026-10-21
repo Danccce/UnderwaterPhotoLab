@@ -120,11 +120,18 @@ die Regler kommen in Phase 4.
 
 ### Phase 4 – Regler
 
-- [ ] 4.1 Gruppe „Auto“: Auto ein/aus, „Zurücksetzen“, Stärke
-- [ ] 4.2 Gruppe „Farbe“: Rot wiederherstellen (Hue-Shift), Temperatur, Grün/Magenta, Dynamik, Rot-Obergrenze
-- [ ] 4.3 Pipette: Klick auf neutrale Stelle (Sand, Flosse, Graukarte) setzt Temperatur/Tint
-- [ ] 4.4 Einklappbare Gruppe „Experte“: Levels je Kanal (Low/High)
-- [ ] 4.5 Regler zeigen wirksame Werte; geänderte Bilder bekommen in der Leiste eine Markierung
+- [x] 4.1 Gruppe „Auto“: Auto ein/aus, „Zurücksetzen“, Stärke
+- [x] 4.2 Gruppe „Farbe“: Rot wiederherstellen (Hue-Shift), Temperatur, Grün/Magenta, Dynamik, Rot-Obergrenze
+- [x] 4.3 Pipette: Klick auf neutrale Stelle (Sand, Flosse, Graukarte) setzt Temperatur/Tint
+- [x] 4.4 Einklappbare Gruppe „Experte“: Levels je Kanal (Low/High)
+- [x] 4.5 Regler zeigen wirksame Werte; geänderte Bilder bekommen in der Leiste eine Markierung
+
+Erledigt: Regler-Logik im Kern (`Field`, `Settings::effective` / `set_effective`, getestet: ein Regler ändert
+nur sein Feld, die Rot-Obergrenze wird nicht in die Levels übernommen). Einstellungen werden pro Bild für die
+Sitzung gemerkt (orangefarbener Punkt in der Leiste); gespeichert werden sie in Phase 6. Vorschau wird höchstens
+einmal pro Frame neu gerechnet. Die Reglerleiste scrollt. Per Screenshot geprüft: Leiste mit Auto-Werten.
+Noch nicht von Hand getestet: Regler ziehen, Pipette, Experte aufklappen. Bekannt: Tab erreicht die Regler nicht
+(Pfeiltasten wechseln weiterhin das Bild).
 
 ### Phase 5 – Mehrfachauswahl
 

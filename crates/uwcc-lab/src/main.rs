@@ -4,11 +4,13 @@
 //! <https://github.com/nikolajbech/underwater-image-color-correction> (GPL-3.0).
 #![windows_subsystem = "windows"]
 
+mod controls;
 mod preview;
 mod strip;
 
 use std::{
     cell::RefCell,
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -32,6 +34,8 @@ struct State {
     /// Wird bei jedem gewählten Bild erhöht; ein später fertiges älteres Bild wird verworfen.
     image_generation: Arc<AtomicU64>,
     current: Option<preview::Loaded>,
+    /// Einstellungen je Bild in dieser Sitzung (gespeichert werden sie in Phase 6).
+    settings: HashMap<PathBuf, uwcc_core::Settings>,
 }
 
 thread_local! {
@@ -97,6 +101,31 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    let weak = app.as_weak();
+    app.on_edited(move |field, value| {
+        if let Some(app) = weak.upgrade() {
+            controls::edit(&app, &field, value);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_auto_toggled(move |on| {
+        if let Some(app) = weak.upgrade() {
+            controls::set_auto(&app, on);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_reset(move || {
+        if let Some(app) = weak.upgrade() {
+            controls::reset(&app);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_pick(move |x, y, w, h| {
+        if let Some(app) = weak.upgrade() {
+            controls::pick(&app, x, y, w, h);
+        }
+    });
+
     // Ordner oder Bild als Argument: „Öffnen mit“ oder auf die .exe gezogen.
     if let Some(path) = std::env::args_os().nth(1) {
         open(&app, Path::new(&path));
@@ -123,10 +152,18 @@ fn open(app: &LabWindow, path: &Path) {
         }
     };
 
-    let rows: Vec<Thumb> = files
-        .iter()
-        .map(|f| Thumb { image: Image::default(), name: uwcc_photo::file_name(f).into(), loaded: false, failed: false })
-        .collect();
+    let rows: Vec<Thumb> = with_state(|st| {
+        files
+            .iter()
+            .map(|f| Thumb {
+                image: Image::default(),
+                name: uwcc_photo::file_name(f).into(),
+                loaded: false,
+                failed: false,
+                edited: st.settings.get(f).is_some_and(|s| *s != uwcc_core::Settings::default()),
+            })
+            .collect()
+    });
     app.set_thumbs(ModelRc::new(VecModel::from(rows)));
     app.set_folder(dir.display().to_string().into());
     app.set_has_preview(false);
@@ -177,7 +214,10 @@ fn select(app: &LabWindow, index: i32) {
 fn loaded(app: &LabWindow, result: Result<preview::Loaded, String>) {
     app.set_loading(false);
     match result {
-        Ok(l) => {
+        Ok(mut l) => {
+            if let Some(s) = with_state(|st| st.settings.get(&l.path).copied()) {
+                l.settings = s;
+            }
             app.set_preview_original(Image::from_rgba8(l.original_buffer()));
             app.set_preview_corrected(Image::from_rgba8(l.corrected_buffer()));
             app.set_has_preview(true);
@@ -199,15 +239,8 @@ fn loaded(app: &LabWindow, result: Result<preview::Loaded, String>) {
                 .into(),
             );
             with_state(|st| st.current = Some(l));
+            controls::refresh(app);
         }
         Err(e) => app.set_image_info(e.into()),
-    }
-}
-
-/// Rechnet die bearbeitete Vorschau mit den aktuellen Einstellungen neu (für die Regler).
-#[allow(dead_code)]
-fn rerender(app: &LabWindow) {
-    if let Some(buffer) = with_state(|st| st.current.as_ref().map(|l| l.corrected_buffer())) {
-        app.set_preview_corrected(Image::from_rgba8(buffer));
     }
 }

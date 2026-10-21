@@ -147,6 +147,16 @@ pub fn exif_thumbnail(path: &Path, max: u32) -> Option<RgbaImage> {
     Some(img.into_rgba8())
 }
 
+/// Bildkoordinate eines Punkts `(x, y)` in einer Fläche `(w, h)`, in die ein Bild der Größe
+/// `(iw, ih)` eingepasst ist (wie `image-fit: contain`); `None` außerhalb des Bildes.
+pub fn contain_point(x: f32, y: f32, w: f32, h: f32, iw: u32, ih: u32) -> Option<(u32, u32)> {
+    let (iw, ih) = (iw as f32, ih as f32);
+    let scale = (w / iw).min(h / ih);
+    let px = (x - (w - iw * scale) / 2.0) / scale;
+    let py = (y - (h - ih * scale) / 2.0) / scale;
+    (px >= 0.0 && py >= 0.0 && px < iw && py < ih).then_some((px as u32, py as u32))
+}
+
 pub fn file_name(path: &Path) -> String {
     path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned())
 }
@@ -223,6 +233,14 @@ mod tests {
         enc.set_icc_profile(icc.clone()).unwrap();
         enc.write_image(rgb.as_raw(), 64, 48, ExtendedColorType::Rgb8).unwrap();
         (exif, icc)
+    }
+
+    #[test]
+    fn contain_point_maps_into_the_fitted_image() {
+        // 400 × 400 in 200 × 100: Maßstab 0,25, Bild bei x = 50..150.
+        assert_eq!(contain_point(60.0, 10.0, 200.0, 100.0, 400, 400), Some((40, 40)));
+        assert_eq!(contain_point(10.0, 10.0, 200.0, 100.0, 400, 400), None, "im Rand links");
+        assert_eq!(contain_point(149.9, 99.9, 200.0, 100.0, 400, 400), Some((399, 399)));
     }
 
     #[test]

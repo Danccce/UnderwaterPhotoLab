@@ -1,10 +1,54 @@
-import { Button, Palette, ScrollView } from "std-widgets.slint";
+import { Button, CheckBox, Palette, ScrollView, Slider } from "std-widgets.slint";
 
 export struct Thumb {
     image: image,
     name: string,
     loaded: bool,
     failed: bool,
+    edited: bool,
+}
+
+component SliderRow inherits VerticalLayout {
+    in property <string> label;
+    in property <string> text;
+    in-out property <float> value;
+    in property <float> minimum;
+    in property <float> maximum;
+    in property <bool> enabled: true;
+    callback edited(float);
+    callback released();
+    spacing: 0px;
+
+    HorizontalLayout {
+        Text {
+            text: root.label;
+            font-size: 12px;
+            color: root.enabled ? Palette.foreground : #6b7078;
+        }
+        Text {
+            text: root.text;
+            font-size: 12px;
+            horizontal-alignment: right;
+            color: root.enabled ? #c8ccd2 : #6b7078;
+        }
+    }
+    Slider {
+        minimum: root.minimum;
+        maximum: root.maximum;
+        value <=> root.value;
+        enabled: root.enabled;
+        changed(v) => {
+            root.edited(v);
+        }
+        released => {
+            root.released();
+        }
+    }
+}
+
+component Heading inherits Text {
+    font-weight: 700;
+    font-size: 13px;
 }
 
 component Tag inherits Rectangle {
@@ -44,6 +88,30 @@ export component LabWindow inherits Window {
     callback open-folder();
     callback thumb-clicked(int);
     callback navigate(int);
+
+    // Regler zeigen die wirksamen Werte; Rust schreibt sie nach jeder Änderung zurück.
+    in-out property <bool> auto-on: true;
+    in-out property <float> v-strength: 100;
+    in-out property <float> v-hue;
+    in-out property <float> v-temperature;
+    in-out property <float> v-tint;
+    in-out property <float> v-vibrance;
+    in-out property <float> v-red-limit: 4;
+    in-out property <float> v-red-low;
+    in-out property <float> v-red-high: 256;
+    in-out property <float> v-green-low;
+    in-out property <float> v-green-high: 256;
+    in-out property <float> v-blue-low;
+    in-out property <float> v-blue-high: 256;
+    in-out property <bool> picking;
+    property <bool> show-expert;
+    property <bool> controls-enabled: root.has-preview && !root.loading;
+
+    callback edited(string, float);
+    callback auto-toggled(bool);
+    callback reset();
+    // Pipette: Klickposition und Größe der Vorschaufläche in logischen Pixeln.
+    callback pick(float, float, float, float);
 
     property <length> cell-width: 132px;
     property <length> cell-gap: 8px;
@@ -186,17 +254,20 @@ export component LabWindow inherits Window {
                     }
 
                     TouchArea {
-                        mouse-cursor: root.split && root.has-preview ? MouseCursor.ew-resize : MouseCursor.default;
+                        mouse-cursor: root.picking ? MouseCursor.crosshair : (root.split && root.has-preview ? MouseCursor.ew-resize : MouseCursor.default);
                         pointer-event(event) => {
                             if event.kind == PointerEventKind.down {
                                 keys.focus();
-                                if root.split {
+                                if root.picking {
+                                    root.picking = false;
+                                    root.pick(self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px);
+                                } else if root.split {
                                     root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
                                 }
                             }
                         }
                         moved => {
-                            if self.pressed && root.split {
+                            if self.pressed && root.split && !root.picking {
                                 root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
                             }
                         }
@@ -227,39 +298,227 @@ export component LabWindow inherits Window {
                             font-size: 12px;
                         }
 
-                        Text {
-                            text: "Ansicht";
-                            font-weight: 700;
-                        }
-                        before-button := Button {
-                            text: "Vorher (halten oder Leertaste)";
-                            enabled: root.has-preview;
-                            clicked => {
-                                keys.focus();
-                            }
-                        }
-                        Button {
-                            text: "Split-Ansicht";
-                            checkable: true;
-                            checked <=> root.split;
-                            enabled: root.has-preview;
-                            clicked => {
-                                keys.focus();
-                            }
-                        }
-                        Text {
-                            text: "Bild wechseln: ← →    Split-Ansicht: S";
-                            color: #8a8f98;
-                            font-size: 12px;
-                        }
-
-                        Text {
-                            text: root.image-info;
-                            wrap: word-wrap;
-                            font-size: 12px;
-                        }
-                        Rectangle {
+                        panel := ScrollView {
                             vertical-stretch: 1;
+                            content-width: self.visible-width;
+                            content-height: controls.preferred-height;
+
+                            controls := VerticalLayout {
+                                width: panel.visible-width - 12px;
+                                spacing: 8px;
+
+                                Heading {
+                                    text: "Ansicht";
+                                }
+                                before-button := Button {
+                                    text: "Vorher (halten oder Leertaste)";
+                                    enabled: root.has-preview;
+                                    clicked => {
+                                        keys.focus();
+                                    }
+                                }
+                                Button {
+                                    text: "Split-Ansicht";
+                                    checkable: true;
+                                    checked <=> root.split;
+                                    enabled: root.has-preview;
+                                    clicked => {
+                                        keys.focus();
+                                    }
+                                }
+                                Text {
+                                    text: "Bild wechseln: ← →    Split-Ansicht: S";
+                                    color: #8a8f98;
+                                    font-size: 12px;
+                                }
+
+                                Rectangle {
+                                    height: 6px;
+                                }
+                                Heading {
+                                    text: "Auto-Korrektur";
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    CheckBox {
+                                        text: "Auto";
+                                        checked <=> root.auto-on;
+                                        enabled: root.controls-enabled;
+                                        toggled => {
+                                            root.auto-toggled(self.checked);
+                                            keys.focus();
+                                        }
+                                    }
+                                    Button {
+                                        text: "Zurücksetzen";
+                                        enabled: root.controls-enabled;
+                                        clicked => {
+                                            root.reset();
+                                            keys.focus();
+                                        }
+                                    }
+                                }
+                                SliderRow {
+                                    label: "Stärke";
+                                    text: round(root.v-strength) + " %";
+                                    minimum: 0;
+                                    maximum: 100;
+                                    value <=> root.v-strength;
+                                    enabled: root.controls-enabled;
+                                    edited(v) => { root.edited("strength", v); }
+                                    released => { keys.focus(); }
+                                }
+
+                                Rectangle {
+                                    height: 6px;
+                                }
+                                Heading {
+                                    text: "Farbe";
+                                }
+                                SliderRow {
+                                    label: "Rot wiederherstellen";
+                                    text: round(root.v-hue) + "°";
+                                    minimum: 0;
+                                    maximum: 180;
+                                    value <=> root.v-hue;
+                                    enabled: root.controls-enabled;
+                                    edited(v) => { root.edited("hue", v); }
+                                    released => { keys.focus(); }
+                                }
+                                SliderRow {
+                                    label: "Temperatur";
+                                    text: (root.v-temperature > 0.5 ? "+" : "") + round(root.v-temperature);
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value <=> root.v-temperature;
+                                    enabled: root.controls-enabled;
+                                    edited(v) => { root.edited("temperature", v); }
+                                    released => { keys.focus(); }
+                                }
+                                SliderRow {
+                                    label: "Grün ↔ Magenta";
+                                    text: (root.v-tint > 0.5 ? "+" : "") + round(root.v-tint);
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value <=> root.v-tint;
+                                    enabled: root.controls-enabled;
+                                    edited(v) => { root.edited("tint", v); }
+                                    released => { keys.focus(); }
+                                }
+                                Button {
+                                    text: root.picking ? "Neutrale Stelle im Bild anklicken …" : "Pipette: Weißabgleich";
+                                    checkable: true;
+                                    checked <=> root.picking;
+                                    enabled: root.controls-enabled;
+                                }
+                                SliderRow {
+                                    label: "Dynamik";
+                                    text: (root.v-vibrance > 0.5 ? "+" : "") + round(root.v-vibrance);
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value <=> root.v-vibrance;
+                                    enabled: root.controls-enabled;
+                                    edited(v) => { root.edited("vibrance", v); }
+                                    released => { keys.focus(); }
+                                }
+                                SliderRow {
+                                    label: "Rot-Obergrenze";
+                                    text: "× " + round(root.v-red-limit * 10) / 10;
+                                    minimum: 1;
+                                    maximum: 8;
+                                    value <=> root.v-red-limit;
+                                    enabled: root.controls-enabled;
+                                    edited(v) => { root.edited("red-limit", v); }
+                                    released => { keys.focus(); }
+                                }
+
+                                Rectangle {
+                                    height: 6px;
+                                }
+                                TouchArea {
+                                    height: expert-heading.preferred-height;
+                                    clicked => {
+                                        root.show-expert = !root.show-expert;
+                                    }
+                                    expert-heading := Heading {
+                                        x: 0;
+                                        width: parent.width;
+                                        text: (root.show-expert ? "▾ " : "▸ ") + "Experte: Levels je Kanal";
+                                    }
+                                }
+                                if root.show-expert: VerticalLayout {
+                                    spacing: 8px;
+                                    SliderRow {
+                                        label: "Rot Schwarzpunkt";
+                                        text: round(root.v-red-low);
+                                        minimum: 0;
+                                        maximum: 255;
+                                        value <=> root.v-red-low;
+                                        enabled: root.controls-enabled;
+                                        edited(v) => { root.edited("red-low", v); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Rot Weißpunkt";
+                                        text: round(root.v-red-high);
+                                        minimum: 1;
+                                        maximum: 256;
+                                        value <=> root.v-red-high;
+                                        enabled: root.controls-enabled;
+                                        edited(v) => { root.edited("red-high", v); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Grün Schwarzpunkt";
+                                        text: round(root.v-green-low);
+                                        minimum: 0;
+                                        maximum: 255;
+                                        value <=> root.v-green-low;
+                                        enabled: root.controls-enabled;
+                                        edited(v) => { root.edited("green-low", v); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Grün Weißpunkt";
+                                        text: round(root.v-green-high);
+                                        minimum: 1;
+                                        maximum: 256;
+                                        value <=> root.v-green-high;
+                                        enabled: root.controls-enabled;
+                                        edited(v) => { root.edited("green-high", v); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Blau Schwarzpunkt";
+                                        text: round(root.v-blue-low);
+                                        minimum: 0;
+                                        maximum: 255;
+                                        value <=> root.v-blue-low;
+                                        enabled: root.controls-enabled;
+                                        edited(v) => { root.edited("blue-low", v); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Blau Weißpunkt";
+                                        text: round(root.v-blue-high);
+                                        minimum: 1;
+                                        maximum: 256;
+                                        value <=> root.v-blue-high;
+                                        enabled: root.controls-enabled;
+                                        edited(v) => { root.edited("blue-high", v); }
+                                        released => { keys.focus(); }
+                                    }
+                                }
+
+                                Rectangle {
+                                    height: 6px;
+                                }
+                                Text {
+                                    text: root.image-info;
+                                    wrap: word-wrap;
+                                    font-size: 12px;
+                                }
+                            }
                         }
                         Text {
                             text: root.status;
@@ -323,6 +582,16 @@ export component LabWindow inherits Window {
                                 y: 40px;
                                 text: "…";
                                 color: #6b7078;
+                            }
+                            if thumb.edited: Rectangle {
+                                x: parent.width - 18px;
+                                y: 10px;
+                                width: 10px;
+                                height: 10px;
+                                border-radius: 5px;
+                                background: #f5a623;
+                                border-width: 1px;
+                                border-color: #141518;
                             }
                             if thumb.failed: Text {
                                 y: 40px;

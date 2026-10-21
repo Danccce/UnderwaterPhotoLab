@@ -105,6 +105,104 @@ impl Settings {
     }
 }
 
+/// Ein Regler der Oberfläche.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Field {
+    Strength,
+    Temperature,
+    Tint,
+    Vibrance,
+    RedLimit,
+    HueShift,
+    RedLow,
+    RedHigh,
+    GreenLow,
+    GreenHigh,
+    BlueLow,
+    BlueHigh,
+}
+
+impl Field {
+    pub const ALL: [Field; 12] = [
+        Field::Strength,
+        Field::Temperature,
+        Field::Tint,
+        Field::Vibrance,
+        Field::RedLimit,
+        Field::HueShift,
+        Field::RedLow,
+        Field::RedHigh,
+        Field::GreenLow,
+        Field::GreenHigh,
+        Field::BlueLow,
+        Field::BlueHigh,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Field::Strength => "strength",
+            Field::Temperature => "temperature",
+            Field::Tint => "tint",
+            Field::Vibrance => "vibrance",
+            Field::RedLimit => "red-limit",
+            Field::HueShift => "hue",
+            Field::RedLow => "red-low",
+            Field::RedHigh => "red-high",
+            Field::GreenLow => "green-low",
+            Field::GreenHigh => "green-high",
+            Field::BlueLow => "blue-low",
+            Field::BlueHigh => "blue-high",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Field> {
+        Field::ALL.into_iter().find(|f| f.name() == name)
+    }
+}
+
+impl Settings {
+    /// Der Wert, den der Regler zeigt: Stärke in %, Hue-Shift und Levels so, wie sie wirken.
+    pub fn effective(&self, field: Field, auto: &Correction) -> f64 {
+        let c = self.resolve(auto);
+        match field {
+            Field::Strength => self.strength as f64 * 100.0,
+            Field::Temperature => self.temperature as f64,
+            Field::Tint => self.tint as f64,
+            Field::Vibrance => self.vibrance as f64,
+            Field::RedLimit => self.red_limit,
+            Field::HueShift => c.hue_shift,
+            Field::RedLow => c.red.low,
+            Field::RedHigh => c.red.high,
+            Field::GreenLow => c.green.low,
+            Field::GreenHigh => c.green.high,
+            Field::BlueLow => c.blue.low,
+            Field::BlueHigh => c.blue.high,
+        }
+    }
+
+    /// Übernimmt einen Reglerwert. Hue-Shift und Levels verschieben nur die Abweichung von der
+    /// Basis, und nur das eine Feld – so bleibt z. B. eine durch `red_limit` angehobene
+    /// Rot-Spreizung nicht in den Levels stehen, wenn die Grenze später gelockert wird.
+    pub fn set_effective(&mut self, field: Field, value: f64, auto: &Correction) {
+        let base = if self.auto { *auto } else { Correction::NONE };
+        let d = &mut self.delta;
+        match field {
+            Field::Strength => self.strength = (value / 100.0) as f32,
+            Field::Temperature => self.temperature = value as f32,
+            Field::Tint => self.tint = value as f32,
+            Field::Vibrance => self.vibrance = value as f32,
+            Field::RedLimit => self.red_limit = value,
+            Field::HueShift => d.hue_shift = value - base.hue_shift,
+            Field::RedLow => d.red.low = value - base.red.low,
+            Field::RedHigh => d.red.high = value - base.red.high,
+            Field::GreenLow => d.green.low = value - base.green.low,
+            Field::GreenHigh => d.green.high = value - base.green.high,
+            Field::BlueLow => d.blue.low = value - base.blue.low,
+            Field::BlueHigh => d.blue.high = value - base.blue.high,
+        }
+    }
+}
+
 fn shift(l: Levels, d: LevelsDelta) -> Levels {
     let low = (l.low + d.low).clamp(0.0, 255.0);
     let high = (l.high + d.high).clamp(low + 1.0, 256.0);
@@ -213,6 +311,40 @@ mod tests {
         s.delta.blue = LevelsDelta { low: 300.0, high: -500.0 };
         let blue = s.resolve(&AUTO).blue;
         assert_eq!(blue, Levels { low: 255.0, high: 256.0 });
+    }
+
+    #[test]
+    fn sliders_show_and_set_effective_values() {
+        let mut s = Settings::default();
+        assert_eq!(s.effective(Field::HueShift, &AUTO), 61.0);
+        assert_eq!(s.effective(Field::Strength, &AUTO), 100.0);
+
+        s.set_effective(Field::HueShift, 70.0, &AUTO);
+        assert_eq!(s.delta.hue_shift, 9.0);
+        assert_eq!(s.effective(Field::HueShift, &AUTO), 70.0);
+
+        s.set_effective(Field::Strength, 40.0, &AUTO);
+        assert!((s.strength - 0.4).abs() < 1e-6);
+
+        s.auto = false;
+        assert_eq!(s.effective(Field::HueShift, &AUTO), 9.0, "ohne Auto bleibt nur die Abweichung");
+
+        for f in Field::ALL {
+            assert_eq!(Field::from_name(f.name()), Some(f));
+        }
+    }
+
+    #[test]
+    fn red_limit_is_not_baked_into_the_levels() {
+        let narrow = Correction { red: Levels { low: 100.0, high: 120.0 }, ..AUTO };
+        let mut s = Settings::default();
+        assert_eq!(s.effective(Field::RedHigh, &narrow), 164.0);
+
+        s.set_effective(Field::HueShift, 50.0, &narrow);
+        assert_eq!(s.delta.red, LevelsDelta::default());
+
+        s.set_effective(Field::RedLimit, 8.0, &narrow);
+        assert_eq!(s.effective(Field::RedHigh, &narrow), 132.0);
     }
 
     #[test]
