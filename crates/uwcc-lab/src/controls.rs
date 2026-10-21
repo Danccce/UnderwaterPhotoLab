@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, time::Duration};
 
-use slint::{ComponentHandle, Image, Model, Timer, TimerMode};
+use slint::{ComponentHandle, Image, Timer, TimerMode};
 use uwcc_core::{Field, Settings};
 
 use crate::{with_state, LabWindow};
@@ -78,6 +78,7 @@ fn update(app: &LabWindow, f: impl FnOnce(&mut Settings, &uwcc_core::Correction)
     });
     if changed.is_some() {
         crate::selection::forget_undo(app);
+        crate::store::save_soon(app);
         refresh(app);
     }
 }
@@ -105,15 +106,7 @@ pub fn refresh(app: &LabWindow) {
         }
     }
 
-    let index = app.get_current();
-    let model = app.get_thumbs();
-    if let Some(mut row) = usize::try_from(index).ok().and_then(|i| model.row_data(i)) {
-        let edited = s != Settings::default();
-        if row.edited != edited {
-            row.edited = edited;
-            model.set_row_data(index as usize, row);
-        }
-    }
+    crate::store::refresh_marks(app);
 
     let weak = app.as_weak();
     RENDER.with(|t| {

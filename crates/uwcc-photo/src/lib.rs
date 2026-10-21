@@ -5,6 +5,7 @@
 //! Original. Gedreht wird nur für die Anzeige ([`Photo::preview`], [`thumbnail`]).
 
 mod exif;
+pub mod sidecar;
 
 use std::{
     fs::{self, File},
@@ -117,6 +118,13 @@ impl Photo {
         }
         Ok(())
     }
+}
+
+/// Öffnet, analysiert und exportiert ein Bild in voller Auflösung; gibt die Ausgabedatei zurück.
+pub fn export_file(input: &Path, settings: &Settings, target: ExportTarget, quality: u8) -> Result<PathBuf, String> {
+    let photo = Photo::open(input)?;
+    let auto = photo.analyze();
+    photo.export(settings, &auto, target, quality)
 }
 
 fn same_file(a: &Path, b: &Path) -> bool {

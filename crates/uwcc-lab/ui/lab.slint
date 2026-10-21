@@ -1,4 +1,4 @@
-import { Button, CheckBox, Palette, ScrollView } from "std-widgets.slint";
+import { Button, CheckBox, ComboBox, Palette, ScrollView } from "std-widgets.slint";
 
 export struct Thumb {
     image: image,
@@ -6,6 +6,7 @@ export struct Thumb {
     loaded: bool,
     failed: bool,
     edited: bool,
+    exported: bool,
     selected: bool,
 }
 
@@ -170,6 +171,17 @@ export component LabWindow inherits Window {
     callback transfer-relative();
     callback undo-transfer();
 
+    // 0 = Unterordner uw-korrigiert, 1 = gleicher Ordner mit _uw
+    in-out property <int> export-target;
+    in-out property <float> jpeg-quality: 95;
+    in property <bool> exporting;
+    in property <string> export-progress;
+    callback export-current();
+    callback export-selection();
+    callback cancel-export();
+    callback export-target-changed(int);
+    callback jpeg-quality-changed(float);
+
     // Regler zeigen die wirksamen Werte; Rust schreibt sie nach jeder Änderung zurück.
     in-out property <bool> auto-on: true;
     in-out property <float> v-strength: 100;
@@ -226,6 +238,14 @@ export component LabWindow inherits Window {
             }
             if event.text == Key.RightArrow {
                 root.navigate(1);
+                return accept;
+            }
+            if event.modifiers.control && (event.text == "e" || event.text == "E") && !root.exporting {
+                if event.modifiers.shift && root.selected-count > 1 {
+                    root.export-selection();
+                } else {
+                    root.export-current();
+                }
                 return accept;
             }
             if event.modifiers.control && (event.text == "a" || event.text == "A") {
@@ -586,11 +606,76 @@ export component LabWindow inherits Window {
                                 Rectangle {
                                     height: 6px;
                                 }
+                                Heading {
+                                    text: "Export";
+                                }
+                                ComboBox {
+                                    model: ["Unterordner „uw-korrigiert“", "Gleicher Ordner, Name mit _uw"];
+                                    current-index <=> root.export-target;
+                                    enabled: !root.exporting;
+                                    selected => {
+                                        root.export-target-changed(self.current-index);
+                                        keys.focus();
+                                    }
+                                }
+                                SliderRow {
+                                    label: "JPG-Qualität";
+                                    text: round(root.jpeg-quality);
+                                    minimum: 50;
+                                    maximum: 100;
+                                    value <=> root.jpeg-quality;
+                                    enabled: !root.exporting;
+                                    field: "jpeg-quality";
+                                    edited(f, v) => { root.jpeg-quality-changed(v); }
+                                    reset(f) => { root.jpeg-quality-changed(95); keys.focus(); }
+                                    released => { keys.focus(); }
+                                }
+                                Text {
+                                    text: "Originale werden nie verändert. Ein erneuter Export ersetzt das vorherige Ergebnis. ✓ in der Leiste: aktuell exportiert.";
+                                    wrap: word-wrap;
+                                    color: #8a8f98;
+                                    font-size: 11px;
+                                }
+
+                                Rectangle {
+                                    height: 6px;
+                                }
                                 Text {
                                     text: root.image-info;
                                     wrap: word-wrap;
                                     font-size: 12px;
                                 }
+                            }
+                        }
+                        Rectangle {
+                            height: 1px;
+                            background: #00000060;
+                        }
+                        if !root.exporting: Button {
+                            text: "Aktuelles Bild exportieren (Strg+E)";
+                            primary: true;
+                            enabled: root.current >= 0;
+                            clicked => {
+                                root.export-current();
+                                keys.focus();
+                            }
+                        }
+                        if !root.exporting && root.selected-count > 1: Button {
+                            text: "Auswahl exportieren, " + root.selected-count + " Bilder (Strg+Umschalt+E)";
+                            clicked => {
+                                root.export-selection();
+                                keys.focus();
+                            }
+                        }
+                        if root.exporting: Text {
+                            text: root.export-progress;
+                            font-size: 12px;
+                        }
+                        if root.exporting: Button {
+                            text: "Export abbrechen";
+                            clicked => {
+                                root.cancel-export();
+                                keys.focus();
                             }
                         }
                         Text {
@@ -655,6 +740,22 @@ export component LabWindow inherits Window {
                                 y: 40px;
                                 text: "…";
                                 color: #6b7078;
+                            }
+                            if thumb.exported: Rectangle {
+                                x: 10px;
+                                y: 74px;
+                                width: 18px;
+                                height: 18px;
+                                border-radius: 9px;
+                                background: #2ea043;
+                                border-width: 1px;
+                                border-color: #141518;
+                                Text {
+                                    text: "✓";
+                                    color: white;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                }
                             }
                             if thumb.edited: Rectangle {
                                 x: parent.width - 18px;

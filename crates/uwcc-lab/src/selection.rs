@@ -3,9 +3,8 @@
 use std::path::PathBuf;
 
 use slint::Model;
-use uwcc_core::Settings;
 
-use crate::{select, with_state, LabWindow};
+use crate::{select, store, with_state, LabWindow};
 
 #[derive(Clone, Copy)]
 pub enum Transfer {
@@ -93,7 +92,8 @@ pub fn transfer(app: &LabWindow, mode: Transfer) {
         Transfer::Relative => "Auto + Abweichung",
     };
     app.set_status(format!("Einstellungen auf {count} Bilder übernommen ({how}).").into());
-    refresh_marks(app);
+    store::refresh_marks(app);
+    store::save_soon(app);
 }
 
 /// Macht die letzte Übernahme rückgängig.
@@ -111,7 +111,8 @@ pub fn undo(app: &LabWindow) {
     app.set_can_undo_transfer(false);
     if let Some(n) = restored {
         app.set_status(format!("Übernahme rückgängig gemacht ({n} Bilder).").into());
-        refresh_marks(app);
+        store::refresh_marks(app);
+        store::save_soon(app);
     }
 }
 
@@ -137,23 +138,4 @@ fn sync(app: &LabWindow) {
         }
     }
     app.set_selected_count(count as i32);
-}
-
-/// Orangefarbene Punkte („bearbeitet“) für alle Bilder neu setzen.
-fn refresh_marks(app: &LabWindow) {
-    let flags: Vec<bool> = with_state(|st| {
-        st.files
-            .iter()
-            .map(|f| st.settings.get(f).is_some_and(|s| *s != Settings::default()))
-            .collect()
-    });
-    let model = app.get_thumbs();
-    for (i, edited) in flags.into_iter().enumerate() {
-        if let Some(mut row) = model.row_data(i) {
-            if row.edited != edited {
-                row.edited = edited;
-                model.set_row_data(i, row);
-            }
-        }
-    }
 }

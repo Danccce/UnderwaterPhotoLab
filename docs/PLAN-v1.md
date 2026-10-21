@@ -151,10 +151,18 @@ Strg-/Umschalt-Klick, beide Übernahmen, Rückgängig.
 
 ### Phase 6 – Export und Einstellungen speichern
 
-- [ ] 6.1 Export-Optionen in der Reglerleiste: Ziel (Unterordner / selber Ordner), JPG-Qualität
-- [ ] 6.2 „Aktuelles Bild exportieren“ und „Auswahl exportieren“ mit Fortschritt und Abbrechen
-- [ ] 6.3 `.uwcc.json` schreiben (Einstellungen pro Datei) und beim Öffnen des Ordners wieder laden
-- [ ] 6.4 Bereits exportierte Bilder in der Leiste kennzeichnen
+- [x] 6.1 Export-Optionen in der Reglerleiste: Ziel (Unterordner / selber Ordner), JPG-Qualität
+- [x] 6.2 „Aktuelles Bild exportieren“ und „Auswahl exportieren“ mit Fortschritt und Abbrechen
+- [x] 6.3 `.uwcc.json` schreiben (Einstellungen pro Datei) und beim Öffnen des Ordners wieder laden
+- [x] 6.4 Bereits exportierte Bilder in der Leiste kennzeichnen
+
+Erledigt: Ziel und Qualität stehen in `%APPDATA%\UnderwaterPhotoLab\config.json`. Export-Knöpfe fest am unteren
+Rand der Reglerleiste, dazu Strg+E (aktuelles Bild) und Strg+Umschalt+E (Auswahl). Export läuft mit bis zu 4
+Threads. `.uwcc.json` wird 0,8 s nach der letzten Änderung, nach jedem Export, beim Ordnerwechsel und beim Beenden
+geschrieben; `uw-korrigiert\` entsteht erst, wenn es etwas zu speichern gibt. ✓ in der Leiste = Export mit den
+jetzigen Einstellungen, Ziel und Qualität vorhanden. Getestet mit 3 echten Fotos in einem Testordner: Export, ✓,
+`.uwcc.json`, nach Neustart ✓ wieder da; EXIF vollständig (55 Tags) und Orientation des Hochformats erhalten.
+Noch nicht von Hand getestet: Speichern geänderter Regler über einen Neustart, Abbrechen, Zielwechsel.
 
 ### Phase 6b – „In [Programm] öffnen“
 

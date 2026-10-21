@@ -4,9 +4,12 @@
 //! <https://github.com/nikolajbech/underwater-image-color-correction> (GPL-3.0).
 #![windows_subsystem = "windows"]
 
+mod config;
 mod controls;
+mod export;
 mod preview;
 mod selection;
+mod store;
 mod strip;
 
 use std::{
@@ -14,10 +17,12 @@ use std::{
     collections::{BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
 };
+
+use uwcc_photo::{sidecar::Exported, ExportTarget};
 
 use slint::{
     winit_030::{winit::event::WindowEvent, EventResult, WinitWindowAccessor},
@@ -35,8 +40,14 @@ struct State {
     /// Wird bei jedem gewählten Bild erhöht; ein später fertiges älteres Bild wird verworfen.
     image_generation: Arc<AtomicU64>,
     current: Option<preview::Loaded>,
-    /// Einstellungen je Bild in dieser Sitzung (gespeichert werden sie in Phase 6).
+    /// Einstellungen je Bild; gespeichert in `uw-korrigiert\.uwcc.json` des Ordners.
     settings: HashMap<PathBuf, uwcc_core::Settings>,
+    /// Womit ein Bild zuletzt exportiert wurde.
+    exported: HashMap<PathBuf, Exported>,
+    config: config::Config,
+    /// Gesetzt, solange ein Export läuft.
+    export_cancel: Option<Arc<AtomicBool>>,
+    export_errors: Vec<String>,
     /// Ausgewählte Bilder (Indizes in `files`), das aktuelle Bild ist immer dabei.
     selection: BTreeSet<usize>,
     /// Vorherige Einstellungen der Bilder der letzten Übernahme (`None` = vorher keine).
@@ -58,6 +69,13 @@ fn main() -> Result<(), slint::PlatformError> {
     let app = LabWindow::new()?;
     app.window().set_maximized(true);
     app.set_status("Kein Ordner geöffnet.".into());
+    let cfg = config::load();
+    with_state(|st| st.config = cfg);
+    app.set_export_target(match cfg.export_target {
+        ExportTarget::Subfolder => 0,
+        ExportTarget::SameFolder => 1,
+    });
+    app.set_jpeg_quality(cfg.jpeg_quality as f32);
 
     let weak = app.as_weak();
     app.window().on_winit_window_event(move |_, event| {
@@ -169,12 +187,57 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
+    let weak = app.as_weak();
+    app.on_export_current(move || {
+        let Some(app) = weak.upgrade() else { return };
+        let path = with_state(|st| usize::try_from(app.get_current()).ok().and_then(|i| st.files.get(i).cloned()));
+        export::start(&app, path.into_iter().collect());
+    });
+    let weak = app.as_weak();
+    app.on_export_selection(move || {
+        let Some(app) = weak.upgrade() else { return };
+        let paths = with_state(|st| st.selection.iter().filter_map(|&i| st.files.get(i).cloned()).collect());
+        export::start(&app, paths);
+    });
+    let weak = app.as_weak();
+    app.on_cancel_export(move || {
+        if let Some(app) = weak.upgrade() {
+            export::cancel(&app);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_export_target_changed(move |index| {
+        let Some(app) = weak.upgrade() else { return };
+        let target = if index == 1 { ExportTarget::SameFolder } else { ExportTarget::Subfolder };
+        update_config(&app, |c| c.export_target = target);
+    });
+    let weak = app.as_weak();
+    app.on_jpeg_quality_changed(move |q| {
+        let Some(app) = weak.upgrade() else { return };
+        let q = (q.round() as u8).clamp(config::MIN_JPEG_QUALITY, 100);
+        app.set_jpeg_quality(q as f32);
+        update_config(&app, |c| c.jpeg_quality = q);
+    });
+
     // Ordner oder Bild als Argument: „Öffnen mit“ oder auf die .exe gezogen.
     if let Some(path) = std::env::args_os().nth(1) {
         open(&app, Path::new(&path));
     }
 
-    app.run()
+    let result = app.run();
+    store::save_now(&app);
+    result
+}
+
+fn update_config(app: &LabWindow, f: impl FnOnce(&mut config::Config)) {
+    let cfg = with_state(|st| {
+        f(&mut st.config);
+        st.config
+    });
+    if let Err(e) = config::save(&cfg) {
+        app.set_status(format!("Einstellungen nicht gespeichert: {e}").into());
+    }
+    store::refresh_marks(app);
 }
 
 /// Öffnet einen Ordner; bei einem Bild dessen Ordner mit diesem Bild ausgewählt.
@@ -187,6 +250,10 @@ fn open(app: &LabWindow, path: &Path) {
             None => return,
         }
     };
+    if with_state(|st| st.export_cancel.is_some()) {
+        app.set_status("Bitte warten, bis der Export fertig ist.".into());
+        return;
+    }
     let files = match uwcc_photo::scan_folder(&dir) {
         Ok(files) => files,
         Err(e) => {
@@ -194,20 +261,20 @@ fn open(app: &LabWindow, path: &Path) {
             return;
         }
     };
+    store::save_now(app);
 
-    let rows: Vec<Thumb> = with_state(|st| {
-        files
-            .iter()
-            .map(|f| Thumb {
-                image: Image::default(),
-                name: uwcc_photo::file_name(f).into(),
-                loaded: false,
-                failed: false,
-                edited: st.settings.get(f).is_some_and(|s| *s != uwcc_core::Settings::default()),
-                selected: false,
-            })
-            .collect()
-    });
+    let rows: Vec<Thumb> = files
+        .iter()
+        .map(|f| Thumb {
+            image: Image::default(),
+            name: uwcc_photo::file_name(f).into(),
+            loaded: false,
+            failed: false,
+            edited: false,
+            exported: false,
+            selected: false,
+        })
+        .collect();
     app.set_thumbs(ModelRc::new(VecModel::from(rows)));
     app.set_folder(dir.display().to_string().into());
     app.set_has_preview(false);
@@ -221,6 +288,9 @@ fn open(app: &LabWindow, path: &Path) {
 
     let selected = wanted.and_then(|w| files.iter().position(|f| *f == w)).unwrap_or(0);
     let (counter, generation) = with_state(|st| {
+        st.settings.clear();
+        st.exported.clear();
+        store::load(st, &dir, &files);
         st.dir = Some(dir);
         st.files = files.clone();
         st.current = None;
@@ -228,6 +298,7 @@ fn open(app: &LabWindow, path: &Path) {
         (st.folder_generation.clone(), st.folder_generation.fetch_add(1, Ordering::SeqCst) + 1)
     });
     app.set_can_undo_transfer(false);
+    store::refresh_marks(app);
     strip::load(app.as_weak(), files, counter, generation);
     select(app, selected as i32);
     selection::single(app, selected as i32);
