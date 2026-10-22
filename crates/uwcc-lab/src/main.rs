@@ -76,6 +76,7 @@ fn main() -> Result<(), slint::PlatformError> {
         ExportTarget::SameFolder => 1,
     });
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
+    app.set_strip_corrected(cfg.strip_corrected);
 
     let weak = app.as_weak();
     app.window().on_winit_window_event(move |_, event| {
@@ -212,6 +213,12 @@ fn main() -> Result<(), slint::PlatformError> {
         update_config(&app, |c| c.export_target = target);
     });
     let weak = app.as_weak();
+    app.on_strip_mode_changed(move |corrected| {
+        let Some(app) = weak.upgrade() else { return };
+        app.set_strip_corrected(corrected);
+        update_config(&app, |c| c.strip_corrected = corrected);
+    });
+    let weak = app.as_weak();
     app.on_jpeg_quality_changed(move |q| {
         let Some(app) = weak.upgrade() else { return };
         let q = (q.round() as u8).clamp(config::MIN_JPEG_QUALITY, 100);
@@ -273,6 +280,8 @@ fn open(app: &LabWindow, path: &Path) {
             edited: false,
             exported: false,
             selected: false,
+            corrected: Image::default(),
+            has_corrected: false,
         })
         .collect();
     app.set_thumbs(ModelRc::new(VecModel::from(rows)));
@@ -287,7 +296,7 @@ fn open(app: &LabWindow, path: &Path) {
     });
 
     let selected = wanted.and_then(|w| files.iter().position(|f| *f == w)).unwrap_or(0);
-    let (counter, generation) = with_state(|st| {
+    let (counter, generation, jobs) = with_state(|st| {
         st.settings.clear();
         st.exported.clear();
         store::load(st, &dir, &files);
@@ -295,11 +304,15 @@ fn open(app: &LabWindow, path: &Path) {
         st.files = files.clone();
         st.current = None;
         st.undo = None;
-        (st.folder_generation.clone(), st.folder_generation.fetch_add(1, Ordering::SeqCst) + 1)
+        let jobs: Vec<(PathBuf, Option<PathBuf>)> = files
+            .iter()
+            .map(|f| (f.clone(), st.exported.get(f).map(|x| uwcc_photo::output_path(f, x.target))))
+            .collect();
+        (st.folder_generation.clone(), st.folder_generation.fetch_add(1, Ordering::SeqCst) + 1, jobs)
     });
     app.set_can_undo_transfer(false);
     store::refresh_marks(app);
-    strip::load(app.as_weak(), files, counter, generation);
+    strip::load(app.as_weak(), jobs, counter, generation);
     select(app, selected as i32);
     selection::single(app, selected as i32);
 }

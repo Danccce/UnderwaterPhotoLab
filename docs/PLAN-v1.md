@@ -164,6 +164,14 @@ jetzigen Einstellungen, Ziel und Qualität vorhanden. Getestet mit 3 echten Foto
 `.uwcc.json`, nach Neustart ✓ wieder da; EXIF vollständig (55 Tags) und Orientation des Hochformats erhalten.
 Noch nicht von Hand getestet: Speichern geänderter Regler über einen Neustart, Abbrechen, Zielwechsel.
 
+Nachtrag:
+- [x] Export schreibt ein korrigiertes EXIF-Vorschaubild (160 px) statt das des Originals mitzunehmen; ersetzt
+  das vorhandene oder legt IFD1 neu an, ohne Vorschaubild, falls das EXIF sonst über 64 KB wüchse (getestet).
+- [x] Umschalter über der Leiste „Original | Korrigiert“ (in `config.json`): bei „Korrigiert“ erscheinen nur
+  exportierte Bilder korrigiert (Vorschaubild der exportierten Datei), alle anderen als Original – so sieht man,
+  wo noch etwas zu tun ist. Nach einem Export aktualisiert sich das Vorschaubild sofort.
+- [x] `config.json` und `.uwcc.json` werden auch mit UTF-8-BOM gelesen (z. B. nach Bearbeiten im Editor).
+
 ### Phase 6b – „In [Programm] öffnen“
 
 - [ ] 6.5 Konfiguration der Zielprogramme in `%APPDATA%\UnderwaterPhotoLab\config.json`: Name, Pfad zur `.exe`, Argumente mit Platzhalter (Standard `{files}`)

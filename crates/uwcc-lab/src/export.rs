@@ -13,7 +13,7 @@ use slint::ComponentHandle;
 use uwcc_core::Settings;
 use uwcc_photo::sidecar::Exported;
 
-use crate::{store, with_state, LabWindow};
+use crate::{store, strip, with_state, LabWindow};
 
 /// Ein 16-MP-Bild braucht beim Export rund 200 MB; daher höchstens 4 gleichzeitig.
 fn workers() -> usize {
@@ -49,14 +49,22 @@ pub fn start(app: &LabWindow, paths: Vec<PathBuf>) {
                 let i = next.fetch_add(1, Ordering::SeqCst);
                 let Some((path, settings)) = jobs.get(i).cloned() else { break };
                 let result = uwcc_photo::export_file(&path, &settings, target, quality);
+                let thumb = result.as_ref().ok().and_then(|out| strip::thumbnail_buffer(out));
                 let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
                 let _ = weak.upgrade_in_event_loop(move |app| {
-                    with_state(|st| match result {
-                        Ok(_) => {
-                            st.exported.insert(path, Exported { settings, target, quality });
+                    let index = with_state(|st| {
+                        let index = st.files.iter().position(|f| *f == path);
+                        match result {
+                            Ok(_) => {
+                                st.exported.insert(path, Exported { settings, target, quality });
+                            }
+                            Err(e) => st.export_errors.push(e),
                         }
-                        Err(e) => st.export_errors.push(e),
+                        index
                     });
+                    if let (Some(i), Some(t)) = (index, thumb) {
+                        strip::set_corrected(&app, i, Some(t));
+                    }
                     app.set_export_progress(format!("Exportiere {finished} / {total} …").into());
                     store::refresh_marks(&app);
                 });

@@ -8,6 +8,9 @@ export struct Thumb {
     edited: bool,
     exported: bool,
     selected: bool,
+    // Vorschaubild der exportierten Datei
+    corrected: image,
+    has-corrected: bool,
 }
 
 // Eigener Regler statt `Slider`, weil dessen Doppelklick nicht abzufangen ist.
@@ -181,6 +184,10 @@ export component LabWindow inherits Window {
     callback cancel-export();
     callback export-target-changed(int);
     callback jpeg-quality-changed(float);
+
+    // Leiste zeigt exportierte Bilder korrigiert; alle anderen bleiben Original.
+    in-out property <bool> strip-corrected;
+    callback strip-mode-changed(bool);
 
     // Regler zeigen die wirksamen Werte; Rust schreibt sie nach jeder Änderung zurück.
     in-out property <bool> auto-on: true;
@@ -688,6 +695,55 @@ export component LabWindow inherits Window {
                 }
             }
 
+            Rectangle {
+                height: 36px;
+                background: Palette.alternate-background;
+
+                Rectangle {
+                    y: 0;
+                    height: 1px;
+                    background: #00000060;
+                }
+                HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    padding-top: 4px;
+                    padding-bottom: 4px;
+                    spacing: 8px;
+                    alignment: start;
+
+                    Text {
+                        text: "Leiste zeigt:";
+                        vertical-alignment: center;
+                        font-size: 12px;
+                    }
+                    Button {
+                        text: "Original";
+                        primary: !root.strip-corrected;
+                        clicked => {
+                            root.strip-mode-changed(false);
+                            keys.focus();
+                        }
+                    }
+                    Button {
+                        text: "Korrigiert";
+                        primary: root.strip-corrected;
+                        clicked => {
+                            root.strip-mode-changed(true);
+                            keys.focus();
+                        }
+                    }
+                    Text {
+                        text: root.strip-corrected
+                            ? "Exportierte Bilder erscheinen korrigiert, alle anderen als Original.   ✓ Export aktuell   ● bearbeitet"
+                            : "✓ Export aktuell   ● bearbeitet";
+                        vertical-alignment: center;
+                        color: #8a8f98;
+                        font-size: 12px;
+                    }
+                }
+            }
+
             // Bildleiste
             Rectangle {
                 height: 150px;
@@ -733,7 +789,7 @@ export component LabWindow inherits Window {
                                 y: 6px;
                                 width: parent.width - 12px;
                                 height: 88px;
-                                source: thumb.image;
+                                source: root.strip-corrected && thumb.has-corrected ? thumb.corrected : thumb.image;
                                 image-fit: contain;
                             }
                             if !thumb.loaded: Text {

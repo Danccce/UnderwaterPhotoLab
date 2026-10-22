@@ -51,9 +51,15 @@ pub fn path(dir: &Path) -> PathBuf {
 pub fn load(dir: &Path) -> Sidecar {
     fs::read(path(dir))
         .ok()
-        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+        .and_then(|bytes| parse_json(&bytes))
         .map(|v| from_json(&v))
         .unwrap_or_default()
+}
+
+/// JSON aus Dateiinhalt; ein UTF-8-BOM (Editor, PowerShell) wird übersprungen.
+pub fn parse_json(bytes: &[u8]) -> Option<Value> {
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    serde_json::from_slice(bytes).ok()
 }
 
 /// Schreibt die Datei (über eine Temp-Datei); legt `uw-korrigiert\` bei Bedarf an.
@@ -219,6 +225,11 @@ mod tests {
         assert_eq!(back.entries["P1.JPG"], sc.entries["P1.JPG"]);
         assert_eq!(back.entries["P2.JPG"], sc.entries["P2.JPG"]);
         assert!(!path(&dir).with_file_name(format!("{FILE_NAME}.tmp")).exists());
+
+        let mut with_bom = b"\xEF\xBB\xBF".to_vec();
+        with_bom.extend(fs::read(path(&dir)).unwrap());
+        fs::write(path(&dir), with_bom).unwrap();
+        assert_eq!(load(&dir).entries.len(), 2, "UTF-8-BOM wird übersprungen");
 
         fs::write(path(&dir), b"{ kaputt").unwrap();
         assert_eq!(load(&dir), Sidecar::default(), "unlesbar = leer");

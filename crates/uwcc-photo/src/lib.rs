@@ -99,14 +99,21 @@ impl Photo {
         process_rgba8(&mut rgba, settings, auto);
         let rgb = DynamicImage::ImageRgba8(rgba).into_rgb8();
 
+        // Das Vorschaubild im EXIF zeigt sonst weiter das unkorrigierte Original (Explorer, Leiste).
+        let exif = self.exif.as_ref().map(|e| {
+            exif_thumbnail_jpeg(&rgb)
+                .and_then(|jpeg| exif::with_thumbnail(e, &jpeg))
+                .unwrap_or_else(|| exif::without_thumbnail(e))
+        });
+
         let tmp = out.with_file_name(format!(".{name}.tmp"));
         let written = (|| {
             let mut encoder = JpegEncoder::new_with_quality(BufWriter::new(File::create(&tmp)?), quality);
             if let Some(icc) = &self.icc {
                 encoder.set_icc_profile(icc.clone()).map_err(std::io::Error::other)?;
             }
-            if let Some(exif) = &self.exif {
-                encoder.set_exif_metadata(exif.clone()).map_err(std::io::Error::other)?;
+            if let Some(exif) = exif {
+                encoder.set_exif_metadata(exif).map_err(std::io::Error::other)?;
             }
             encoder
                 .write_image(rgb.as_raw(), rgb.width(), rgb.height(), ExtendedColorType::Rgb8)
@@ -118,6 +125,26 @@ impl Photo {
         }
         Ok(())
     }
+}
+
+/// Längste Kante des eingebetteten EXIF-Vorschaubilds, wie bei Kameras üblich.
+const EXIF_THUMB_MAX: u32 = 160;
+
+/// Vorschaubild fürs EXIF: verkleinert, ungedreht (wie die Pixel), ohne JFIF-Kopf.
+fn exif_thumbnail_jpeg(rgb: &image::RgbImage) -> Option<Vec<u8>> {
+    let (w, h) = rgb.dimensions();
+    let scale = (EXIF_THUMB_MAX as f64 / w.max(h) as f64).min(1.0);
+    let size = |v: u32| ((v as f64 * scale).round() as u32).max(1);
+    let small = imageops::thumbnail(rgb, size(w), size(h));
+    let mut jpeg = Vec::new();
+    JpegEncoder::new_with_quality(&mut jpeg, 85)
+        .write_image(small.as_raw(), small.width(), small.height(), ExtendedColorType::Rgb8)
+        .ok()?;
+    if jpeg.get(2..4) == Some(&[0xFF, 0xE0]) {
+        let len = u16::from_be_bytes([*jpeg.get(4)?, *jpeg.get(5)?]) as usize;
+        jpeg.drain(2..4 + len);
+    }
+    Some(jpeg)
 }
 
 /// Öffnet, analysiert und exportiert ein Bild in voller Auflösung; gibt die Ausgabedatei zurück.
@@ -288,7 +315,9 @@ mod tests {
         let out = photo.export(&Settings::default(), &auto, ExportTarget::Subfolder, 95).unwrap();
         assert_eq!(out, dir.join(SUBFOLDER).join("foto.jpg"));
         let saved = Photo::open(&out).unwrap();
-        assert_eq!(saved.exif.as_deref(), Some(&exif[..]));
+        let saved_exif = saved.exif.as_deref().unwrap();
+        assert_ne!(exif::thumbnail_jpeg(saved_exif), exif::thumbnail_jpeg(&exif), "neues Vorschaubild");
+        assert_eq!(exif_thumbnail(&out, 200).unwrap().dimensions(), (48, 64), "aus dem Export, gedreht wie das Bild");
         assert_eq!(saved.icc.as_deref(), Some(&icc[..]));
         assert_eq!(saved.orientation, Orientation::Rotate90);
         assert_eq!(saved.rgba.dimensions(), (64, 48), "Pixel nicht gedreht");
