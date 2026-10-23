@@ -7,6 +7,7 @@
 mod config;
 mod controls;
 mod export;
+mod info;
 mod preview;
 mod selection;
 mod store;
@@ -287,7 +288,7 @@ fn open(app: &LabWindow, path: &Path) {
     app.set_thumbs(ModelRc::new(VecModel::from(rows)));
     app.set_folder(dir.display().to_string().into());
     app.set_has_preview(false);
-    app.set_image_info("".into());
+    info::clear(app);
     app.set_current(-1);
     app.set_status(if files.is_empty() {
         "Keine Bilder (JPG, PNG, TIFF) in diesem Ordner.".into()
@@ -337,7 +338,7 @@ fn select(app: &LabWindow, index: i32) {
         app.set_preview_original(t.image.clone());
         app.set_preview_corrected(t.image);
     }
-    app.set_image_info(uwcc_photo::file_name(&path).into());
+    info::show(app, &path, None);
     app.set_loading(true);
     preview::load(app.as_weak(), path, counter, generation, loaded);
 }
@@ -352,26 +353,10 @@ fn loaded(app: &LabWindow, result: Result<preview::Loaded, String>) {
             app.set_preview_original(Image::from_rgba8(l.original_buffer()));
             app.set_preview_corrected(Image::from_rgba8(l.corrected_buffer()));
             app.set_has_preview(true);
-            let a = &l.auto;
-            app.set_image_info(
-                format!(
-                    "{}\n{} × {} px\n\nAuto-Analyse:\nRot wiederherstellen {}°\nRot {}–{}, Grün {}–{}, Blau {}–{}",
-                    uwcc_photo::file_name(&l.path),
-                    l.width,
-                    l.height,
-                    a.hue_shift,
-                    a.red.low,
-                    a.red.high,
-                    a.green.low,
-                    a.green.high,
-                    a.blue.low,
-                    a.blue.high,
-                )
-                .into(),
-            );
+            info::show(app, &l.path, Some(&l));
             with_state(|st| st.current = Some(l));
             controls::refresh(app);
         }
-        Err(e) => app.set_image_info(e.into()),
+        Err(e) => info::show_error(app, &e),
     }
 }

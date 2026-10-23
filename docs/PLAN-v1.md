@@ -171,6 +171,11 @@ Nachtrag:
   exportierte Bilder korrigiert (Vorschaubild der exportierten Datei), alle anderen als Original – so sieht man,
   wo noch etwas zu tun ist. Nach einem Export aktualisiert sich das Vorschaubild sofort.
 - [x] `config.json` und `.uwcc.json` werden auch mit UTF-8-BOM gelesen (z. B. nach Bearbeiten im Editor).
+- [x] „Ordner öffnen“ fest am Anfang der Bildleiste, darüber eine Infozeile mit Ordnerpfad und Anzahl der Bilder.
+- [x] Ausklappbare Bildinformationen oben in der Reglerleiste (eingeklappt eine Zusammenfassung): Aufnahme,
+  Kamera, Objektiv, Belichtung (Zeit · Blende · ISO), Brennweite (mit KB-Wert), Belichtungskorrektur, Blitz,
+  Bildgröße, Dateigröße, Software, Auto-Analyse. EXIF wird direkt aus dem Dateianfang gelesen
+  (`uwcc_photo::read_info`, getestet; mit E-M10 II und XZ-1 geprüft), daher sofort beim Auswählen sichtbar.
 
 ### Phase 6b – „In [Programm] öffnen“
 

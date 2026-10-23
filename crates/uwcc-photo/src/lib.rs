@@ -5,7 +5,10 @@
 //! Original. Gedreht wird nur für die Anzeige ([`Photo::preview`], [`thumbnail`]).
 
 mod exif;
+mod info;
 pub mod sidecar;
+
+pub use info::{read_info, PhotoInfo};
 
 use std::{
     fs::{self, File},
@@ -380,6 +383,15 @@ mod tests {
         println!("EXIF-Vorschaubilder: {:?} für {} Bilder", start.elapsed(), files.len());
         println!("ohne EXIF-Vorschaubild: {without:?}");
         println!("Hochformat laut Vorschaubild: {:?}", rotated.iter().map(|p| file_name(p)).collect::<Vec<_>>());
+
+        let mut cameras = std::collections::BTreeMap::new();
+        for f in &files {
+            let info = read_info(f);
+            cameras.entry(info.camera.clone()).or_insert((file_name(f), info));
+        }
+        for (camera, (name, info)) in &cameras {
+            println!("{camera:?} z. B. {name}: {info:#?}");
+        }
 
         if let Some(f) = rotated.first() {
             let start = std::time::Instant::now();

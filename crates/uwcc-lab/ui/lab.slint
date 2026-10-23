@@ -13,6 +13,11 @@ export struct Thumb {
     has-corrected: bool,
 }
 
+export struct InfoRow {
+    label: string,
+    value: string,
+}
+
 // Eigener Regler statt `Slider`, weil dessen Doppelklick nicht abzufangen ist.
 component ValueSlider inherits Rectangle {
     in property <float> minimum;
@@ -152,7 +157,11 @@ export component LabWindow inherits Window {
     in-out property <int> current: -1;
     in property <string> folder;
     in property <string> status;
-    in property <string> image-info;
+    // Bildinformationen: eingeklappt nur die Zusammenfassung, ausgeklappt alle Zeilen.
+    in property <string> info-title;
+    in property <string> info-summary;
+    in property <[InfoRow]> info-rows;
+    property <bool> show-info;
     in property <bool> drag-over;
     in property <image> preview-original;
     in property <image> preview-corrected;
@@ -393,21 +402,6 @@ export component LabWindow inherits Window {
                         padding: 14px;
                         spacing: 10px;
 
-                        Button {
-                            text: "Ordner öffnen …";
-                            primary: true;
-                            clicked => {
-                                root.open-folder();
-                                keys.focus();
-                            }
-                        }
-                        Text {
-                            text: root.folder;
-                            wrap: word-wrap;
-                            color: #8a8f98;
-                            font-size: 12px;
-                        }
-
                         panel := ScrollView {
                             vertical-stretch: 1;
                             content-width: self.visible-width;
@@ -416,6 +410,47 @@ export component LabWindow inherits Window {
                             controls := VerticalLayout {
                                 width: panel.visible-width - 12px;
                                 spacing: 8px;
+
+                                if root.info-title != "": TouchArea {
+                                    height: info-heading.preferred-height;
+                                    mouse-cursor: MouseCursor.pointer;
+                                    clicked => {
+                                        root.show-info = !root.show-info;
+                                    }
+                                    info-heading := Heading {
+                                        x: 0;
+                                        width: parent.width;
+                                        text: (root.show-info ? "▼  " : "▶  ") + root.info-title;
+                                        overflow: elide;
+                                    }
+                                }
+                                if root.info-title != "" && !root.show-info: Text {
+                                    text: root.info-summary;
+                                    wrap: word-wrap;
+                                    color: #8a8f98;
+                                    font-size: 11px;
+                                }
+                                if root.info-title != "" && root.show-info: VerticalLayout {
+                                    spacing: 3px;
+                                    for row in root.info-rows: HorizontalLayout {
+                                        spacing: 8px;
+                                        Text {
+                                            width: 96px;
+                                            text: row.label;
+                                            color: #8a8f98;
+                                            font-size: 11px;
+                                        }
+                                        Text {
+                                            horizontal-stretch: 1;
+                                            text: row.value;
+                                            wrap: word-wrap;
+                                            font-size: 11px;
+                                        }
+                                    }
+                                }
+                                if root.info-title != "": Rectangle {
+                                    height: 6px;
+                                }
 
                                 Heading {
                                     text: "Ansicht";
@@ -643,15 +678,6 @@ export component LabWindow inherits Window {
                                     color: #8a8f98;
                                     font-size: 11px;
                                 }
-
-                                Rectangle {
-                                    height: 6px;
-                                }
-                                Text {
-                                    text: root.image-info;
-                                    wrap: word-wrap;
-                                    font-size: 12px;
-                                }
                             }
                         }
                         Rectangle {
@@ -710,8 +736,14 @@ export component LabWindow inherits Window {
                     padding-top: 4px;
                     padding-bottom: 4px;
                     spacing: 8px;
-                    alignment: start;
 
+                    Text {
+                        text: root.thumbs.length == 0 ? "Kein Ordner geöffnet" : root.folder + "   ·   " + root.thumbs.length + " Bilder";
+                        horizontal-stretch: 1;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        font-size: 12px;
+                    }
                     Text {
                         text: "Leiste zeigt:";
                         vertical-alignment: center;
@@ -734,9 +766,7 @@ export component LabWindow inherits Window {
                         }
                     }
                     Text {
-                        text: root.strip-corrected
-                            ? "Exportierte Bilder erscheinen korrigiert, alle anderen als Original.   ✓ Export aktuell   ● bearbeitet"
-                            : "✓ Export aktuell   ● bearbeitet";
+                        text: root.strip-corrected ? "(nur exportierte Bilder)   ✓ Export aktuell   ● bearbeitet" : "✓ Export aktuell   ● bearbeitet";
                         vertical-alignment: center;
                         color: #8a8f98;
                         font-size: 12px;
@@ -755,8 +785,32 @@ export component LabWindow inherits Window {
                     background: #00000060;
                 }
 
+                HorizontalLayout {
+                // „Ordner öffnen“ steht fest am Anfang der Leiste; nur die Bilder daneben scrollen.
+                Rectangle {
+                    width: root.cell-width + 2 * root.cell-gap;
+                    Button {
+                        x: root.cell-gap;
+                        y: 10px;
+                        width: root.cell-width;
+                        height: 118px;
+                        text: "Ordner öffnen …";
+                        primary: root.thumbs.length == 0;
+                        clicked => {
+                            root.open-folder();
+                            keys.focus();
+                        }
+                    }
+                    Rectangle {
+                        x: parent.width - 1px;
+                        width: 1px;
+                        background: #00000060;
+                    }
+                }
+
                 // Slint scrollt eine nur waagerecht scrollbare Liste nicht mit dem senkrechten Mausrad.
                 TouchArea {
+                    horizontal-stretch: 1;
                     scroll-event(event) => {
                         if event.delta-y == 0px {
                             return reject;
@@ -849,6 +903,7 @@ export component LabWindow inherits Window {
                             }
                         }
                     }
+                }
                 }
             }
         }

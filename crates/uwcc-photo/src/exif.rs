@@ -53,13 +53,13 @@ const TYPE_SHORT: u16 = 3;
 const TYPE_LONG: u16 = 4;
 
 /// Lesezugriff auf ein TIFF/EXIF-Segment in seiner Byte-Reihenfolge.
-struct Tiff<'a> {
+pub(crate) struct Tiff<'a> {
     data: &'a [u8],
     little: bool,
 }
 
 impl<'a> Tiff<'a> {
-    fn new(data: &'a [u8]) -> Option<Self> {
+    pub(crate) fn new(data: &'a [u8]) -> Option<Self> {
         let little = match data.get(0..4)? {
             b"II*\0" => true,
             b"MM\0*" => false,
@@ -68,14 +68,29 @@ impl<'a> Tiff<'a> {
         Some(Self { data, little })
     }
 
-    fn u16(&self, o: usize) -> Option<u16> {
+    pub(crate) fn u16(&self, o: usize) -> Option<u16> {
         let b: [u8; 2] = self.data.get(o..o + 2)?.try_into().ok()?;
         Some(if self.little { u16::from_le_bytes(b) } else { u16::from_be_bytes(b) })
     }
 
-    fn u32(&self, o: usize) -> Option<u32> {
+    pub(crate) fn u32(&self, o: usize) -> Option<u32> {
         let b: [u8; 4] = self.data.get(o..o + 4)?.try_into().ok()?;
         Some(if self.little { u32::from_le_bytes(b) } else { u32::from_be_bytes(b) })
+    }
+
+    pub(crate) fn bytes(&self, o: usize, len: usize) -> Option<&'a [u8]> {
+        self.data.get(o..o.checked_add(len)?)
+    }
+
+    /// Offset von IFD0.
+    pub(crate) fn ifd0(&self) -> Option<usize> {
+        Some(self.u32(4)? as usize)
+    }
+
+    /// Position des Eintrags `tag` im IFD bei `ifd`.
+    pub(crate) fn entry(&self, ifd: usize, tag: u16) -> Option<usize> {
+        let count = self.u16(ifd)? as usize;
+        (0..count.min(512)).map(|i| ifd + 2 + i * 12).find(|&e| self.u16(e) == Some(tag))
     }
 
     /// Position des Zeigers von IFD0 auf IFD1.
