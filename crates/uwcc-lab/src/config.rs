@@ -4,13 +4,12 @@
 use std::{fs, path::PathBuf};
 
 use serde_json::{Map, Value};
-use uwcc_photo::{sidecar, ExportTarget, DEFAULT_JPEG_QUALITY};
+use uwcc_photo::{sidecar, DEFAULT_JPEG_QUALITY};
 
 pub const MIN_JPEG_QUALITY: u8 = 50;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Config {
-    pub export_target: ExportTarget,
     pub jpeg_quality: u8,
     /// Leiste zeigt exportierte Bilder korrigiert.
     pub strip_corrected: bool,
@@ -18,7 +17,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { export_target: ExportTarget::default(), jpeg_quality: DEFAULT_JPEG_QUALITY, strip_corrected: false }
+        Self { jpeg_quality: DEFAULT_JPEG_QUALITY, strip_corrected: false }
     }
 }
 
@@ -39,11 +38,6 @@ pub fn load() -> Config {
     let o = read_object();
     let d = Config::default();
     Config {
-        export_target: o
-            .get("exportTarget")
-            .and_then(Value::as_str)
-            .and_then(sidecar::target_from_name)
-            .unwrap_or(d.export_target),
         jpeg_quality: o
             .get("jpegQuality")
             .and_then(Value::as_u64)
@@ -56,7 +50,7 @@ pub fn load() -> Config {
 pub fn save(config: &Config) -> Result<(), String> {
     let path = path().ok_or("APPDATA ist nicht gesetzt")?;
     let mut o = read_object();
-    o.insert("exportTarget".into(), sidecar::target_name(config.export_target).into());
+    o.remove("exportTarget");
     o.insert("jpegQuality".into(), config.jpeg_quality.into());
     o.insert("stripCorrected".into(), config.strip_corrected.into());
     if let Some(dir) = path.parent() {

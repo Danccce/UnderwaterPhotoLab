@@ -29,7 +29,7 @@ pub fn start(app: &LabWindow, paths: Vec<PathBuf>) {
         let cancel = Arc::new(AtomicBool::new(false));
         st.export_cancel = Some(cancel.clone());
         st.export_errors.clear();
-        (jobs, st.config.export_target, st.config.jpeg_quality, cancel)
+        (jobs, crate::EXPORT_TARGET, st.config.jpeg_quality, cancel)
     });
     let total = jobs.len();
     app.set_exporting(true);
@@ -89,11 +89,7 @@ pub fn cancel(app: &LabWindow) {
 fn finish(app: &LabWindow, finished: usize, total: usize) {
     let (errors, target_dir) = with_state(|st| {
         st.export_cancel = None;
-        let dir = st.dir.clone().unwrap_or_default();
-        let target_dir = match st.config.export_target {
-            uwcc_photo::ExportTarget::Subfolder => dir.join(uwcc_photo::SUBFOLDER),
-            uwcc_photo::ExportTarget::SameFolder => dir,
-        };
+        let target_dir = st.dir.clone().unwrap_or_default().join(uwcc_photo::SUBFOLDER);
         (std::mem::take(&mut st.export_errors), target_dir)
     });
     app.set_exporting(false);

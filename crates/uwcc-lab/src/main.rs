@@ -23,7 +23,10 @@ use std::{
     },
 };
 
-use uwcc_photo::{sidecar::Exported, ExportTarget};
+use uwcc_photo::sidecar::Exported;
+
+/// Exportiert wird immer in den Unterordner `uw-korrigiert`.
+const EXPORT_TARGET: uwcc_photo::ExportTarget = uwcc_photo::ExportTarget::Subfolder;
 
 use slint::{
     winit_030::{winit::event::WindowEvent, EventResult, WinitWindowAccessor},
@@ -72,10 +75,6 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_status("Kein Ordner geöffnet.".into());
     let cfg = config::load();
     with_state(|st| st.config = cfg);
-    app.set_export_target(match cfg.export_target {
-        ExportTarget::Subfolder => 0,
-        ExportTarget::SameFolder => 1,
-    });
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
     app.set_strip_corrected(cfg.strip_corrected);
 
@@ -206,12 +205,6 @@ fn main() -> Result<(), slint::PlatformError> {
         if let Some(app) = weak.upgrade() {
             export::cancel(&app);
         }
-    });
-    let weak = app.as_weak();
-    app.on_export_target_changed(move |index| {
-        let Some(app) = weak.upgrade() else { return };
-        let target = if index == 1 { ExportTarget::SameFolder } else { ExportTarget::Subfolder };
-        update_config(&app, |c| c.export_target = target);
     });
     let weak = app.as_weak();
     app.on_strip_mode_changed(move |corrected| {

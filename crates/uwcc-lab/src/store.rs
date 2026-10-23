@@ -24,7 +24,7 @@ pub fn settings_of(st: &State, path: &Path) -> Settings {
 
 /// Ist der letzte Export dieses Bildes noch aktuell (gleiche Einstellungen, Ziel, Qualität)?
 pub fn is_exported(st: &State, path: &Path) -> bool {
-    let wanted = Exported { settings: settings_of(st, path), target: st.config.export_target, quality: st.config.jpeg_quality };
+    let wanted = Exported { settings: settings_of(st, path), target: crate::EXPORT_TARGET, quality: st.config.jpeg_quality };
     st.exported.get(path) == Some(&wanted)
 }
 

@@ -1,4 +1,4 @@
-import { Button, CheckBox, ComboBox, Palette, ScrollView } from "std-widgets.slint";
+import { Button, CheckBox, Palette, ScrollView } from "std-widgets.slint";
 
 export struct Thumb {
     image: image,
@@ -183,15 +183,12 @@ export component LabWindow inherits Window {
     callback transfer-relative();
     callback undo-transfer();
 
-    // 0 = Unterordner uw-korrigiert, 1 = gleicher Ordner mit _uw
-    in-out property <int> export-target;
     in-out property <float> jpeg-quality: 95;
     in property <bool> exporting;
     in property <string> export-progress;
     callback export-current();
     callback export-selection();
     callback cancel-export();
-    callback export-target-changed(int);
     callback jpeg-quality-changed(float);
 
     // Leiste zeigt exportierte Bilder korrigiert; alle anderen bleiben Original.
@@ -335,21 +332,26 @@ export component LabWindow inherits Window {
                         height: 28px;
                         border-radius: 14px;
                         background: white;
-                        Text {
-                            text: "◀▶";
-                            color: #141518;
-                            font-size: 10px;
+                        // Zwei Dreiecke selbst gezeichnet; Schriftzeichen sitzen nicht mittig.
+                        Path {
+                            width: 100%;
+                            height: 100%;
+                            viewbox-width: 28;
+                            viewbox-height: 28;
+                            commands: "M 11.5 8.5 L 5 14 L 11.5 19.5 Z M 16.5 8.5 L 23 14 L 16.5 19.5 Z";
+                            fill: #2a7fff;
+                            stroke-width: 0px;
                         }
                     }
                     if root.has-preview && root.split && !root.hold: Tag {
                         x: 12px;
                         y: 12px;
-                        text: "Vorher";
+                        text: "Original";
                     }
                     if root.has-preview && root.split && !root.hold: Tag {
                         x: preview-box.width - self.width - 12px;
                         y: 12px;
-                        text: "Nachher";
+                        text: "Korrigiert";
                     }
                     if root.has-preview && root.hold: Tag {
                         x: 12px;
@@ -417,10 +419,22 @@ export component LabWindow inherits Window {
                                     clicked => {
                                         root.show-info = !root.show-info;
                                     }
-                                    info-heading := Heading {
+                                    // Dreieck selbst gezeichnet: Windows zeigt ▶ sonst als Emoji.
+                                    Path {
                                         x: 0;
-                                        width: parent.width;
-                                        text: (root.show-info ? "▼  " : "▶  ") + root.info-title;
+                                        y: (parent.height - 10px) / 2;
+                                        width: 10px;
+                                        height: 10px;
+                                        viewbox-width: 10;
+                                        viewbox-height: 10;
+                                        commands: root.show-info ? "M 0 2 L 10 2 L 5 8 Z" : "M 2 0 L 8 5 L 2 10 Z";
+                                        fill: #c8ccd2;
+                                        stroke-width: 0px;
+                                    }
+                                    info-heading := Heading {
+                                        x: 16px;
+                                        width: parent.width - 16px;
+                                        text: root.info-title;
                                         overflow: elide;
                                     }
                                 }
@@ -455,26 +469,27 @@ export component LabWindow inherits Window {
                                 Heading {
                                     text: "Ansicht";
                                 }
-                                before-button := Button {
-                                    text: "Vorher (halten oder Leertaste)";
-                                    enabled: root.has-preview;
-                                    clicked => {
-                                        keys.focus();
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    // Gedrückt halten (oder Leertaste): ganzes Bild als Original.
+                                    before-button := Button {
+                                        horizontal-stretch: 1;
+                                        text: "Original";
+                                        enabled: root.has-preview;
+                                        clicked => {
+                                            keys.focus();
+                                        }
                                     }
-                                }
-                                Button {
-                                    text: "Split-Ansicht";
-                                    checkable: true;
-                                    checked <=> root.split;
-                                    enabled: root.has-preview;
-                                    clicked => {
-                                        keys.focus();
+                                    Button {
+                                        horizontal-stretch: 1;
+                                        text: "Split-Ansicht";
+                                        checkable: true;
+                                        checked <=> root.split;
+                                        enabled: root.has-preview;
+                                        clicked => {
+                                            keys.focus();
+                                        }
                                     }
-                                }
-                                Text {
-                                    text: "Bild wechseln: ← →    Split-Ansicht: S";
-                                    color: #8a8f98;
-                                    font-size: 12px;
                                 }
 
                                 Rectangle {
@@ -651,15 +666,6 @@ export component LabWindow inherits Window {
                                 Heading {
                                     text: "Export";
                                 }
-                                ComboBox {
-                                    model: ["Unterordner „uw-korrigiert“", "Gleicher Ordner, Name mit _uw"];
-                                    current-index <=> root.export-target;
-                                    enabled: !root.exporting;
-                                    selected => {
-                                        root.export-target-changed(self.current-index);
-                                        keys.focus();
-                                    }
-                                }
                                 SliderRow {
                                     label: "JPG-Qualität";
                                     text: round(root.jpeg-quality);
@@ -673,7 +679,7 @@ export component LabWindow inherits Window {
                                     released => { keys.focus(); }
                                 }
                                 Text {
-                                    text: "Originale werden nie verändert. Ein erneuter Export ersetzt das vorherige Ergebnis. ✓ in der Leiste: aktuell exportiert.";
+                                    text: "Export in den Unterordner „uw-korrigiert“. Originale werden nie verändert, ein erneuter Export ersetzt das vorherige Ergebnis. In der Leiste: ✓ aktuell exportiert, ● bearbeitet.";
                                     wrap: word-wrap;
                                     color: #8a8f98;
                                     font-size: 11px;
@@ -764,12 +770,6 @@ export component LabWindow inherits Window {
                             root.strip-mode-changed(true);
                             keys.focus();
                         }
-                    }
-                    Text {
-                        text: root.strip-corrected ? "(nur exportierte Bilder)   ✓ Export aktuell   ● bearbeitet" : "✓ Export aktuell   ● bearbeitet";
-                        vertical-alignment: center;
-                        color: #8a8f98;
-                        font-size: 12px;
                     }
                 }
             }
