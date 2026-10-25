@@ -133,6 +133,61 @@ component SliderRow inherits VerticalLayout {
     }
 }
 
+// Zweigeteilter Umschalter: die aktive Hälfte ist hellblau hinterlegt.
+component Segmented inherits Rectangle {
+    in property <string> left-text;
+    in property <string> right-text;
+    in-out property <bool> right-active;
+    callback changed(bool);
+    height: 26px;
+    border-radius: 5px;
+    border-width: 1px;
+    border-color: #5a5d65;
+    background: #2b2d31;
+    clip: true;
+
+    HorizontalLayout {
+        Rectangle {
+            horizontal-stretch: 1;
+            background: !root.right-active ? #8cc4ff : left-touch.has-hover ? #ffffff14 : transparent;
+            Text {
+                text: root.left-text;
+                font-size: 12px;
+                color: !root.right-active ? #0d2440 : Palette.foreground;
+            }
+            left-touch := TouchArea {
+                clicked => {
+                    if root.right-active {
+                        root.right-active = false;
+                        root.changed(false);
+                    }
+                }
+            }
+        }
+        Rectangle {
+            width: 1px;
+            background: #5a5d65;
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            background: root.right-active ? #8cc4ff : right-touch.has-hover ? #ffffff14 : transparent;
+            Text {
+                text: root.right-text;
+                font-size: 12px;
+                color: root.right-active ? #0d2440 : Palette.foreground;
+            }
+            right-touch := TouchArea {
+                clicked => {
+                    if !root.right-active {
+                        root.right-active = true;
+                        root.changed(true);
+                    }
+                }
+            }
+        }
+    }
+}
+
 component Heading inherits Text {
     font-weight: 700;
     font-size: 13px;
@@ -200,7 +255,6 @@ export component LabWindow inherits Window {
     // „In … öffnen“
     in property <[ProgramItem]> programs;
     in property <string> open-with-name;
-    in property <string> open-with-note;
     callback open-in-program();
     callback choose-program(int);
     callback add-program();
@@ -489,6 +543,7 @@ export component LabWindow inherits Window {
                                     before-button := Button {
                                         horizontal-stretch: 1;
                                         text: "Original";
+                                        primary: self.pressed || root.space-held;
                                         enabled: root.has-preview;
                                         clicked => {
                                             keys.focus();
@@ -550,12 +605,6 @@ export component LabWindow inherits Window {
                                 }
                                 Heading {
                                     text: "Farbe";
-                                }
-                                Text {
-                                    text: "Doppelklick auf einen Regler setzt nur diesen zurück.";
-                                    wrap: word-wrap;
-                                    color: #8a8f98;
-                                    font-size: 11px;
                                 }
                                 SliderRow {
                                     label: "Rot wiederherstellen";
@@ -624,19 +673,11 @@ export component LabWindow inherits Window {
                                     released => { keys.focus(); }
                                 }
 
-                                Rectangle {
+                                if root.selected-count > 1 || root.can-undo-transfer: Rectangle {
                                     height: 6px;
                                 }
-                                Heading {
-                                    text: "Mehrere Bilder";
-                                }
-                                Text {
-                                    text: root.selected-count > 1
-                                        ? root.selected-count + " Bilder ausgewählt. Einstellungen des blau umrandeten Bildes übernehmen:"
-                                        : "Weitere Bilder mit Strg+Klick oder Umschalt+Klick in der Leiste auswählen, Strg+A für alle.";
-                                    wrap: word-wrap;
-                                    color: #8a8f98;
-                                    font-size: 11px;
+                                if root.selected-count > 1 || root.can-undo-transfer: Heading {
+                                    text: root.selected-count > 1 ? "Mehrere Bilder (" + root.selected-count + ")" : "Mehrere Bilder";
                                 }
                                 if root.selected-count > 1: Button {
                                     text: "Gleiche Werte übernehmen";
@@ -646,12 +687,6 @@ export component LabWindow inherits Window {
                                         keys.focus();
                                     }
                                 }
-                                if root.selected-count > 1: Text {
-                                    text: "Jedes Bild bekommt genau dieselbe Korrektur. Für eine Serie aus derselben Situation.";
-                                    wrap: word-wrap;
-                                    color: #8a8f98;
-                                    font-size: 11px;
-                                }
                                 if root.selected-count > 1: Button {
                                     text: "Auto + Abweichung übernehmen";
                                     enabled: root.controls-enabled;
@@ -659,12 +694,6 @@ export component LabWindow inherits Window {
                                         root.transfer-relative();
                                         keys.focus();
                                     }
-                                }
-                                if root.selected-count > 1: Text {
-                                    text: "Jedes Bild behält seine eigene Auto-Analyse, deine Änderungen kommen dazu.";
-                                    wrap: word-wrap;
-                                    color: #8a8f98;
-                                    font-size: 11px;
                                 }
                                 if root.can-undo-transfer: Button {
                                     text: "Letzte Übernahme rückgängig";
@@ -691,12 +720,6 @@ export component LabWindow inherits Window {
                                     edited(f, v) => { root.jpeg-quality-changed(v); }
                                     reset(f) => { root.jpeg-quality-changed(95); keys.focus(); }
                                     released => { keys.focus(); }
-                                }
-                                Text {
-                                    text: "Export in den Unterordner „uw-korrigiert“. Originale werden nie verändert, ein erneuter Export ersetzt das vorherige Ergebnis. In der Leiste: ✓ aktuell exportiert, ● bearbeitet.";
-                                    wrap: word-wrap;
-                                    color: #8a8f98;
-                                    font-size: 11px;
                                 }
                             }
                         }
@@ -822,12 +845,6 @@ export component LabWindow inherits Window {
                                 }
                             }
                         }
-                        if !root.exporting && root.open-with-note != "": Text {
-                            text: root.open-with-note;
-                            wrap: word-wrap;
-                            color: #8a8f98;
-                            font-size: 11px;
-                        }
                         if root.exporting: Text {
                             text: root.export-progress;
                             font-size: 12px;
@@ -877,20 +894,17 @@ export component LabWindow inherits Window {
                         vertical-alignment: center;
                         font-size: 12px;
                     }
-                    Button {
-                        text: "Original";
-                        primary: !root.strip-corrected;
-                        clicked => {
-                            root.strip-mode-changed(false);
-                            keys.focus();
-                        }
-                    }
-                    Button {
-                        text: "Korrigiert";
-                        primary: root.strip-corrected;
-                        clicked => {
-                            root.strip-mode-changed(true);
-                            keys.focus();
+                    VerticalLayout {
+                        alignment: center;
+                        Segmented {
+                            width: 190px;
+                            left-text: "Original";
+                            right-text: "Korrigiert";
+                            right-active <=> root.strip-corrected;
+                            changed(corrected) => {
+                                root.strip-mode-changed(corrected);
+                                keys.focus();
+                            }
                         }
                     }
                 }

@@ -194,11 +194,16 @@ LightCraft importiert in seine Bibliothek, „Öffnen mit …“ nur für ein Bi
 seit 1.4.5 an („Öffnen mit“), LightCraft importiert übergebene Dateien/Ordner. Per Screenshot geprüft: Knopf
 „In RapidRaw öffnen“. Noch nicht von Hand getestet: das tatsächliche Öffnen in den Programmen (besonders mehrere
 Dateien in RapidRaw und PhotoCraft), das Menü, „Öffnen mit …“.
+Von Hand getestet: RapidRaw öffnet bei mehreren Bildern nur eines – so in Ordnung.
+
+Nachtrag Bedienung: Leiste „Original | Korrigiert“ als zweigeteilter Umschalter (aktive Hälfte hellblau); Knopf
+„Original“ der Ansicht ist blau, solange er (oder die Leertaste) gedrückt ist. Erklärtexte aus dem Fenster entfernt
+und in `docs/HILFE-texte.md` gesammelt (für 7.2).
 
 ### Phase 7 – Abschluss
 
 - [ ] 7.1 Gesamttest mit einem echten Tauchgang-Ordner (Ladezeit, Reglerreaktion, Export, Metadaten in PhotoCraft/RapidRaw prüfen)
-- [ ] 7.2 Screenshots, kurze Bedienhinweise im Fenster („?“)
+- [ ] 7.2 Screenshots, Hilfe aus `docs/HILFE-texte.md` (Hilfedatei bzw. „?“-Dialog im Fenster)
 - [ ] 7.3 `unterwasser-analyse.exe` (`uwcc-gui`) samt PhotoCraft-Steuerschnittstelle entfernen; die Plug-ins bleiben
 - [ ] 7.4 Release-Build nach `dist\`
 

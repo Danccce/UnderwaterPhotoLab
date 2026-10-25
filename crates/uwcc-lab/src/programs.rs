@@ -33,7 +33,6 @@ pub struct Program {
     /// `None`: nicht gefunden.
     pub exe: Option<PathBuf>,
     pub args: Vec<String>,
-    pub note: &'static str,
 }
 
 struct Known {
@@ -41,7 +40,6 @@ struct Known {
     name: &'static str,
     /// Übliche Installationsorte; `%VAR%` wird ersetzt, `*` passt auf einen Ordnernamen.
     candidates: &'static [&'static str],
-    note: &'static str,
 }
 
 const KNOWN: [Known; 5] = [
@@ -53,31 +51,26 @@ const KNOWN: [Known; 5] = [
             r"%LOCALAPPDATA%\Programs\RapidRAW\RapidRAW.exe",
             r"%ProgramFiles%\RapidRAW\RapidRAW.exe",
         ],
-        note: "",
     },
     Known {
         id: "photocraft",
         name: "PhotoCraft",
         candidates: &[r"%ProgramFiles%\PhotoCraft\photocraft.exe", r"%LOCALAPPDATA%\Programs\PhotoCraft\photocraft.exe"],
-        note: "",
     },
     Known {
         id: "lightcraft",
         name: "LightCraft",
         candidates: &[r"%ProgramFiles%\LightCraft\lightcraft.exe", r"%LOCALAPPDATA%\Programs\LightCraft\lightcraft.exe"],
-        note: "LightCraft importiert die Bilder in seine Bibliothek.",
     },
     Known {
         id: "photoshop",
         name: "Photoshop",
         candidates: &[r"%ProgramFiles%\Adobe\Adobe Photoshop*\Photoshop.exe"],
-        note: "",
     },
     Known {
         id: "lightroom",
         name: "Lightroom Classic",
         candidates: &[r"%ProgramFiles%\Adobe\Adobe Lightroom Classic\Lightroom.exe"],
-        note: "Lightroom Classic zeigt den Import-Dialog.",
     },
 ];
 
@@ -129,7 +122,6 @@ pub fn list(own: &[ProgramPath]) -> Vec<Program> {
                 kind: Kind::Exe,
                 exe: own.map(|p| p.exe.clone()).or_else(|| find(k.candidates)),
                 args: own.map_or_else(|| vec!["{files}".to_owned()], |p| p.args.clone()),
-                note: k.note,
             }
         })
         .collect();
@@ -139,7 +131,6 @@ pub fn list(own: &[ProgramPath]) -> Vec<Program> {
         kind: Kind::Exe,
         exe: p.exe.is_file().then(|| p.exe.clone()),
         args: p.args.clone(),
-        note: "",
     }));
     out.push(Program {
         id: WINDOWS_DEFAULT.into(),
@@ -147,7 +138,6 @@ pub fn list(own: &[ProgramPath]) -> Vec<Program> {
         kind: Kind::WindowsDefault,
         exe: None,
         args: Vec::new(),
-        note: "",
     });
     out.push(Program {
         id: OPEN_WITH.into(),
@@ -155,7 +145,6 @@ pub fn list(own: &[ProgramPath]) -> Vec<Program> {
         kind: Kind::OpenWith,
         exe: None,
         args: Vec::new(),
-        note: "Windows fragt nach dem Programm (nur für ein Bild).",
     });
     out
 }
@@ -185,8 +174,7 @@ pub fn refresh(app: &LabWindow) {
         })
         .collect();
     app.set_programs(ModelRc::new(VecModel::from(items)));
-    app.set_open_with_name(current.as_ref().map_or("…".into(), |p| p.name.clone().into()));
-    app.set_open_with_note(current.map_or("", |p| p.note).into());
+    app.set_open_with_name(current.map_or("…".into(), |p| p.name.into()));
 }
 
 /// Menüeintrag gewählt; ein nicht gefundenes Programm wird per Dateiauswahl gesucht.
