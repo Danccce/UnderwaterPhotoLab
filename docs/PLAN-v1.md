@@ -198,22 +198,25 @@ Von Hand getestet: RapidRaw öffnet bei mehreren Bildern nur eines – so in Ord
 
 Nachtrag Bedienung: Leiste „Original | Korrigiert“ als zweigeteilter Umschalter (aktive Hälfte hellblau); Knopf
 „Original“ der Ansicht ist blau, solange er (oder die Leertaste) gedrückt ist. Erklärtexte aus dem Fenster entfernt
-und in `docs/HILFE-texte.md` gesammelt (für 7.2).
+und in `docs/HILFE-texte.md` gesammelt (für 7.2, inzwischen `docs/HILFE.md`).
 
 ### Phase 7 – Abschluss
 
-- [ ] 7.1 Gesamttest mit einem echten Tauchgang-Ordner (Ladezeit, Reglerreaktion, Export, Metadaten in PhotoCraft/RapidRaw prüfen)
-- [ ] 7.2 Screenshots, Hilfe aus `docs/HILFE-texte.md` (Hilfedatei bzw. „?“-Dialog im Fenster)
-- [ ] 7.3 `unterwasser-analyse.exe` (`uwcc-gui`) samt PhotoCraft-Steuerschnittstelle entfernen; die Plug-ins bleiben
-- [ ] 7.4 Release-Build nach `dist\`
+- [x] 7.1 Gesamttest mit einem echten Tauchgang-Ordner (Ladezeit, Reglerreaktion, Export, Metadaten in PhotoCraft/RapidRaw prüfen)
+- [x] 7.2 Screenshots, Hilfe aus `docs/HILFE-texte.md` (Hilfedatei bzw. „?“-Dialog im Fenster)
+- [x] 7.3 `unterwasser-analyse.exe` (`uwcc-gui`) samt PhotoCraft-Steuerschnittstelle entfernen; die Plug-ins bleiben
+- [x] 7.4 Release-Build nach `dist\`
+
+Erledigt: Gesamttest mit `uw-fotos` (423 Bilder, E-M10 II und XZ-1): Vorschaubilder in 0,34 s; Vorschau nach einer
+Regleränderung neu rechnen 24 ms (auf 8 Threads verteilt, vorher 47–86 ms auf einem); Stapel-Export mit 4 Threads
+≈ 1,0 s pro Bild (400 Bilder ≈ 7 min); EXIF, Ausrichtung und korrigiertes Vorschaubild geprüft (Phase 6).
+Hilfe: `docs/HILFE.md` mit Screenshots (`docs/img`) und im Programm per F1 bzw. „?“. `uwcc-gui` und das
+PhotoCraft-Startskript entfernt; `dist\` enthält UnderwaterPhotoLab.exe, uwcc-analyze.exe und beide Plug-ins.
+Zusätzlich: dunkle Titelleiste. Alle Tests grün (14 Kern, 16 Foto, 7 Plug-in).
 
 ## v2 (nicht in v1)
 
 - Dehaze in der Unterwasser-Variante (Dark Channel nur aus Grün und Blau, braucht das ganze Bild)
 - Presets pro Wasserart („Rotes Meer“, „See grün“, „mit Blitz“) als gespeicherte Abweichung vom Auto-Wert
 - Klarheit (lokaler Kontrast), Lichter/Schatten
-- „Im Programm öffnen“: exportiertes Bild direkt an PhotoCraft/RapidRaw übergeben
-
-## Offene Fragen
-
-- Welche Programme sollen vorbelegt werden, und welches ist das Standard-Ziel?
+- Programmsymbol (Icon) für Fenster und .exe

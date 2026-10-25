@@ -73,7 +73,11 @@ fn with_state<R>(f: impl FnOnce(&mut State) -> R) -> R {
 }
 
 fn main() -> Result<(), slint::PlatformError> {
-    slint::BackendSelector::new().backend_name("winit".into()).select()?;
+    slint::BackendSelector::new()
+        .backend_name("winit".into())
+        // Dunkle Titelleiste passend zum dunklen Fensterinhalt.
+        .with_winit_window_attributes_hook(|a| a.with_theme(Some(slint::winit_030::winit::window::Theme::Dark)))
+        .select()?;
 
     let app = LabWindow::new()?;
     app.window().set_maximized(true);

@@ -34,10 +34,18 @@ impl Loaded {
         buffer(&self.original)
     }
 
+    /// Auf alle Kerne verteilt: ein Regler soll die Vorschau ohne spürbare Verzögerung ändern.
     pub fn corrected_buffer(&self) -> SharedPixelBuffer<Rgba8Pixel> {
-        let mut px = self.original.clone();
-        process_rgba8(&mut px, &self.settings, &self.auto);
-        buffer(&px)
+        let mut buf = buffer(&self.original);
+        let bytes = buf.make_mut_bytes();
+        let threads = thread::available_parallelism().map_or(4, |n| n.get()).clamp(1, 8);
+        let chunk = ((bytes.len() / 4).div_ceil(threads) * 4).max(4);
+        thread::scope(|s| {
+            for part in bytes.chunks_mut(chunk) {
+                s.spawn(|| process_rgba8(part, &self.settings, &self.auto));
+            }
+        });
+        buf
     }
 }
 

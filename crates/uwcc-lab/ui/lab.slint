@@ -13,6 +13,11 @@ export struct Thumb {
     has-corrected: bool,
 }
 
+struct HelpSection {
+    title: string,
+    lines: [string],
+}
+
 export struct ProgramItem {
     name: string,
     found: bool,
@@ -259,6 +264,61 @@ export component LabWindow inherits Window {
     callback choose-program(int);
     callback add-program();
 
+    // Hilfe (F1 oder „?“); Inhalt wie docs/HILFE.md.
+    property <bool> show-help;
+    property <[HelpSection]> help: [
+        {
+            title: "Bilder auswählen und vergleichen",
+            lines: [
+                "Ordner öffnen: Knopf links in der Leiste, Ordner oder Bild ins Fenster ziehen, oder Ordner auf die .exe ziehen.",
+                "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
+                "Original zeigen: Knopf „Original“ oder Leertaste gedrückt halten.",
+                "Split-Ansicht: Knopf „Split-Ansicht“ oder Taste S; die Trennlinie mit der Maus ziehen.",
+                "Bildinformationen: oben rechts auf den Dateinamen klicken.",
+            ],
+        },
+        {
+            title: "Korrigieren",
+            lines: [
+                "Die Auto-Korrektur stellt Rot wieder her und spreizt die Farbkanäle für jedes Bild einzeln.",
+                "Stärke: wie stark die Korrektur wirkt (0 % = Original).",
+                "Temperatur und Grün ↔ Magenta: Reststich ausgleichen.",
+                "Pipette: Knopf drücken, dann eine eigentlich neutrale Stelle anklicken (Sand, Flosse, Graukarte).",
+                "Dynamik: schwache Farben kräftiger, kräftige bleiben.",
+                "Rot-Obergrenze: begrenzt, wie stark der Rotkanal angehoben wird (weniger Rauschen).",
+                "Doppelklick auf einen Regler setzt nur diesen zurück; „Zurücksetzen“ setzt alle zurück.",
+            ],
+        },
+        {
+            title: "Mehrere Bilder",
+            lines: [
+                "Strg+Klick: Bild dazu oder weg. Umschalt+Klick: Bereich. Strg+A: alle. Esc: Auswahl aufheben.",
+                "Übernommen werden die Einstellungen des blau umrandeten Bildes.",
+                "„Gleiche Werte übernehmen“: jedes Bild bekommt genau dieselbe Korrektur – für eine Serie aus derselben Situation.",
+                "„Auto + Abweichung übernehmen“: jedes Bild behält seine Auto-Analyse, deine Änderungen kommen dazu.",
+                "„Letzte Übernahme rückgängig“ gilt, bis ein Regler bewegt wird.",
+            ],
+        },
+        {
+            title: "Export und Weiterbearbeiten",
+            lines: [
+                "Export (Strg+E, Auswahl Strg+Umschalt+E) in den Unterordner „uw-korrigiert“: gleicher Dateiname, EXIF und Farbprofil bleiben.",
+                "Originale werden nie verändert; ein erneuter Export ersetzt das vorherige Ergebnis.",
+                "Leiste: ✓ = mit den jetzigen Einstellungen exportiert, ● = bearbeitet.",
+                "Leiste „Korrigiert“: exportierte Bilder erscheinen korrigiert, alle anderen als Original.",
+                "„In … öffnen“ exportiert Fehlendes zuerst und übergibt die Bilder dem Programm; der Pfeil daneben wechselt das Programm.",
+                "RapidRaw öffnet bei mehreren Bildern nur eines. Lightroom Classic zeigt den Import-Dialog, LightCraft importiert in seine Bibliothek.",
+                "Einstellungen jedes Bildes stehen in „uw-korrigiert\\.uwcc.json“ und sind beim nächsten Öffnen wieder da.",
+            ],
+        },
+        {
+            title: "Herkunft",
+            lines: [
+                "Auto-Korrektur nach „underwater-image-color-correction“ von Nikolaj Bech Andersen (GPL-3.0), github.com/nikolajbech/underwater-image-color-correction.",
+            ],
+        },
+    ];
+
     // Leiste zeigt exportierte Bilder korrigiert; alle anderen bleiben Original.
     in-out property <bool> strip-corrected;
     callback strip-mode-changed(bool);
@@ -309,6 +369,14 @@ export component LabWindow inherits Window {
         height: 100%;
 
         key-pressed(event) => {
+            if event.text == Key.F1 {
+                root.show-help = !root.show-help;
+                return accept;
+            }
+            if root.show-help && event.text == Key.Escape {
+                root.show-help = false;
+                return accept;
+            }
             if event.text == " " {
                 root.space-held = true;
                 return accept;
@@ -907,6 +975,27 @@ export component LabWindow inherits Window {
                             }
                         }
                     }
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 26px;
+                            height: 26px;
+                            border-radius: 13px;
+                            border-width: 1px;
+                            border-color: #5a5d65;
+                            background: help-touch.has-hover ? #ffffff26 : #ffffff10;
+                            Text {
+                                text: "?";
+                                font-weight: 700;
+                            }
+                            help-touch := TouchArea {
+                                clicked => {
+                                    root.show-help = true;
+                                    keys.focus();
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1040,6 +1129,73 @@ export component LabWindow inherits Window {
                         }
                     }
                 }
+                }
+            }
+        }
+
+        if root.show-help: Rectangle {
+            background: #000000b0;
+            TouchArea {
+                clicked => {
+                    root.show-help = false;
+                }
+            }
+            Rectangle {
+                width: min(parent.width - 80px, 760px);
+                height: parent.height - 80px;
+                border-radius: 8px;
+                background: #25262a;
+                border-width: 1px;
+                border-color: #00000080;
+                // Klicks im Hilfefenster schließen es nicht.
+                TouchArea { }
+                VerticalLayout {
+                    padding: 20px;
+                    spacing: 12px;
+                    HorizontalLayout {
+                        Text {
+                            horizontal-stretch: 1;
+                            text: "Hilfe";
+                            font-size: 20px;
+                            font-weight: 700;
+                        }
+                        Button {
+                            text: "Schließen (Esc)";
+                            clicked => {
+                                root.show-help = false;
+                                keys.focus();
+                            }
+                        }
+                    }
+                    help-scroll := ScrollView {
+                        vertical-stretch: 1;
+                        content-width: self.visible-width;
+                        content-height: help-body.preferred-height;
+                        help-body := VerticalLayout {
+                            width: help-scroll.visible-width - 14px;
+                            spacing: 6px;
+                            for section in root.help: VerticalLayout {
+                                spacing: 4px;
+                                padding-bottom: 10px;
+                                Heading {
+                                    text: section.title;
+                                }
+                                for line in section.lines: HorizontalLayout {
+                                    spacing: 6px;
+                                    Text {
+                                        text: "•";
+                                        color: #8a8f98;
+                                    }
+                                    Text {
+                                        horizontal-stretch: 1;
+                                        text: line;
+                                        wrap: word-wrap;
+                                        font-size: 12px;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

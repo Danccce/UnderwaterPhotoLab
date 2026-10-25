@@ -393,6 +393,51 @@ mod tests {
             println!("{camera:?} z. B. {name}: {info:#?}");
         }
 
+        // Reglerreaktion: so lange braucht eine Neuberechnung der Vorschau (1280 px).
+        let photo = Photo::open(&files[0]).unwrap();
+        let auto = photo.analyze();
+        let preview = photo.preview(1280);
+        let settings = Settings { temperature: 20.0, vibrance: 30.0, ..Settings::default() };
+        let start = std::time::Instant::now();
+        for _ in 0..20 {
+            let mut px = preview.clone();
+            uwcc_core::process_rgba8(&mut px, &settings, &auto);
+        }
+        println!("Vorschau {}×{} neu rechnen: {:?} im Schnitt", preview.width(), preview.height(), start.elapsed() / 20);
+        let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).clamp(1, 8);
+        let start = std::time::Instant::now();
+        for _ in 0..20 {
+            let mut px = preview.clone();
+            let chunk = ((px.len() / 4).div_ceil(threads) * 4).max(4);
+            std::thread::scope(|s| {
+                for part in px.chunks_mut(chunk) {
+                    s.spawn(|| uwcc_core::process_rgba8(part, &settings, &auto));
+                }
+            });
+        }
+        println!("… verteilt auf {threads} Threads wie in der App: {:?} im Schnitt", start.elapsed() / 20);
+
+        // Stapel-Export: 8 Bilder mit 4 Threads wie in der App, in einen Temp-Ordner.
+        let out_dir = std::env::temp_dir().join("uwcc-photo-tests").join("batch");
+        let _ = fs::remove_dir_all(&out_dir);
+        fs::create_dir_all(&out_dir).unwrap();
+        let batch: Vec<PathBuf> = files.iter().take(8).cloned().collect();
+        let next = std::sync::atomic::AtomicUsize::new(0);
+        let start = std::time::Instant::now();
+        std::thread::scope(|s| {
+            for _ in 0..4 {
+                s.spawn(|| loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let Some(f) = batch.get(i) else { break };
+                    let photo = Photo::open(f).unwrap();
+                    let auto = photo.analyze();
+                    photo.export_to(&Settings::default(), &auto, &out_dir.join(file_name(f)), DEFAULT_JPEG_QUALITY).unwrap();
+                });
+            }
+        });
+        let took = start.elapsed();
+        println!("Stapel-Export {} Bilder mit 4 Threads: {took:?} ({:?} pro Bild)", batch.len(), took / batch.len() as u32);
+
         if let Some(f) = rotated.first() {
             let start = std::time::Instant::now();
             let photo = Photo::open(f).unwrap();

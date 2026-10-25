@@ -5,7 +5,6 @@ members = [
     "crates/uwcc-plugin-red",
     "crates/uwcc-photo",
     "crates/uwcc-analyze",
-    "crates/uwcc-gui",
     "crates/uwcc-lab",
     "crates/uwcc-plugin-tests",
 ]
