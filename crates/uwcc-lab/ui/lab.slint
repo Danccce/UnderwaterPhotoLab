@@ -13,6 +13,12 @@ export struct Thumb {
     has-corrected: bool,
 }
 
+export struct ProgramItem {
+    name: string,
+    found: bool,
+    chosen: bool,
+}
+
 export struct InfoRow {
     label: string,
     value: string,
@@ -190,6 +196,14 @@ export component LabWindow inherits Window {
     callback export-selection();
     callback cancel-export();
     callback jpeg-quality-changed(float);
+
+    // „In … öffnen“
+    in property <[ProgramItem]> programs;
+    in property <string> open-with-name;
+    in property <string> open-with-note;
+    callback open-in-program();
+    callback choose-program(int);
+    callback add-program();
 
     // Leiste zeigt exportierte Bilder korrigiert; alle anderen bleiben Original.
     in-out property <bool> strip-corrected;
@@ -705,6 +719,114 @@ export component LabWindow inherits Window {
                                 root.export-selection();
                                 keys.focus();
                             }
+                        }
+                        if !root.exporting: HorizontalLayout {
+                            spacing: 6px;
+                            Button {
+                                horizontal-stretch: 1;
+                                text: "In " + root.open-with-name + " öffnen";
+                                enabled: root.current >= 0;
+                                clicked => {
+                                    root.open-in-program();
+                                    keys.focus();
+                                }
+                            }
+                            // Programmauswahl; Dreieck selbst gezeichnet (siehe Bildinformationen).
+                            Rectangle {
+                                width: 34px;
+                                border-radius: 4px;
+                                background: menu-touch.has-hover ? #ffffff26 : #ffffff12;
+                                Path {
+                                    x: (parent.width - 10px) / 2;
+                                    y: (parent.height - 10px) / 2;
+                                    width: 10px;
+                                    height: 10px;
+                                    viewbox-width: 10;
+                                    viewbox-height: 10;
+                                    commands: "M 0 2 L 10 2 L 5 8 Z";
+                                    fill: #c8ccd2;
+                                    stroke-width: 0px;
+                                }
+                                menu-touch := TouchArea {
+                                    clicked => {
+                                        program-menu.show();
+                                    }
+                                }
+                                program-menu := PopupWindow {
+                                    x: parent.width - 290px;
+                                    y: -(root.programs.length * 30px + 48px);
+                                    width: 290px;
+                                    Rectangle {
+                                        background: #2b2d31;
+                                        border-radius: 6px;
+                                        border-width: 1px;
+                                        border-color: #00000080;
+                                        VerticalLayout {
+                                            padding: 6px;
+                                            for program[i] in root.programs: Rectangle {
+                                                height: 30px;
+                                                border-radius: 4px;
+                                                background: row-touch.has-hover ? #2a7fff33 : transparent;
+                                                HorizontalLayout {
+                                                    padding-left: 8px;
+                                                    padding-right: 8px;
+                                                    spacing: 6px;
+                                                    Text {
+                                                        width: 14px;
+                                                        text: program.chosen ? "✓" : "";
+                                                        vertical-alignment: center;
+                                                        color: #2a7fff;
+                                                    }
+                                                    Text {
+                                                        horizontal-stretch: 1;
+                                                        text: program.name;
+                                                        vertical-alignment: center;
+                                                        color: program.found ? Palette.foreground : #8a8f98;
+                                                    }
+                                                    if !program.found: Text {
+                                                        text: "nicht gefunden – suchen …";
+                                                        vertical-alignment: center;
+                                                        color: #8a8f98;
+                                                        font-size: 11px;
+                                                    }
+                                                }
+                                                row-touch := TouchArea {
+                                                    clicked => {
+                                                        root.choose-program(i);
+                                                        keys.focus();
+                                                    }
+                                                }
+                                            }
+                                            Rectangle {
+                                                height: 1px;
+                                                background: #ffffff20;
+                                            }
+                                            Rectangle {
+                                                height: 30px;
+                                                border-radius: 4px;
+                                                background: add-touch.has-hover ? #2a7fff33 : transparent;
+                                                Text {
+                                                    x: 28px;
+                                                    text: "Anderes Programm hinzufügen …";
+                                                    vertical-alignment: center;
+                                                }
+                                                add-touch := TouchArea {
+                                                    clicked => {
+                                                        root.add-program();
+                                                        keys.focus();
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if !root.exporting && root.open-with-note != "": Text {
+                            text: root.open-with-note;
+                            wrap: word-wrap;
+                            color: #8a8f98;
+                            font-size: 11px;
                         }
                         if root.exporting: Text {
                             text: root.export-progress;

@@ -179,12 +179,21 @@ Nachtrag:
 
 ### Phase 6b – „In [Programm] öffnen“
 
-- [ ] 6.5 Konfiguration der Zielprogramme in `%APPDATA%\UnderwaterPhotoLab\config.json`: Name, Pfad zur `.exe`, Argumente mit Platzhalter (Standard `{files}`)
-- [ ] 6.6 Vorbelegung durch Suche an den üblichen Installationsorten (PhotoCraft, Photoshop, Lightroom Classic, LightCraft, RapidRaw); eigene Einträge per Dateiauswahl
-- [ ] 6.7 Immer verfügbar: „Windows-Standardprogramm“ und „Öffnen mit…“ (Windows-Auswahldialog)
-- [ ] 6.8 Knopf „In {Programm} öffnen“ mit Auswahlpfeil zum schnellen Wechseln; exportiert vorher, falls die Datei fehlt oder die Einstellungen geändert wurden
-- [ ] 6.9 Mehrfachauswahl: alle Ergebnisdateien in einem Aufruf übergeben (Photoshop/PhotoCraft öffnen dann alle)
-- [ ] 6.10 Verhalten je Programm prüfen und im Konfigurationsdialog vermerken: Lightroom Classic importiert in den Katalog statt einfach zu öffnen; bei Katalog-Programmen ggf. den Ordner statt einzelner Dateien übergeben
+- [x] 6.5 Konfiguration der Zielprogramme in `%APPDATA%\UnderwaterPhotoLab\config.json`: Name, Pfad zur `.exe`, Argumente mit Platzhalter (Standard `{files}`)
+- [x] 6.6 Vorbelegung durch Suche an den üblichen Installationsorten (PhotoCraft, Photoshop, Lightroom Classic, LightCraft, RapidRaw); eigene Einträge per Dateiauswahl
+- [x] 6.7 Immer verfügbar: „Windows-Standardprogramm“ und „Öffnen mit…“ (Windows-Auswahldialog)
+- [x] 6.8 Knopf „In {Programm} öffnen“ mit Auswahlpfeil zum schnellen Wechseln; exportiert vorher, falls die Datei fehlt oder die Einstellungen geändert wurden
+- [x] 6.9 Mehrfachauswahl: alle Ergebnisdateien in einem Aufruf übergeben (Photoshop/PhotoCraft öffnen dann alle)
+- [x] 6.10 Verhalten je Programm prüfen und im Konfigurationsdialog vermerken: Lightroom Classic importiert in den Katalog statt einfach zu öffnen; bei Katalog-Programmen ggf. den Ordner statt einzelner Dateien übergeben
+
+Erledigt: Standard-Ziel RapidRaw. Auf diesem Rechner gefunden: RapidRAW 1.6.0 (`%LOCALAPPDATA%\RapidRAW`),
+PhotoCraft 0.10.0, Lightroom Classic 11.5; LightCraft und Photoshop nicht installiert (im Menü „nicht gefunden –
+suchen …“, Pfad per Dateiauswahl). Eigene Programme über „Anderes Programm hinzufügen …“; Argumente in
+`config.json` anpassbar (`{files}`, `{folder}`). Hinweise unter dem Knopf: Lightroom zeigt den Import-Dialog,
+LightCraft importiert in seine Bibliothek, „Öffnen mit …“ nur für ein Bild. Laut Recherche: RapidRAW nimmt Dateien
+seit 1.4.5 an („Öffnen mit“), LightCraft importiert übergebene Dateien/Ordner. Per Screenshot geprüft: Knopf
+„In RapidRaw öffnen“. Noch nicht von Hand getestet: das tatsächliche Öffnen in den Programmen (besonders mehrere
+Dateien in RapidRaw und PhotoCraft), das Menü, „Öffnen mit …“.
 
 ### Phase 7 – Abschluss
 

@@ -106,4 +106,5 @@ fn finish(app: &LabWindow, finished: usize, total: usize) {
     app.set_status(msg.into());
     store::refresh_marks(app);
     store::save_now(app);
+    crate::programs::after_export(app, finished == total && errors.is_empty());
 }

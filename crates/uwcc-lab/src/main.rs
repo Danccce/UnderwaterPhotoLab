@@ -9,6 +9,7 @@ mod controls;
 mod export;
 mod info;
 mod preview;
+mod programs;
 mod selection;
 mod store;
 mod strip;
@@ -52,6 +53,10 @@ struct State {
     /// Gesetzt, solange ein Export läuft.
     export_cancel: Option<Arc<AtomicBool>>,
     export_errors: Vec<String>,
+    /// Programme für „In … öffnen“, aufgebaut aus `config.programs` und der Suche.
+    programs: Vec<programs::Program>,
+    /// Bilder, die nach dem laufenden Export im gewählten Programm geöffnet werden sollen.
+    pending_open: Option<Vec<PathBuf>>,
     /// Ausgewählte Bilder (Indizes in `files`), das aktuelle Bild ist immer dabei.
     selection: BTreeSet<usize>,
     /// Vorherige Einstellungen der Bilder der letzten Übernahme (`None` = vorher keine).
@@ -74,9 +79,29 @@ fn main() -> Result<(), slint::PlatformError> {
     app.window().set_maximized(true);
     app.set_status("Kein Ordner geöffnet.".into());
     let cfg = config::load();
-    with_state(|st| st.config = cfg);
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
     app.set_strip_corrected(cfg.strip_corrected);
+    with_state(|st| st.config = cfg);
+    programs::refresh(&app);
+
+    let weak = app.as_weak();
+    app.on_open_in_program(move || {
+        if let Some(app) = weak.upgrade() {
+            programs::open(&app);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_choose_program(move |i| {
+        if let (Some(app), Ok(i)) = (weak.upgrade(), usize::try_from(i)) {
+            programs::choose(&app, i);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_add_program(move || {
+        if let Some(app) = weak.upgrade() {
+            programs::add(&app);
+        }
+    });
 
     let weak = app.as_weak();
     app.window().on_winit_window_event(move |_, event| {
@@ -233,7 +258,7 @@ fn main() -> Result<(), slint::PlatformError> {
 fn update_config(app: &LabWindow, f: impl FnOnce(&mut config::Config)) {
     let cfg = with_state(|st| {
         f(&mut st.config);
-        st.config
+        st.config.clone()
     });
     if let Err(e) = config::save(&cfg) {
         app.set_status(format!("Einstellungen nicht gespeichert: {e}").into());
