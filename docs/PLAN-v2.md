@@ -135,6 +135,8 @@ Umgesetzt – Abweichungen und Details:
   gerechnet (Radien passen sich an), ab 100 % in voller Auflösung und über 100 % pixelgenau vergrößert.
   Mausrad und Touchpad unterscheidet das Programm an der Art der Scroll-Meldung (Rasten bzw. Pixel), die es vor
   Slint abfängt. Eine Raste ≈ 15 %; zurück bis zum eingepassten Bild beendet den Zoom.
+  Touchbildschirm: Slint macht aus Berührungen nur einen Mauszeiger; die Zwei-Finger-Geste (Abstand → Zoom,
+  Mittelpunkt → Verschieben) wertet `touch.rs` aus den rohen Berührungen aus und hält sie von Slint fern.
 
 ### Phase 9 – Ton und Dehaze
 

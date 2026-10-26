@@ -374,6 +374,18 @@ export component LabWindow inherits Window {
     }
     // Während des Ladens ist die Bildgröße noch unbekannt; dann zentriert Rust nach dem Laden.
     in-out property <bool> center-on-load;
+    // Zwei Finger auf dem Touchbildschirm (aus Rust): `factor` ist die Abstandsänderung, (mx, my)
+    // der Mittelpunkt im Fenster, (dx, dy) seine Bewegung; das Bild folgt den Fingern.
+    public function touch-gesture(factor: float, mx: length, my: length, dx: length, dy: length) {
+        if root.has-preview && !root.loading {
+            root.zoom-to((root.zoomed ? root.zoom-scale : root.fit-scale) * factor,
+                mx - preview-box.absolute-position.x, my - preview-box.absolute-position.y);
+            if root.zoomed {
+                root.set-center(root.zoom-cx - dx / 1phx / root.zoom-scale, root.zoom-cy - dy / 1phx / root.zoom-scale);
+                root.zoom-changed();
+            }
+        }
+    }
     // Zoomt auf `scale`, die Bildstelle unter (mx, my) bleibt stehen; bis zum eingepassten Bild
     // zurück beendet den Zoom.
     function zoom-to(scale: float, mx: length, my: length) {
@@ -445,7 +457,7 @@ export component LabWindow inherits Window {
                 "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
                 "Original zeigen: Knopf „Original“ oder Leertaste gedrückt halten.",
                 "Split-Ansicht: Knopf „Split-Ansicht“ oder Taste S; die Trennlinie mit der Maus ziehen.",
-                "Zoom: Doppelklick ins Bild (100 % an dieser Stelle) oder Taste Z; Mausrad oder zwei Finger auf- und zuziehen zoomt stufenlos bis 400 %. Ziehen oder zwei Finger schieben verschiebt den Ausschnitt. Doppelklick, Z oder Esc zurück.",
+                "Zoom: Doppelklick ins Bild (100 % an dieser Stelle) oder Taste Z; Mausrad oder zwei Finger auf- und zuziehen (Touchpad, Touchbildschirm) zoomt stufenlos bis 400 %. Ziehen oder zwei Finger schieben verschiebt den Ausschnitt. Doppelklick, Z oder Esc zurück.",
                 "Bildinformationen: oben rechts auf den Dateinamen klicken.",
             ],
         },

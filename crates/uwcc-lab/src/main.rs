@@ -14,6 +14,7 @@ mod programs;
 mod selection;
 mod store;
 mod strip;
+mod touch;
 mod zoom;
 
 use std::{
@@ -123,6 +124,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let weak = app.as_weak();
     let mut maximized = false;
+    let mut touches = touch::Touches::default();
     app.window().on_winit_window_event(move |_, event| {
         let Some(app) = weak.upgrade() else {
             return EventResult::Propagate;
@@ -147,6 +149,7 @@ fn main() -> Result<(), slint::PlatformError> {
             WindowEvent::MouseWheel { delta, .. } => {
                 app.set_wheel_from_touchpad(matches!(delta, MouseScrollDelta::PixelDelta(_)));
             }
+            WindowEvent::Touch(t) => return touches.handle(&app, t),
             WindowEvent::HoveredFile(_) => app.set_drag_over(true),
             WindowEvent::HoveredFileCancelled => app.set_drag_over(false),
             WindowEvent::DroppedFile(path) => {
