@@ -8,6 +8,7 @@ mod config;
 mod controls;
 mod export;
 mod histogram;
+mod history;
 mod info;
 mod preview;
 mod programs;
@@ -66,6 +67,8 @@ struct State {
     selection: BTreeSet<usize>,
     /// Vorherige Einstellungen der Bilder der letzten Übernahme (`None` = vorher keine).
     undo: Option<Vec<(PathBuf, Option<uwcc_core::Settings>)>>,
+    /// Rückgängig/Wiederholen je Bild.
+    history: HashMap<PathBuf, history::History>,
 }
 
 thread_local! {
@@ -216,6 +219,18 @@ fn main() -> Result<(), slint::PlatformError> {
     app.on_undo_transfer(move || {
         if let Some(app) = weak.upgrade() {
             selection::undo(&app);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_undo(move || {
+        if let Some(app) = weak.upgrade() {
+            history::undo(&app);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_redo(move || {
+        if let Some(app) = weak.upgrade() {
+            history::redo(&app);
         }
     });
 
@@ -378,6 +393,7 @@ fn open(app: &LabWindow, path: &Path) {
         st.files = files.clone();
         st.current = None;
         st.undo = None;
+        st.history.clear();
         let jobs: Vec<(PathBuf, Option<PathBuf>)> = files
             .iter()
             .map(|f| (f.clone(), st.exported.get(f).map(|x| uwcc_photo::output_path(f, x.target))))
@@ -404,6 +420,8 @@ fn select(app: &LabWindow, index: i32) {
         return;
     };
     app.set_current(index);
+    app.set_can_undo(false);
+    app.set_can_redo(false);
     zoom::new_image(app, None);
 
     let thumb = app.get_thumbs().row_data(index as usize).filter(|t| t.loaded && !t.failed);

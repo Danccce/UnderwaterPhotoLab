@@ -81,7 +81,10 @@ pub fn transfer(app: &LabWindow, mode: Transfer) {
             .filter(|p| **p != l.path)
             .cloned()
             .collect();
-        let undo = targets.iter().map(|p| (p.clone(), st.settings.insert(p.clone(), source))).collect();
+        let undo: Vec<_> = targets.iter().map(|p| (p.clone(), st.settings.insert(p.clone(), source))).collect();
+        for (path, previous) in &undo {
+            st.history.entry(path.clone()).or_default().record(previous.unwrap_or_default(), None);
+        }
         st.undo = Some(undo);
         Some(targets.len())
     });

@@ -15,22 +15,22 @@ thread_local! {
 /// Ein Regler wurde bewegt; `value` ist der angezeigte (wirksame) Wert.
 pub fn edit(app: &LabWindow, field: &str, value: f32) {
     if let Some(field) = Field::from_name(field) {
-        update(app, |s, auto| s.set_effective(field, value as f64, auto));
+        update(app, Some(field), |s, auto| s.set_effective(field, value as f64, auto));
     }
 }
 
 pub fn set_auto(app: &LabWindow, on: bool) {
-    update(app, |s, _| s.auto = on);
+    update(app, None, |s, _| s.auto = on);
 }
 
 pub fn reset(app: &LabWindow) {
-    update(app, |s, _| *s = Settings::default());
+    update(app, None, |s, _| *s = Settings::default());
 }
 
 /// Doppelklick auf einen Regler: nur dieses Feld zurücksetzen.
 pub fn reset_field(app: &LabWindow, field: &str) {
     if let Some(field) = Field::from_name(field) {
-        update(app, |s, auto| s.reset_field(field, auto));
+        update(app, None, |s, auto| s.reset_field(field, auto));
     }
 }
 
@@ -48,7 +48,7 @@ pub fn pick(app: &LabWindow, fx: f32, fy: f32) {
         app.set_status("Pipette: bitte auf eine Stelle im Bild klicken.".into());
         return;
     };
-    update(app, |s, auto| {
+    update(app, None, |s, auto| {
         (s.temperature, s.tint) = s.white_balance_from_sample(auto, r, g, b);
     });
     let s = app.get_v_temperature();
@@ -71,16 +71,25 @@ fn average(img: &uwcc_photo::RgbaImage, x: u32, y: u32) -> (f32, f32, f32) {
     (sum[0] / n, sum[1] / n, sum[2] / n)
 }
 
-fn update(app: &LabWindow, f: impl FnOnce(&mut Settings, &uwcc_core::Correction)) {
+/// Ändert die Einstellungen des aktuellen Bildes und trägt den vorigen Stand in dessen Verlauf
+/// ein; `field` ist der bewegte Regler (siehe [`crate::history::History::record`]).
+fn update(app: &LabWindow, field: Option<Field>, f: impl FnOnce(&mut Settings, &uwcc_core::Correction)) {
     let changed = with_state(|st| {
         let l = st.current.as_mut()?;
+        let before = l.settings;
         f(&mut l.settings, &l.auto);
+        if l.settings == before {
+            return Some(false);
+        }
+        st.history.entry(l.path.clone()).or_default().record(before, field);
         st.settings.insert(l.path.clone(), l.settings);
-        Some(())
+        Some(true)
     });
-    if changed.is_some() {
+    if changed == Some(true) {
         crate::selection::forget_undo(app);
         crate::store::save_soon(app);
+    }
+    if changed.is_some() {
         refresh(app);
     }
 }
@@ -88,12 +97,20 @@ fn update(app: &LabWindow, f: impl FnOnce(&mut Settings, &uwcc_core::Correction)
 /// Schreibt die wirksamen Werte in die Regler, markiert das Bild in der Leiste und plant die
 /// Neuberechnung der Vorschau.
 pub fn refresh(app: &LabWindow) {
-    let Some((s, values)) = with_state(|st| {
+    let Some((s, values, undo, redo)) = with_state(|st| {
         let l = st.current.as_ref()?;
-        Some((l.settings, Field::ALL.map(|f| l.settings.effective(f, &l.auto) as f32)))
+        let h = st.history.get(&l.path);
+        Some((
+            l.settings,
+            Field::ALL.map(|f| l.settings.effective(f, &l.auto) as f32),
+            h.is_some_and(|h| h.can_undo()),
+            h.is_some_and(|h| h.can_redo()),
+        ))
     }) else {
         return;
     };
+    app.set_can_undo(undo);
+    app.set_can_redo(redo);
     app.set_auto_on(s.auto);
     for (field, v) in Field::ALL.into_iter().zip(values) {
         match field {

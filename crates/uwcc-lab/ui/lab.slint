@@ -275,6 +275,35 @@ component Histogram inherits Rectangle {
     }
 }
 
+// Kleiner Knopf mit selbst gezeichnetem Symbol (Pfad im Raster 16 × 16, nur Linien).
+component IconButton inherits Rectangle {
+    in property <string> commands;
+    in property <bool> enabled: true;
+    callback clicked();
+    width: 32px;
+    border-radius: 4px;
+    background: touch.has-hover && root.enabled ? #ffffff26 : #ffffff12;
+    Path {
+        x: (parent.width - 16px) / 2;
+        y: (parent.height - 16px) / 2;
+        width: 16px;
+        height: 16px;
+        viewbox-width: 16;
+        viewbox-height: 16;
+        commands: root.commands;
+        stroke: root.enabled ? #c8ccd2 : #5a5d65;
+        stroke-width: 1.6px;
+        fill: transparent;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
 component Heading inherits Text {
     font-weight: 700;
     font-size: 13px;
@@ -461,6 +490,7 @@ export component LabWindow inherits Window {
                 "Dynamik: schwache Farben kräftiger, kräftige bleiben.",
                 "Rot-Obergrenze: begrenzt, wie stark der Rotkanal angehoben wird (weniger Rauschen).",
                 "Doppelklick auf einen Regler setzt nur diesen zurück; „Zurücksetzen“ setzt alle zurück.",
+                "Rückgängig: Strg+Z oder Pfeil nach links neben „Zurücksetzen“; Wiederholen: Strg+Y (oder Strg+Umschalt+Z) bzw. Pfeil nach rechts. Jedes Bild hat seinen eigenen Verlauf; ein Zug an einem Regler ist ein Schritt.",
             ],
         },
         {
@@ -511,6 +541,11 @@ export component LabWindow inherits Window {
     callback edited(string, float);
     callback auto-toggled(bool);
     callback reset();
+    // Rückgängig/Wiederholen der Einstellungen des aktuellen Bildes.
+    in property <bool> can-undo;
+    in property <bool> can-redo;
+    callback undo();
+    callback redo();
     callback reset-field(string);
     // Pipette: Klickposition als Anteil von Bildbreite und -höhe (0–1).
     callback pick(float, float);
@@ -553,6 +588,18 @@ export component LabWindow inherits Window {
             }
             if root.zoomed && event.text == Key.Escape {
                 root.zoomed = false;
+                return accept;
+            }
+            if event.modifiers.control && (event.text == "z" || event.text == "Z") {
+                if event.modifiers.shift {
+                    root.redo();
+                } else {
+                    root.undo();
+                }
+                return accept;
+            }
+            if event.modifiers.control && (event.text == "y" || event.text == "Y") {
+                root.redo();
                 return accept;
             }
             if (event.text == "z" || event.text == "Z") && !event.modifiers.control && root.has-preview {
@@ -964,6 +1011,23 @@ export component LabWindow inherits Window {
                                         enabled: root.controls-enabled;
                                         clicked => {
                                             root.reset();
+                                            keys.focus();
+                                        }
+                                    }
+                                    // Pfeile selbst gezeichnet; ↶ ↷ zeigt Windows nicht zuverlässig.
+                                    IconButton {
+                                        commands: "M 5.5 2.5 L 2 6 L 5.5 9.5 M 2 6 L 10 6 C 12.5 6 14 7.8 14 10 C 14 12.2 12.5 14 10 14 L 6 14";
+                                        enabled: root.controls-enabled && root.can-undo;
+                                        clicked => {
+                                            root.undo();
+                                            keys.focus();
+                                        }
+                                    }
+                                    IconButton {
+                                        commands: "M 10.5 2.5 L 14 6 L 10.5 9.5 M 14 6 L 6 6 C 3.5 6 2 7.8 2 10 C 2 12.2 3.5 14 6 14 L 10 14";
+                                        enabled: root.controls-enabled && root.can-redo;
+                                        clicked => {
+                                            root.redo();
                                             keys.focus();
                                         }
                                     }

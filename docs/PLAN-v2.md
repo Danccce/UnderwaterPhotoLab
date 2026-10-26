@@ -109,7 +109,7 @@ Jede Phase endet mit grünen Tests, Messung gegen `uw-fotos` und eigenem Commit.
 - [x] 8.4 100-%-Ansicht: Doppelklick/Taste Z, Verschieben per Ziehen; Ausschnitt in voller Auflösung rechnen (`7380739`)
 - [x] 8.4b Stufenloser Zoom bis 400 %: Mausrad und Pinch (Windows meldet ihn als Strg+Rad) zoomen um den
   Mauszeiger, zwei Finger auf dem Touchpad verschieben (Wunsch während Phase 8)
-- [ ] 8.5 Rückgängig/Wiederholen je Bild (Strg+Z/Strg+Y)
+- [x] 8.5 Rückgängig/Wiederholen je Bild (Strg+Z/Strg+Y)
 
 Umgesetzt – Abweichungen und Details:
 
@@ -139,6 +139,11 @@ Umgesetzt – Abweichungen und Details:
   Mittelpunkt → Verschieben); ein Finger bleibt Ziehen. Ein eigenes Abfangen der rohen Berührungen brachte
   Slints Fingerzählung durcheinander (danach ging Verschieben nur noch mit zwei Fingern) und wurde verworfen.
   Der Mauszeiger wird erst beim Ziehen zum Vier-Wege-Pfeil.
+- **8.5:** Verlauf je Bild (`history.rs`), nur für die laufende Sitzung, höchstens 100 Schritte. Änderungen
+  desselben Reglers im Abstand unter 1,5 s bilden einen Schritt; Auto, Zurücksetzen, Doppelklick, Pipette und
+  Übernahme sind je ein eigener Schritt. Die Übernahme trägt sich in den Verlauf jedes Zielbildes ein; „Letzte
+  Übernahme rückgängig“ bleibt für alle Bilder auf einmal. Zusätzlich Strg+Umschalt+Z und zwei Pfeil-Knöpfe
+  neben „Zurücksetzen“. Neuer Ordner = neuer Verlauf.
 - **Nebenbei:** Der zuletzt geöffnete Ordner steht als `lastFolder` in `config.json` und wird beim Start ohne
   Argument wieder geöffnet.
 
