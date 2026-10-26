@@ -22,6 +22,8 @@ pub struct Loaded {
     pub path: PathBuf,
     /// Ganzes Bild, gedreht und unbearbeitet, für die 100-%-Ansicht.
     pub full: Arc<RgbaImage>,
+    /// Für Dehaze; dieselbe wie beim Export ([`Photo::reference`]).
+    pub reference: Arc<uwcc_filters::Reference>,
     /// Unbearbeitete, gedrehte Vorschau.
     pub original: RgbaImage,
     /// Auto-Analyse des ganzen Bildes in voller Auflösung.
@@ -37,7 +39,8 @@ impl Loaded {
     pub fn corrected_buffer(&self) -> SharedPixelBuffer<Rgba8Pixel> {
         let mut buf = buffer(&self.original);
         let (w, h) = self.original.dimensions();
-        uwcc_filters::render(buf.make_mut_bytes(), w, h, &self.settings, &uwcc_filters::Context::new(self.auto, w, h));
+        let ctx = uwcc_filters::Context::new(self.auto, self.reference.clone(), w, h);
+        uwcc_filters::render(buf.make_mut_bytes(), w, h, &self.settings, &ctx);
         buf
     }
 }
@@ -59,7 +62,9 @@ pub fn load(
         let result = Photo::open(&path).map(|photo| {
             let auto = photo.analyze();
             let original = photo.preview(PREVIEW_MAX);
+            let reference = Arc::new(photo.reference());
             Loaded {
+                reference,
                 full: Arc::new(photo.into_oriented()),
                 auto,
                 original,

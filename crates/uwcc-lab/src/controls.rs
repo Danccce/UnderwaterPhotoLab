@@ -120,6 +120,11 @@ pub fn refresh(app: &LabWindow) {
             Field::Vibrance => app.set_v_vibrance(v),
             Field::RedLimit => app.set_v_red_limit(v),
             Field::HueShift => app.set_v_hue(v),
+            Field::Exposure => app.set_v_exposure(v),
+            Field::Contrast => app.set_v_contrast(v),
+            Field::Highlights => app.set_v_highlights(v),
+            Field::Shadows => app.set_v_shadows(v),
+            Field::Dehaze => app.set_v_dehaze(v),
             // Die Levels je Kanal stellt nur die Auto-Analyse ein; im Fenster gibt es dafür keine Regler.
             Field::RedLow | Field::RedHigh | Field::GreenLow | Field::GreenHigh | Field::BlueLow | Field::BlueHigh => {}
         }

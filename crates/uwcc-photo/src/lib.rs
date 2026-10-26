@@ -79,6 +79,13 @@ impl Photo {
         img.into_rgba8()
     }
 
+    /// Kleine Kopie des ganzen Bildes, aus der Dehaze die Wasserfarbe schätzt. Vorschau, Zoom und
+    /// Export müssen dieselbe verwenden.
+    pub fn reference(&self) -> uwcc_filters::Reference {
+        let (w, h) = self.rgba.dimensions();
+        uwcc_filters::Reference::from_rgba(self.rgba.as_raw(), w, h)
+    }
+
     /// Das ganze Bild richtig gedreht, für die 100-%-Ansicht.
     pub fn into_oriented(self) -> RgbaImage {
         let mut img = DynamicImage::ImageRgba8(self.rgba);
@@ -107,7 +114,8 @@ impl Photo {
 
         let mut rgba = self.rgba.clone();
         let (w, h) = rgba.dimensions();
-        uwcc_filters::render(&mut rgba, w, h, settings, &uwcc_filters::Context::new(*auto, w, h));
+        let ctx = uwcc_filters::Context::new(*auto, std::sync::Arc::new(self.reference()), w, h);
+        uwcc_filters::render(&mut rgba, w, h, settings, &ctx);
         let rgb = DynamicImage::ImageRgba8(rgba).into_rgb8();
 
         // Das Vorschaubild im EXIF zeigt sonst weiter das unkorrigierte Original (Explorer, Leiste).
@@ -381,6 +389,40 @@ mod tests {
         assert_eq!(thumbnail(&plain, 20).unwrap().dimensions(), (20, 15), "Rückfall auf Dekodieren");
     }
 
+    /// Sichtprüfung Ton und Dehaze: je Bild eine Zeile „Auto | + Dunst 60 | + Tiefen 40, Lichter −40“,
+    /// als `tone-samples.jpg` im Temp-Ordner. `UWCC_PHOTOS=<Ordner> cargo test -p uwcc-photo --release tone_samples -- --ignored`
+    #[test]
+    #[ignore = "braucht einen Fotoordner in UWCC_PHOTOS"]
+    fn tone_samples() {
+        use uwcc_core::Tone;
+        let dir = PathBuf::from(std::env::var("UWCC_PHOTOS").unwrap());
+        let files = scan_folder(&dir).unwrap();
+        let picks: Vec<&PathBuf> = [3usize, 60, 150, 300].iter().filter_map(|&i| files.get(i)).collect();
+        let (cw, ch) = (720u32, 540u32);
+        let variants = [
+            Tone::default(),
+            Tone { dehaze: 60.0, ..Tone::default() },
+            Tone { dehaze: 60.0, shadows: 40.0, highlights: -40.0, ..Tone::default() },
+        ];
+        let mut sheet = RgbaImage::new(cw * variants.len() as u32, ch * picks.len() as u32);
+        for (row, path) in picks.iter().enumerate() {
+            let photo = Photo::open(path).unwrap();
+            let auto = photo.analyze();
+            let small = photo.preview(cw.max(ch));
+            let (w, h) = small.dimensions();
+            let reference = std::sync::Arc::new(photo.reference());
+            for (col, tone) in variants.iter().enumerate() {
+                let mut img = small.clone();
+                let s = Settings { tone: *tone, ..Settings::default() };
+                uwcc_filters::render(&mut img, w, h, &s, &uwcc_filters::Context::new(auto, reference.clone(), w, h));
+                imageops::overlay(&mut sheet, &img, (col as u32 * cw) as i64, (row as u32 * ch) as i64);
+            }
+        }
+        let out = std::env::temp_dir().join("tone-samples.jpg");
+        DynamicImage::ImageRgba8(sheet).into_rgb8().save(&out).unwrap();
+        println!("{}", out.display());
+    }
+
     /// Gegen echte Fotos: `UWCC_PHOTOS=<Ordner> cargo test -p uwcc-photo --release -- --ignored --nocapture`
     #[test]
     #[ignore = "braucht einen Fotoordner in UWCC_PHOTOS"]
@@ -424,13 +466,30 @@ mod tests {
         }
         println!("Vorschau {}×{} neu rechnen: {:?} im Schnitt", preview.width(), preview.height(), start.elapsed() / 20);
         let (w, h) = preview.dimensions();
-        let ctx = uwcc_filters::Context::new(auto, w, h);
+        let reference = std::sync::Arc::new(photo.reference());
+        let ctx = uwcc_filters::Context::new(auto, reference.clone(), w, h);
         let start = std::time::Instant::now();
         for _ in 0..20 {
             let mut px = preview.clone();
             uwcc_filters::render(&mut px, w, h, &settings, &ctx);
         }
         println!("… mit uwcc_filters::render wie in der App: {:?} im Schnitt", start.elapsed() / 20);
+        let toned = Settings {
+            tone: uwcc_core::Tone { exposure: 10.0, contrast: 20.0, highlights: -40.0, shadows: 40.0, dehaze: 50.0 },
+            ..settings
+        };
+        let start = std::time::Instant::now();
+        for _ in 0..20 {
+            let mut px = preview.clone();
+            uwcc_filters::render(&mut px, w, h, &toned, &ctx);
+        }
+        println!("… mit Ton und Dehaze: {:?} im Schnitt", start.elapsed() / 20);
+        let (fw, fh) = photo.rgba.dimensions();
+        let full_ctx = uwcc_filters::Context::new(auto, reference, fw, fh);
+        let start = std::time::Instant::now();
+        let mut px = photo.rgba.clone();
+        uwcc_filters::render(&mut px, fw, fh, &toned, &full_ctx);
+        println!("Volle Auflösung {fw}×{fh} mit Ton und Dehaze: {:?}", start.elapsed());
 
         // Stapel-Export: 8 Bilder mit 4 Threads wie in der App, in einen Temp-Ordner.
         let out_dir = std::env::temp_dir().join("uwcc-photo-tests").join("batch");

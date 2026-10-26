@@ -489,6 +489,9 @@ export component LabWindow inherits Window {
                 "Pipette: Knopf drücken, dann eine eigentlich neutrale Stelle anklicken (Sand, Flosse, Graukarte).",
                 "Dynamik: schwache Farben kräftiger, kräftige bleiben.",
                 "Rot-Obergrenze: begrenzt, wie stark der Rotkanal angehoben wird (weniger Rauschen).",
+                "Dunst entfernen: nimmt den Schleier aus Schwebeteilchen heraus; die Wasserfarbe wird aus dem ganzen Bild geschätzt. Das Bild wird dabei oft dunkler – mit Belichtung oder Tiefen ausgleichen.",
+                "Belichtung: ±2 Blenden. Kontrast: S-Kurve, Schwarz und Weiß bleiben.",
+                "Lichter: helle Bereiche dunkler (−) oder heller (+). Tiefen: dunkle Bereiche heller (+) oder dunkler (−). Wirkt nach der Helligkeit der Umgebung, Details bleiben erhalten.",
                 "Doppelklick auf einen Regler setzt nur diesen zurück; „Zurücksetzen“ setzt alle zurück.",
                 "Rückgängig: Strg+Z oder Pfeil nach links neben „Zurücksetzen“; Wiederholen: Strg+Y (oder Strg+Umschalt+Z) bzw. Pfeil nach rechts. Jedes Bild hat seinen eigenen Verlauf; ein Zug an einem Regler ist ein Schritt.",
             ],
@@ -535,6 +538,11 @@ export component LabWindow inherits Window {
     in-out property <float> v-tint;
     in-out property <float> v-vibrance;
     in-out property <float> v-red-limit: 4;
+    in-out property <float> v-exposure;
+    in-out property <float> v-contrast;
+    in-out property <float> v-highlights;
+    in-out property <float> v-shadows;
+    in-out property <float> v-dehaze;
     in-out property <bool> picking;
     property <bool> controls-enabled: root.has-preview && !root.loading;
 
@@ -1113,6 +1121,73 @@ export component LabWindow inherits Window {
                                     value <=> root.v-red-limit;
                                     enabled: root.controls-enabled;
                                     field: "red-limit";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
+                                    released => { keys.focus(); }
+                                }
+
+                                Rectangle {
+                                    height: 6px;
+                                }
+                                Heading {
+                                    text: "Ton";
+                                }
+                                SliderRow {
+                                    label: "Dunst entfernen";
+                                    text: round(root.v-dehaze);
+                                    minimum: 0;
+                                    maximum: 100;
+                                    value <=> root.v-dehaze;
+                                    enabled: root.controls-enabled;
+                                    field: "dehaze";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
+                                    released => { keys.focus(); }
+                                }
+                                SliderRow {
+                                    label: "Belichtung";
+                                    text: (root.v-exposure > 2.5 ? "+" : "") + round(root.v-exposure / 5) / 10 + " EV";
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value <=> root.v-exposure;
+                                    enabled: root.controls-enabled;
+                                    field: "exposure";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
+                                    released => { keys.focus(); }
+                                }
+                                SliderRow {
+                                    label: "Kontrast";
+                                    text: (root.v-contrast > 0.5 ? "+" : "") + round(root.v-contrast);
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value <=> root.v-contrast;
+                                    enabled: root.controls-enabled;
+                                    field: "contrast";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
+                                    released => { keys.focus(); }
+                                }
+                                SliderRow {
+                                    label: "Lichter";
+                                    text: (root.v-highlights > 0.5 ? "+" : "") + round(root.v-highlights);
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value <=> root.v-highlights;
+                                    enabled: root.controls-enabled;
+                                    field: "highlights";
+                                    edited(f, v) => { root.edited(f, v); }
+                                    reset(f) => { root.reset-field(f); keys.focus(); }
+                                    released => { keys.focus(); }
+                                }
+                                SliderRow {
+                                    label: "Tiefen";
+                                    text: (root.v-shadows > 0.5 ? "+" : "") + round(root.v-shadows);
+                                    minimum: -100;
+                                    maximum: 100;
+                                    value <=> root.v-shadows;
+                                    enabled: root.controls-enabled;
+                                    field: "shadows";
                                     edited(f, v) => { root.edited(f, v); }
                                     reset(f) => { root.reset-field(f); keys.focus(); }
                                     released => { keys.focus(); }

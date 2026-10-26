@@ -1,7 +1,8 @@
 //! Einstellungen des UnderwaterPhotoLab und die Pixel-Pipeline, die Vorschau und Export teilen.
 //!
-//! Reihenfolge: Farbmatrix (Auto-Analyse + Abweichung, Rot-Obergrenze) → Weißabgleich →
-//! Dynamik → Überblendung mit dem Original.
+//! Reihenfolge je Pixel ([`PixelOps`]): Farbmatrix (Auto-Analyse + Abweichung, Rot-Obergrenze) →
+//! Weißabgleich → Dynamik → Belichtung → Kontrast → Überblendung mit dem Original. Filter mit
+//! Nachbarschaft (Dehaze, Lichter/Tiefen) rechnet `uwcc-filters` zwischen diesen Schritten.
 
 use crate::{Correction, Levels, Transform};
 
@@ -12,6 +13,12 @@ pub const MAX_HUE_SHIFT: f64 = 180.0;
 /// ±100 auf den Reglern ergibt Kanalfaktoren e^±0,25 (Rot zu Blau also bis ×1,65). Größere Stiche
 /// nimmt schon die Farbmatrix heraus; mehr Spielraum machte die Regler zu empfindlich.
 const WHITE_BALANCE_SCALE: f32 = 0.0025;
+/// Belichtung ±100 = ±2 Blenden.
+const EXPOSURE_EV: f32 = 2.0;
+/// Kontrast ±100: so viel der S-Kurve `3v² − 2v³` wird beigemischt bzw. abgezogen.
+const CONTRAST_AMOUNT: f32 = 0.6;
+/// Gamma der Pixelwerte; Belichtung wirkt so wie in linearem Licht.
+const GAMMA: f32 = 2.2;
 
 /// Verschiebung von Schwarz- und Weißpunkt eines Kanals (Skala 0–255 wie [`Levels`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -168,10 +175,15 @@ pub enum Field {
     GreenHigh,
     BlueLow,
     BlueHigh,
+    Exposure,
+    Contrast,
+    Highlights,
+    Shadows,
+    Dehaze,
 }
 
 impl Field {
-    pub const ALL: [Field; 12] = [
+    pub const ALL: [Field; 17] = [
         Field::Strength,
         Field::Temperature,
         Field::Tint,
@@ -184,6 +196,11 @@ impl Field {
         Field::GreenHigh,
         Field::BlueLow,
         Field::BlueHigh,
+        Field::Exposure,
+        Field::Contrast,
+        Field::Highlights,
+        Field::Shadows,
+        Field::Dehaze,
     ];
 
     pub fn name(self) -> &'static str {
@@ -200,6 +217,11 @@ impl Field {
             Field::GreenHigh => "green-high",
             Field::BlueLow => "blue-low",
             Field::BlueHigh => "blue-high",
+            Field::Exposure => "exposure",
+            Field::Contrast => "contrast",
+            Field::Highlights => "highlights",
+            Field::Shadows => "shadows",
+            Field::Dehaze => "dehaze",
         }
     }
 
@@ -225,6 +247,11 @@ impl Settings {
             Field::GreenHigh => c.green.high,
             Field::BlueLow => c.blue.low,
             Field::BlueHigh => c.blue.high,
+            Field::Exposure => self.tone.exposure as f64,
+            Field::Contrast => self.tone.contrast as f64,
+            Field::Highlights => self.tone.highlights as f64,
+            Field::Shadows => self.tone.shadows as f64,
+            Field::Dehaze => self.tone.dehaze as f64,
         }
     }
 
@@ -247,6 +274,11 @@ impl Settings {
             Field::GreenHigh => d.green.high = value - base.green.high,
             Field::BlueLow => d.blue.low = value - base.blue.low,
             Field::BlueHigh => d.blue.high = value - base.blue.high,
+            Field::Exposure => self.tone.exposure = value as f32,
+            Field::Contrast => self.tone.contrast = value as f32,
+            Field::Highlights => self.tone.highlights = value as f32,
+            Field::Shadows => self.tone.shadows = value as f32,
+            Field::Dehaze => self.tone.dehaze = value as f32,
         }
     }
 }
@@ -302,6 +334,11 @@ impl Settings {
             Field::GreenHigh => d.green.high = delta,
             Field::BlueLow => d.blue.low = delta,
             Field::BlueHigh => d.blue.high = delta,
+            Field::Exposure => self.tone.exposure = defaults.tone.exposure,
+            Field::Contrast => self.tone.contrast = defaults.tone.contrast,
+            Field::Highlights => self.tone.highlights = defaults.tone.highlights,
+            Field::Shadows => self.tone.shadows = defaults.tone.shadows,
+            Field::Dehaze => self.tone.dehaze = defaults.tone.dehaze,
         }
     }
 }
@@ -312,7 +349,8 @@ fn shift(l: Levels, d: LevelsDelta) -> Levels {
     Levels { low, high }
 }
 
-fn luminance(r: f32, g: f32, b: f32) -> f32 {
+/// Helligkeit nach Rec. 709 (auf den gamma-kodierten Werten).
+pub fn luminance(r: f32, g: f32, b: f32) -> f32 {
     0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
@@ -323,27 +361,81 @@ fn vibrance(r: f32, g: f32, b: f32, amount: f32) -> (f32, f32, f32) {
     (y + (r - y) * k, y + (g - y) * k, y + (b - y) * k)
 }
 
-/// Die Pipeline für 8-Bit-RGBA-Pixel; `auto` ist die Analyse des Bildes ([`crate::analyze`]).
-/// Alpha bleibt unverändert.
-pub fn process_rgba8(rgba: &mut [u8], settings: &Settings, auto: &Correction) {
-    let t = Transform::new(&settings.resolve(auto));
-    let [wr, wg, wb] = settings.white_balance_gains();
-    let strength = settings.strength.clamp(0.0, 1.0);
-    let vib = settings.vibrance.clamp(-100.0, 100.0) / 100.0;
-    let unit = |v: f32| v.clamp(0.0, 1.0);
-    let to_u8 = |v: f32| (unit(v) * 255.0 + 0.5) as u8;
+fn unit(v: f32) -> f32 {
+    v.clamp(0.0, 1.0)
+}
 
-    for p in rgba.chunks_exact_mut(4) {
-        let (r, g, b) = (p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0);
-        let (mr, mg, mb) = t.apply(r, g, b);
-        let (mut nr, mut ng, mut nb) = (unit(unit(mr) * wr), unit(unit(mg) * wg), unit(unit(mb) * wb));
-        if vib != 0.0 {
-            let (vr, vg, vb) = vibrance(nr, ng, nb, vib);
-            (nr, ng, nb) = (unit(vr), unit(vg), unit(vb));
+/// S-Kurve um die Mitte; `a` −1 … +1, monoton für alle `a` in diesem Bereich.
+fn contrast(v: f32, a: f32) -> f32 {
+    v + a * (v * v * (3.0 - 2.0 * v) - v)
+}
+
+/// Die Schritte der Pipeline, die je Pixel wirken (Werte 0–1, gamma-kodiert).
+#[derive(Clone, Copy, Debug)]
+pub struct PixelOps {
+    t: Transform,
+    wb: [f32; 3],
+    vibrance: f32,
+    exposure: f32,
+    contrast: f32,
+    strength: f32,
+}
+
+impl PixelOps {
+    pub fn new(settings: &Settings, auto: &Correction) -> Self {
+        let tone = &settings.tone;
+        let ev = tone.exposure.clamp(-100.0, 100.0) / 100.0 * EXPOSURE_EV;
+        Self {
+            t: Transform::new(&settings.resolve(auto)),
+            wb: settings.white_balance_gains(),
+            vibrance: settings.vibrance.clamp(-100.0, 100.0) / 100.0,
+            // In linearem Licht ×2^ev; bei reinem Gamma ist das auf den kodierten Werten ×2^(ev/γ).
+            exposure: libm::exp2f(ev / GAMMA),
+            contrast: tone.contrast.clamp(-100.0, 100.0) / 100.0 * CONTRAST_AMOUNT,
+            strength: settings.strength.clamp(0.0, 1.0),
         }
-        p[0] = to_u8(r + (nr - r) * strength);
-        p[1] = to_u8(g + (ng - g) * strength);
-        p[2] = to_u8(b + (nb - b) * strength);
+    }
+
+    /// Farbmatrix; Ergebnis 0–1.
+    pub fn matrix(&self, [r, g, b]: [f32; 3]) -> [f32; 3] {
+        let (r, g, b) = self.t.apply(r, g, b);
+        [unit(r), unit(g), unit(b)]
+    }
+
+    /// Weißabgleich, Dynamik und Belichtung. Das Ergebnis kann über 1 liegen; Lichter holen das
+    /// zurück, sonst begrenzt [`Self::finish`].
+    pub fn color(&self, [r, g, b]: [f32; 3]) -> [f32; 3] {
+        let [wr, wg, wb] = self.wb;
+        let (mut r, mut g, mut b) = (unit(unit(r) * wr), unit(unit(g) * wg), unit(unit(b) * wb));
+        if self.vibrance != 0.0 {
+            let (vr, vg, vb) = vibrance(r, g, b, self.vibrance);
+            (r, g, b) = (unit(vr), unit(vg), unit(vb));
+        }
+        [r * self.exposure, g * self.exposure, b * self.exposure]
+    }
+
+    /// Begrenzen, Kontrast und Überblendung mit dem Original `orig`; Ergebnis 8 Bit.
+    pub fn finish(&self, rgb: [f32; 3], orig: [f32; 3]) -> [u8; 3] {
+        core::array::from_fn(|i| {
+            let v = contrast(unit(rgb[i]), self.contrast);
+            (unit(orig[i] + (v - orig[i]) * self.strength) * 255.0 + 0.5) as u8
+        })
+    }
+}
+
+/// 8-Bit-Wert → 0–1.
+pub fn unit_rgb(p: &[u8]) -> [f32; 3] {
+    [p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0]
+}
+
+/// Die Pipeline je Pixel für 8-Bit-RGBA; `auto` ist die Analyse des Bildes ([`crate::analyze`]).
+/// Alpha bleibt unverändert. Dehaze und Lichter/Tiefen fehlen hier, sie brauchen Nachbarpixel.
+pub fn process_rgba8(rgba: &mut [u8], settings: &Settings, auto: &Correction) {
+    let ops = PixelOps::new(settings, auto);
+    for p in rgba.chunks_exact_mut(4) {
+        let orig = unit_rgb(p);
+        let out = ops.finish(ops.color(ops.matrix(orig)), orig);
+        p[..3].copy_from_slice(&out);
     }
 }
 
@@ -541,6 +633,48 @@ mod tests {
 
         let (strong, _) = plain.white_balance_from_sample(&AUTO, f(60), f(140), f(170));
         assert_eq!(strong, 100.0, "starke Stiche enden am Reglerende");
+    }
+
+    #[test]
+    fn exposure_acts_like_linear_light() {
+        let plain = Settings { auto: false, ..Settings::default() };
+        let one_stop = Settings { tone: Tone { exposure: 50.0, ..Tone::default() }, ..plain };
+        let ops = PixelOps::new(&one_stop, &AUTO);
+        let [r, _, _] = ops.color([0.4, 0.4, 0.4]);
+        let linear = |v: f32| libm::powf(v, GAMMA);
+        assert!((linear(r) / linear(0.4) - 2.0).abs() < 1e-3, "+50 = +1 Blende");
+
+        let mut px = [200, 200, 200, 255];
+        process_rgba8(&mut px, &one_stop, &AUTO);
+        assert_eq!(&px[..3], &[255, 255, 255], "Überbelichtung wird begrenzt");
+    }
+
+    #[test]
+    fn contrast_is_monotonic_and_keeps_black_mid_and_white() {
+        for a in [-0.6, 0.0, 0.6] {
+            assert_eq!(contrast(0.0, a), 0.0);
+            assert!((contrast(0.5, a) - 0.5).abs() < 1e-6);
+            assert_eq!(contrast(1.0, a), 1.0);
+            let mut last = -1.0;
+            for i in 0..=100 {
+                let v = contrast(i as f32 / 100.0, a);
+                assert!(v >= last, "monoton bei a = {a}");
+                last = v;
+            }
+        }
+        assert!(contrast(0.25, 0.6) < 0.25 && contrast(0.75, 0.6) > 0.75, "mehr Kontrast spreizt");
+        assert!(contrast(0.25, -0.6) > 0.25, "weniger Kontrast staucht");
+    }
+
+    #[test]
+    fn neutral_tone_changes_nothing() {
+        let ops = PixelOps::new(&Settings::default(), &AUTO);
+        let rgb = [0.3, 0.6, 0.9];
+        assert_eq!(ops.color(rgb), rgb);
+        assert_eq!(ops.finish(rgb, rgb), [77, 153, 230]);
+        for f in [Field::Exposure, Field::Contrast, Field::Highlights, Field::Shadows, Field::Dehaze] {
+            assert_eq!(Settings::default().effective(f, &AUTO), 0.0, "{f:?}");
+        }
     }
 
     #[test]

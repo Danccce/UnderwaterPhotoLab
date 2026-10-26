@@ -1,8 +1,8 @@
-//! Ein Kanal als `f32`-Ebene und Filter mit Nachbarschaft: Box-, Gauß- und Guided Filter.
-//! Alle laufen in O(Pixel) unabhängig vom Radius und auf alle Kerne verteilt; am Rand wird das
-//! letzte Pixel wiederholt.
+//! Ein Kanal als `f32`-Ebene und Filter mit Nachbarschaft: Box-, Gauß-, Minimum- und Guided
+//! Filter. Alle laufen in O(Pixel) unabhängig vom Radius und auf alle Kerne verteilt; am Rand wird
+//! das letzte Pixel wiederholt.
 
-use std::thread;
+use std::{collections::VecDeque, thread};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Plane {
@@ -37,12 +37,21 @@ impl Plane {
     }
 }
 
-fn threads() -> usize {
+/// Darunter lohnt sich das Verteilen auf Threads nicht.
+const PARALLEL_MIN: usize = 1 << 18;
+
+fn threads(len: usize) -> usize {
+    if len < PARALLEL_MIN {
+        return 1;
+    }
     thread::available_parallelism().map_or(4, |n| n.get()).clamp(1, 8)
 }
 
-/// Gleitender Mittelwert über `2r + 1` Werte von `src` (Abstand `stride`), Rand wiederholt.
-fn running_mean(src: &[f32], len: usize, stride: usize, r: usize, out: &mut impl FnMut(usize, f32)) {
+/// Filtert `len` Werte von `src` im Abstand `stride` mit Radius `r` und gibt sie über `out` aus.
+type LineFilter = fn(&[f32], usize, usize, usize, &mut dyn FnMut(usize, f32));
+
+/// Gleitender Mittelwert über `2r + 1` Werte, Rand wiederholt.
+fn running_mean(src: &[f32], len: usize, stride: usize, r: usize, out: &mut dyn FnMut(usize, f32)) {
     let at = |i: isize| src[i.clamp(0, len as isize - 1) as usize * stride];
     let r = r as isize;
     let mut sum: f32 = (-r..=r).map(at).sum();
@@ -53,46 +62,98 @@ fn running_mean(src: &[f32], len: usize, stride: usize, r: usize, out: &mut impl
     }
 }
 
+/// Gleitendes Minimum über `2r + 1` Werte (am Rand nur die vorhandenen); Warteschlange mit
+/// aufsteigenden Werten, jeder Wert kommt einmal hinein und einmal heraus.
+fn running_min(src: &[f32], len: usize, stride: usize, r: usize, out: &mut dyn FnMut(usize, f32)) {
+    let at = |i: usize| src[i * stride];
+    let mut queue: VecDeque<usize> = VecDeque::new();
+    let mut next = 0;
+    for i in 0..len {
+        while next <= (i + r).min(len - 1) {
+            let v = at(next);
+            while queue.back().is_some_and(|&b| at(b) >= v) {
+                queue.pop_back();
+            }
+            queue.push_back(next);
+            next += 1;
+        }
+        while queue.front().is_some_and(|&f| f + r < i) {
+            queue.pop_front();
+        }
+        out(i, at(queue[0]));
+    }
+}
+
 /// Box-Filter mit Radius `r` (Fenster `2r + 1`), getrennt in Zeilen und Spalten.
 pub fn box_blur(p: &Plane, r: usize) -> Plane {
+    separable(p, r, running_mean)
+}
+
+/// Minimum über ein Quadrat mit Radius `r` (Fenster `2r + 1`).
+pub fn min_filter(p: &Plane, r: usize) -> Plane {
+    separable(p, r, running_min)
+}
+
+/// Wendet `line` erst auf alle Zeilen, dann auf alle Spalten an, jeweils auf alle Kerne verteilt.
+fn separable(p: &Plane, r: usize, line: LineFilter) -> Plane {
     if r == 0 || p.data.is_empty() {
         return p.clone();
     }
     let (w, h) = (p.width, p.height);
+    let threads = threads(w * h);
     let mut rows = vec![0f32; w * h];
-    let per = h.div_ceil(threads()).max(1);
-    thread::scope(|s| {
-        for (chunk_index, chunk) in rows.chunks_mut(per * w).enumerate() {
-            s.spawn(move || {
-                for (dy, row) in chunk.chunks_mut(w).enumerate() {
-                    let y = chunk_index * per + dy;
-                    running_mean(&p.data[y * w..(y + 1) * w], w, 1, r, &mut |x, v| row[x] = v);
-                }
-            });
+    let per = h.div_ceil(threads).max(1);
+    let row_pass = |chunk_index: usize, chunk: &mut [f32]| {
+        for (dy, row) in chunk.chunks_mut(w).enumerate() {
+            let y = chunk_index * per + dy;
+            line(&p.data[y * w..(y + 1) * w], w, 1, r, &mut |x, v| row[x] = v);
         }
-    });
+    };
+    if threads == 1 {
+        row_pass(0, &mut rows);
+    } else {
+        thread::scope(|s| {
+            for (chunk_index, chunk) in rows.chunks_mut(per * w).enumerate() {
+                let row_pass = &row_pass;
+                s.spawn(move || row_pass(chunk_index, chunk));
+            }
+        });
+    }
 
     let mut out = vec![0f32; w * h];
-    let cols = w.div_ceil(threads()).max(1);
+    let cols = w.div_ceil(threads).max(1);
     let rows = &rows;
     let out_ptr = SharedOut(out.as_mut_ptr());
-    thread::scope(|s| {
-        for start in (0..w).step_by(cols) {
-            let out_ptr = &out_ptr;
-            s.spawn(move || {
-                for x in start..(start + cols).min(w) {
-                    // SAFETY: jeder Thread schreibt nur seine eigenen Spalten `start..start + cols`.
-                    running_mean(&rows[x..], h, w, r, &mut |y, v| unsafe { *out_ptr.0.add(y * w + x) = v });
-                }
-            });
+    let column_pass = |start: usize| {
+        for x in start..(start + cols).min(w) {
+            // SAFETY: jeder Aufruf schreibt nur seine eigenen Spalten `start..start + cols`.
+            line(&rows[x..], h, w, r, &mut |y, v| unsafe { *out_ptr.at(y * w + x) = v });
         }
-    });
+    };
+    if threads == 1 {
+        column_pass(0);
+    } else {
+        thread::scope(|s| {
+            for start in (0..w).step_by(cols) {
+                let column_pass = &column_pass;
+                s.spawn(move || column_pass(start));
+            }
+        });
+    }
     Plane { width: w, height: h, data: out }
 }
 
 /// Zeiger für spaltenweises paralleles Schreiben; die Spaltenbereiche überlappen nicht.
 struct SharedOut(*mut f32);
 unsafe impl Sync for SharedOut {}
+
+impl SharedOut {
+    /// Über eine Methode, damit Closures die ganze `Sync`-Hülle einfangen und nicht nur den Zeiger.
+    fn at(&self, i: usize) -> *mut f32 {
+        // SAFETY: Aufrufer bleiben innerhalb des Puffers.
+        unsafe { self.0.add(i) }
+    }
+}
 
 /// Gauß-Näherung über drei Box-Filter (Fehler unter 3 %).
 pub fn gaussian(p: &Plane, sigma: f32) -> Plane {
@@ -106,6 +167,18 @@ pub fn gaussian(p: &Plane, sigma: f32) -> Plane {
 /// Guided Filter (He et al.): glättet `src`, erhält aber Kanten, die in `guide` stehen.
 /// `eps` steuert, ab welchem Kontrast (Varianz) eine Kante erhalten bleibt.
 pub fn guided_filter(guide: &Plane, src: &Plane, r: usize, eps: f32) -> Plane {
+    let (mean_a, mean_b) = guided_coefficients(guide, src, r, eps);
+    Plane {
+        width: src.width,
+        height: src.height,
+        data: (0..src.data.len()).map(|i| mean_a.data[i] * guide.data[i] + mean_b.data[i]).collect(),
+    }
+}
+
+/// Die geglätteten Koeffizienten `a`, `b` des Guided Filters; das Ergebnis ist `a · guide + b`.
+/// Sie ändern sich nur langsam und lassen sich daher auf verkleinerter Auflösung rechnen und mit
+/// dem vollen Leitbild anwenden (Fast Guided Filter, He & Sun 2015).
+pub fn guided_coefficients(guide: &Plane, src: &Plane, r: usize, eps: f32) -> (Plane, Plane) {
     let mean_i = box_blur(guide, r);
     let mean_p = box_blur(src, r);
     let corr_ii = box_blur(&guide.zip(guide, |a, b| a * b), r);
@@ -122,13 +195,7 @@ pub fn guided_filter(guide: &Plane, src: &Plane, r: usize, eps: f32) -> Plane {
         height: src.height,
         data: (0..src.data.len()).map(|i| mean_p.data[i] - a.data[i] * mean_i.data[i]).collect(),
     };
-    let mean_a = box_blur(&a, r);
-    let mean_b = box_blur(&b, r);
-    Plane {
-        width: src.width,
-        height: src.height,
-        data: (0..src.data.len()).map(|i| mean_a.data[i] * guide.data[i] + mean_b.data[i]).collect(),
-    }
+    (box_blur(&a, r), box_blur(&b, r))
 }
 
 #[cfg(test)]
@@ -171,6 +238,24 @@ mod tests {
         });
         for (a, b) in fast.data.iter().zip(&naive.data) {
             assert!(close(*a, *b), "{a} != {b}");
+        }
+    }
+
+    #[test]
+    fn min_filter_matches_a_naive_version() {
+        let p = Plane::from_fn(23, 17, |x, y| ((x * 7 + y * 13) % 11) as f32);
+        for r in [1, 3, 30] {
+            let fast = min_filter(&p, r);
+            let naive = Plane::from_fn(23, 17, |x, y| {
+                let mut m = f32::MAX;
+                for yy in y.saturating_sub(r)..=(y + r).min(16) {
+                    for xx in x.saturating_sub(r)..=(x + r).min(22) {
+                        m = m.min(p.get(xx, yy));
+                    }
+                }
+                m
+            });
+            assert_eq!(fast, naive, "r = {r}");
         }
     }
 

@@ -20,6 +20,7 @@ thread_local! {
 struct Job {
     path: PathBuf,
     full: Arc<RgbaImage>,
+    reference: Arc<uwcc_filters::Reference>,
     settings: Settings,
     auto: Correction,
     warning: bool,
@@ -34,28 +35,45 @@ struct Job {
 
 impl Job {
     /// Original und Korrektur des Ausschnitts. Die Pipeline sieht das ganze Bild in der gerade
-    /// gerechneten Auflösung, damit relative Radien wie beim Export wirken.
+    /// gerechneten Auflösung, damit relative Radien wie beim Export wirken, und rechnet rundum
+    /// einen Rand mit, damit Filter mit Nachbarschaft am Rand des Ausschnitts richtig wirken.
     fn run(&self) -> (SharedPixelBuffer<Rgba8Pixel>, SharedPixelBuffer<Rgba8Pixel>) {
         let (fw, fh) = self.full.dimensions();
         let s = self.scale.min(1.0);
         let size = |v: u32| ((v as f32 * s).round() as u32).max(1);
-        let (ow, oh) = (size(self.width), size(self.height));
-        let mut crop = uwcc_photo::region(&self.full, (self.x, self.y, self.width, self.height), (ow, oh));
-        let original = SharedPixelBuffer::clone_from_slice(crop.as_raw(), ow, oh);
-        let ctx = uwcc_filters::Context::new(self.auto, size(fw), size(fh));
-        uwcc_filters::render(&mut crop, ow, oh, &self.settings, &ctx);
+        let ctx = uwcc_filters::Context::new(self.auto, self.reference.clone(), size(fw), size(fh));
+        let margin = (uwcc_filters::margin_px(&self.settings, &ctx) as f32 / s).ceil() as u32;
+        let (ex, ey) = (self.x.saturating_sub(margin), self.y.saturating_sub(margin));
+        let ew = (self.x + self.width + margin).min(fw) - ex;
+        let eh = (self.y + self.height + margin).min(fh) - ey;
+        let (ow, oh) = (size(ew), size(eh));
+        let mut extended = uwcc_photo::region(&self.full, (ex, ey, ew, eh), (ow, oh));
+        let original_ext = extended.clone();
+        let ctx = uwcc_filters::Context { origin: ((ex as f32 * s).round() as u32, (ey as f32 * s).round() as u32), ..ctx };
+        uwcc_filters::render(&mut extended, ow, oh, &self.settings, &ctx);
+
+        // Den sichtbaren Teil herausschneiden.
+        let ix = (((self.x - ex) as f32 * s).round() as u32).min(ow - 1);
+        let iy = (((self.y - ey) as f32 * s).round() as u32).min(oh - 1);
+        let (iw, ih) = (size(self.width).min(ow - ix), size(self.height).min(oh - iy));
+        let cut = |img: &RgbaImage| uwcc_photo::region(img, (ix, iy, iw, ih), (iw, ih));
+        let mut corrected = cut(&extended);
         if self.warning {
-            histogram::mark_clipping(&mut crop);
+            histogram::mark_clipping(&mut corrected);
         }
-        (original, SharedPixelBuffer::clone_from_slice(crop.as_raw(), ow, oh))
+        (
+            SharedPixelBuffer::clone_from_slice(cut(&original_ext).as_raw(), iw, ih),
+            SharedPixelBuffer::clone_from_slice(corrected.as_raw(), iw, ih),
+        )
     }
 }
 
 /// Der sichtbare Ausschnitt um die Mitte `zoom-cx/-cy` beim Maßstab `zoom-scale`, innerhalb des
 /// Bildes; ein Pixel Rand, damit beim Verschieben keine Lücke aufblitzt.
 fn job(app: &LabWindow) -> Option<Job> {
-    let (path, full, settings, auto) =
-        with_state(|st| st.current.as_ref().map(|l| (l.path.clone(), l.full.clone(), l.settings, l.auto)))?;
+    let (path, full, reference, settings, auto) = with_state(|st| {
+        st.current.as_ref().map(|l| (l.path.clone(), l.full.clone(), l.reference.clone(), l.settings, l.auto))
+    })?;
     let (fw, fh) = full.dimensions();
     let scale = app.get_zoom_scale().max(0.01);
     let span = |view: f32, center: f32, size: u32| {
@@ -65,7 +83,7 @@ fn job(app: &LabWindow) -> Option<Job> {
     };
     let (x, width) = span(app.get_view_w(), app.get_zoom_cx(), fw);
     let (y, height) = span(app.get_view_h(), app.get_zoom_cy(), fh);
-    Some(Job { path, full, settings, auto, warning: app.get_clip_warning(), x, y, width, height, scale })
+    Some(Job { path, full, reference, settings, auto, warning: app.get_clip_warning(), x, y, width, height, scale })
 }
 
 pub fn request(app: &LabWindow) {

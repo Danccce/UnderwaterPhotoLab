@@ -149,10 +149,30 @@ Umgesetzt – Abweichungen und Details:
 
 ### Phase 9 – Ton und Dehaze
 
-- [ ] 9.1 Belichtung, Kontrast
-- [ ] 9.2 Lichter, Schatten (weiche Luminanzmaske über Guided Filter, ohne Halos)
-- [ ] 9.3 Dehaze Unterwasser (UDCP aus Grün/Blau, Hintergrundlicht aus dem ganzen Bild, Regler 0–100)
-- [ ] 9.4 Abgleich Vorschau ↔ Export (gleiche Wirkung trotz unterschiedlicher Auflösung, Test)
+- [x] 9.1 Belichtung, Kontrast
+- [x] 9.2 Lichter, Schatten (weiche Luminanzmaske über Guided Filter, ohne Halos)
+- [x] 9.3 Dehaze Unterwasser (UDCP aus Grün/Blau, Hintergrundlicht aus dem ganzen Bild, Regler 0–100)
+- [x] 9.4 Abgleich Vorschau ↔ Export (gleiche Wirkung trotz unterschiedlicher Auflösung, Test)
+
+Umgesetzt – Details:
+
+- **Pipeline:** `uwcc_core::PixelOps` teilt die Schritte je Pixel (Farbmatrix · Weißabgleich/Dynamik/Belichtung
+  · Kontrast/Stärke); `uwcc_filters::render` setzt Dehaze nach der Farbmatrix und Lichter/Tiefen nach der
+  Belichtung dazwischen. Ohne diese beiden bleibt der schnelle Weg je Pixel.
+- **9.1:** Belichtung ±100 = ±2 Blenden, auf den gamma-kodierten Werten als `×2^(EV/2,2)` (wirkt wie in
+  linearem Licht). Kontrast: S-Kurve `v + a·(3v² − 2v³ − v)`, monoton, Schwarz/Mitte/Weiß bleiben.
+- **9.2:** Faktor `2^(1,2 · (Tiefen · w_T + Lichter · w_L))` nach der geglätteten Umgebungshelligkeit
+  (Guided Filter, Radius 30 ‰, eps 0,02); Gewichte quadratisch unter 0,6 bzw. über 0,4.
+- **9.3:** Wasserfarbe aus einer 256-px-Referenz des ganzen Bildes (`Photo::reference`, nach der Farbmatrix:
+  hellste 0,1 % im dunklen Kanal aus Grün/Blau). Durchlässigkeit `1 − 0,95 · Stärke · min(G/A, B/A)` über
+  8 ‰, mit Guided Filter (30 ‰) an die Kanten angepasst, Untergrenze 0,1.
+- **Geschwindigkeit:** Die Filter mit Nachbarschaft rechnen ihre Koeffizienten auf einem groben Raster (Radius
+  ≈ 4 Zellen, Fast Guided Filter) und wenden sie mit dem vollen Leitbild an; das Raster ist am ganzen Bild
+  ausgerichtet (`Context::origin`), damit Zoom-Ausschnitte (mit `margin_px` Rand) exakt dem ganzen Bild
+  entsprechen. Gemessen im Akkubetrieb: Vorschau 1280 px mit Ton und Dehaze ≈ 39 ms (ohne ≈ 10–15 ms),
+  16 MP ≈ 0,33 s (anfangs 3,1 s).
+- **9.4:** Tests: Vorschau (verkleinert gerechnet) ≈ Export (voll gerechnet, dann verkleinert), mittlere
+  Abweichung < 4 von 255; Ausschnitt mit Rand = ganzes Bild (±1). Sichtprüfung mit `tone_samples`.
 
 ### Phase 10 – Details
 
