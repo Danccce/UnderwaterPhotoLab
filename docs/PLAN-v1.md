@@ -4,7 +4,7 @@ Eigenständiges Programm (Rust + Slint) zur Farbkorrektur von Unterwasser-JPGs. 
 Bilder werden anschließend in PhotoCraft, LightCraft oder RapidRaw geöffnet und dort bei Bedarf
 nachbearbeitet. Schärfen, Entrauschen und HSL bleiben bewusst diesen Programmen überlassen.
 
-Stand vor Beginn: Commit `5847ad3` (Kern-Algorithmus, PhotoCraft-Plug-ins, `uwcc-analyze`,
+Stand vor Beginn: Commit `4607360` (Kern-Algorithmus, PhotoCraft-Plug-ins, `uwcc-analyze`,
 `unterwasser-analyse.exe`).
 
 ## Getroffene Entscheidungen

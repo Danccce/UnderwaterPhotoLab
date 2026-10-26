@@ -4,7 +4,7 @@
 UnderwaterPhotoLab – ohne PhotoCraft, RapidRaw o. Ä. „In … öffnen“ bleibt für Sonderfälle
 (Retusche, Montagen, RAW).
 
-Stand vor Beginn: v1 abgeschlossen (`docs/PLAN-v1.md`, letzter Commit `c449cbe`).
+Stand vor Beginn: v1 abgeschlossen (`docs/PLAN-v1.md`, letzter Commit `caa0804`).
 
 ## Leitlinien
 
@@ -103,10 +103,10 @@ Jede Phase endet mit grünen Tests, Messung gegen `uw-fotos` und eigenem Commit.
 
 ### Phase 8 – Grundlagen
 
-- [x] 8.1 `Settings` v2 mit Gruppen, `.uwcc.json` Version 2 (liest v1), Tests (`fb84679`)
-- [x] 8.2 Crate `uwcc-filters`: Puffer-Pipeline, trennbarer Box-/Gauß-Filter, Guided Filter, relative Radien (`fb84679`)
-- [x] 8.3 Histogramm (RGB) + Beschnitt-Warnung (Dreiecke, Taste J, farbige Markierung im Bild) (`0b374bf`)
-- [x] 8.4 100-%-Ansicht: Doppelklick/Taste Z, Verschieben per Ziehen; Ausschnitt in voller Auflösung rechnen (`7380739`)
+- [x] 8.1 `Settings` v2 mit Gruppen, `.uwcc.json` Version 2 (liest v1), Tests (`5d2f5d3`)
+- [x] 8.2 Crate `uwcc-filters`: Puffer-Pipeline, trennbarer Box-/Gauß-Filter, Guided Filter, relative Radien (`5d2f5d3`)
+- [x] 8.3 Histogramm (RGB) + Beschnitt-Warnung (Dreiecke, Taste J, farbige Markierung im Bild) (`a78cc83`)
+- [x] 8.4 100-%-Ansicht: Doppelklick/Taste Z, Verschieben per Ziehen; Ausschnitt in voller Auflösung rechnen (`11158ce`)
 - [x] 8.4b Stufenloser Zoom bis 400 %: Mausrad und Pinch (Windows meldet ihn als Strg+Rad) zoomen um den
   Mauszeiger, zwei Finger auf dem Touchpad verschieben (Wunsch während Phase 8)
 - [x] 8.5 Rückgängig/Wiederholen je Bild (Strg+Z/Strg+Y)
