@@ -214,9 +214,6 @@ Hilfe: `docs/HILFE.md` mit Screenshots (`docs/img`) und im Programm per F1 bzw. 
 PhotoCraft-Startskript entfernt; `dist\` enthält UnderwaterPhotoLab.exe, uwcc-analyze.exe und beide Plug-ins.
 Zusätzlich: dunkle Titelleiste. Alle Tests grün (14 Kern, 16 Foto, 7 Plug-in).
 
-## v2 (nicht in v1)
+## v2
 
-- Dehaze in der Unterwasser-Variante (Dark Channel nur aus Grün und Blau, braucht das ganze Bild)
-- Presets pro Wasserart („Rotes Meer“, „See grün“, „mit Blitz“) als gespeicherte Abweichung vom Auto-Wert
-- Klarheit (lokaler Kontrast), Lichter/Schatten
-- Programmsymbol (Icon) für Fenster und .exe
+Siehe `docs/PLAN-v2.md`.
