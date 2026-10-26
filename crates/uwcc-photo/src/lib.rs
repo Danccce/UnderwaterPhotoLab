@@ -21,7 +21,7 @@ use image::{
     codecs::jpeg::JpegEncoder, imageops, metadata::Orientation, DynamicImage, ExtendedColorType,
     ImageDecoder, ImageEncoder, ImageFormat, ImageReader,
 };
-use uwcc_core::{analyze, process_rgba8, Correction, Settings};
+use uwcc_core::{analyze, Correction, Settings};
 
 pub const EXTENSIONS: [&str; 5] = ["jpg", "jpeg", "png", "tif", "tiff"];
 pub const SUBFOLDER: &str = "uw-korrigiert";
@@ -99,7 +99,8 @@ impl Photo {
         }
 
         let mut rgba = self.rgba.clone();
-        process_rgba8(&mut rgba, settings, auto);
+        let (w, h) = rgba.dimensions();
+        uwcc_filters::render(&mut rgba, w, h, settings, &uwcc_filters::Context::new(*auto, w, h));
         let rgb = DynamicImage::ImageRgba8(rgba).into_rgb8();
 
         // Das Vorschaubild im EXIF zeigt sonst weiter das unkorrigierte Original (Explorer, Leiste).
@@ -404,18 +405,14 @@ mod tests {
             uwcc_core::process_rgba8(&mut px, &settings, &auto);
         }
         println!("Vorschau {}×{} neu rechnen: {:?} im Schnitt", preview.width(), preview.height(), start.elapsed() / 20);
-        let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).clamp(1, 8);
+        let (w, h) = preview.dimensions();
+        let ctx = uwcc_filters::Context::new(auto, w, h);
         let start = std::time::Instant::now();
         for _ in 0..20 {
             let mut px = preview.clone();
-            let chunk = ((px.len() / 4).div_ceil(threads) * 4).max(4);
-            std::thread::scope(|s| {
-                for part in px.chunks_mut(chunk) {
-                    s.spawn(|| uwcc_core::process_rgba8(part, &settings, &auto));
-                }
-            });
+            uwcc_filters::render(&mut px, w, h, &settings, &ctx);
         }
-        println!("… verteilt auf {threads} Threads wie in der App: {:?} im Schnitt", start.elapsed() / 20);
+        println!("… mit uwcc_filters::render wie in der App: {:?} im Schnitt", start.elapsed() / 20);
 
         // Stapel-Export: 8 Bilder mit 4 Threads wie in der App, in einen Temp-Ordner.
         let out_dir = std::env::temp_dir().join("uwcc-photo-tests").join("batch");

@@ -29,6 +29,47 @@ pub struct Delta {
     pub blue: LevelsDelta,
 }
 
+/// Ton und Dehaze; −100 … +100 bzw. 0 … 100, 0 = neutral.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Tone {
+    pub exposure: f32,
+    pub contrast: f32,
+    pub highlights: f32,
+    pub shadows: f32,
+    /// 0 … 100: Schleier aus Schwebeteilchen entfernen.
+    pub dehaze: f32,
+}
+
+/// Details; 0 … 100, 0 = aus.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Detail {
+    /// Lokaler Kontrast.
+    pub clarity: f32,
+    pub sharpen: f32,
+    pub noise_color: f32,
+    pub noise_luma: f32,
+}
+
+/// Ausschnitt in normalisierten Koordinaten (0–1) des gedrehten und geradegerichteten Bildes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Crop {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+/// Geometrie; wirkt vor allen Farbfiltern.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Geometry {
+    /// Drehung in Vierteln im Uhrzeigersinn (0–3).
+    pub quarter_turns: u8,
+    pub flip_horizontal: bool,
+    /// Geraderichten in Grad, −45 … +45.
+    pub straighten: f32,
+    pub crop: Option<Crop>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Settings {
     /// Basis ist die Analyse des jeweiligen Bildes, sonst [`Correction::NONE`].
@@ -45,6 +86,9 @@ pub struct Settings {
     /// Höchste Spreizung des Rotkanals (`256 / (high − low)`), damit Rauschen und
     /// JPG-Artefakte im fast leeren Rotkanal nicht beliebig verstärkt werden.
     pub red_limit: f64,
+    pub tone: Tone,
+    pub detail: Detail,
+    pub geometry: Geometry,
 }
 
 impl Default for Settings {
@@ -57,6 +101,9 @@ impl Default for Settings {
             tint: 0.0,
             vibrance: 0.0,
             red_limit: DEFAULT_RED_LIMIT,
+            tone: Tone::default(),
+            detail: Detail::default(),
+            geometry: Geometry::default(),
         }
     }
 }

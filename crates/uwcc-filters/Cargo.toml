@@ -1,0 +1,11 @@
+[package]
+name = "uwcc-filters"
+description = "Neighbourhood filters and the shared render pipeline for preview and export"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+uwcc-core.workspace = true

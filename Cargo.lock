@@ -4859,6 +4859,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "uwcc-filters"
+version = "0.1.0"
+dependencies = [
+ "uwcc-core",
+]
+
+[[package]]
 name = "uwcc-lab"
 version = "0.1.0"
 dependencies = [
@@ -4867,6 +4874,7 @@ dependencies = [
  "slint",
  "slint-build",
  "uwcc-core",
+ "uwcc-filters",
  "uwcc-photo",
 ]
 
@@ -4877,6 +4885,7 @@ dependencies = [
  "image",
  "serde_json",
  "uwcc-core",
+ "uwcc-filters",
 ]
 
 [[package]]

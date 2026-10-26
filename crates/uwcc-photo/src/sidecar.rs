@@ -2,11 +2,17 @@
 //! Ordner später weiterbearbeitet werden kann.
 //!
 //! ```json
-//! {"version": 1, "files": {"P4100207.JPG": {
+//! {"version": 2, "files": {"P4100207.JPG": {
 //!     "settings": {"auto": true, "strength": 1, "temperature": 0, "tint": 0, "vibrance": 0,
-//!                  "redLimit": 4, "delta": {"hueShift": 0, "red": [0, 0], "green": [0, 0], "blue": [0, 0]}},
+//!                  "redLimit": 4, "delta": {"hueShift": 0, "red": [0, 0], "green": [0, 0], "blue": [0, 0]},
+//!                  "tone": {"exposure": 0, "contrast": 0, "highlights": 0, "shadows": 0, "dehaze": 0},
+//!                  "detail": {"clarity": 0, "sharpen": 0, "noiseColor": 0, "noiseLuma": 0},
+//!                  "geometry": {"quarterTurns": 0, "flipHorizontal": false, "straighten": 0,
+//!                               "crop": {"x": 0, "y": 0, "width": 1, "height": 1}}},
 //!     "exported": {"settings": {…}, "target": "subfolder", "quality": 95}}}}
 //! ```
+//!
+//! Version 1 hatte keine Gruppen `tone`, `detail`, `geometry`; fehlende Werte sind neutral.
 
 use std::{
     collections::BTreeMap,
@@ -15,12 +21,12 @@ use std::{
 };
 
 use serde_json::{json, Map, Value};
-use uwcc_core::{Delta, LevelsDelta, Settings};
+use uwcc_core::{Crop, Delta, Detail, Geometry, LevelsDelta, Settings, Tone};
 
 use crate::{ExportTarget, SUBFOLDER};
 
 pub const FILE_NAME: &str = ".uwcc.json";
-const VERSION: u64 = 1;
+const VERSION: u64 = 2;
 
 /// Womit ein Bild zuletzt exportiert wurde; stimmt das mit dem jetzigen Stand überein, ist der
 /// Export aktuell.
@@ -153,6 +159,25 @@ pub fn settings_to_json(s: &Settings) -> Value {
             "green": pair(s.delta.green),
             "blue": pair(s.delta.blue),
         },
+        "tone": {
+            "exposure": s.tone.exposure,
+            "contrast": s.tone.contrast,
+            "highlights": s.tone.highlights,
+            "shadows": s.tone.shadows,
+            "dehaze": s.tone.dehaze,
+        },
+        "detail": {
+            "clarity": s.detail.clarity,
+            "sharpen": s.detail.sharpen,
+            "noiseColor": s.detail.noise_color,
+            "noiseLuma": s.detail.noise_luma,
+        },
+        "geometry": {
+            "quarterTurns": s.geometry.quarter_turns,
+            "flipHorizontal": s.geometry.flip_horizontal,
+            "straighten": s.geometry.straighten,
+            "crop": s.geometry.crop.map(|c| json!({"x": c.x, "y": c.y, "width": c.width, "height": c.height})),
+        },
     })
 }
 
@@ -180,6 +205,46 @@ pub fn settings_from_json(v: &Value) -> Settings {
             green: pair("green"),
             blue: pair("blue"),
         },
+        tone: tone_from_json(v.get("tone")),
+        detail: detail_from_json(v.get("detail")),
+        geometry: geometry_from_json(v.get("geometry")),
+    }
+}
+
+/// Zahl aus einer Gruppe als `f32`, sonst 0 (neutral).
+fn group_f32(group: Option<&Value>, key: &str) -> f32 {
+    group.and_then(|g| g.get(key)).and_then(Value::as_f64).unwrap_or(0.0) as f32
+}
+
+fn tone_from_json(g: Option<&Value>) -> Tone {
+    Tone {
+        exposure: group_f32(g, "exposure"),
+        contrast: group_f32(g, "contrast"),
+        highlights: group_f32(g, "highlights"),
+        shadows: group_f32(g, "shadows"),
+        dehaze: group_f32(g, "dehaze"),
+    }
+}
+
+fn detail_from_json(g: Option<&Value>) -> Detail {
+    Detail {
+        clarity: group_f32(g, "clarity"),
+        sharpen: group_f32(g, "sharpen"),
+        noise_color: group_f32(g, "noiseColor"),
+        noise_luma: group_f32(g, "noiseLuma"),
+    }
+}
+
+fn geometry_from_json(g: Option<&Value>) -> Geometry {
+    let crop = g.and_then(|g| g.get("crop")).and_then(|c| {
+        let f = |k: &str| c.get(k).and_then(Value::as_f64).map(|v| v as f32);
+        Some(Crop { x: f("x")?, y: f("y")?, width: f("width")?, height: f("height")? })
+    });
+    Geometry {
+        quarter_turns: g.and_then(|g| g.get("quarterTurns")).and_then(Value::as_u64).map_or(0, |q| (q % 4) as u8),
+        flip_horizontal: g.and_then(|g| g.get("flipHorizontal")).and_then(Value::as_bool).unwrap_or(false),
+        straighten: group_f32(g, "straighten"),
+        crop,
     }
 }
 
@@ -191,6 +256,14 @@ mod tests {
         let mut s = Settings { strength: 0.4, temperature: 17.5, tint: -3.25, vibrance: 22.0, red_limit: 2.7, ..Settings::default() };
         s.delta.hue_shift = -12.0;
         s.delta.blue = LevelsDelta { low: 5.0, high: -8.0 };
+        s.tone = Tone { exposure: 0.3, contrast: 12.0, highlights: -40.0, shadows: 25.5, dehaze: 60.0 };
+        s.detail = Detail { clarity: 20.0, sharpen: 35.0, noise_color: 50.0, noise_luma: 10.0 };
+        s.geometry = Geometry {
+            quarter_turns: 3,
+            flip_horizontal: true,
+            straighten: -2.75,
+            crop: Some(Crop { x: 0.1, y: 0.05, width: 0.8, height: 0.6 }),
+        };
         s
     }
 
@@ -199,6 +272,15 @@ mod tests {
         let s = sample_settings();
         assert_eq!(settings_from_json(&settings_to_json(&s)), s);
         assert_eq!(settings_from_json(&json!({})), Settings::default(), "leeres Objekt = Standard");
+    }
+
+    #[test]
+    fn reads_version_1_settings() {
+        let v1 = json!({"auto": true, "strength": 0.5, "temperature": 10, "tint": 0, "vibrance": 0, "redLimit": 4,
+                        "delta": {"hueShift": 3, "red": [0, 0], "green": [0, 0], "blue": [0, 0]}});
+        let s = settings_from_json(&v1);
+        assert_eq!((s.strength, s.temperature, s.delta.hue_shift), (0.5, 10.0, 3.0));
+        assert_eq!((s.tone, s.detail, s.geometry), (Tone::default(), Detail::default(), Geometry::default()));
     }
 
     #[test]

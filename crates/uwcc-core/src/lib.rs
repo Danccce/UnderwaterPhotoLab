@@ -11,7 +11,7 @@
 pub mod adjust;
 pub mod params;
 
-pub use adjust::{process_rgba8, Delta, Field, LevelsDelta, Settings};
+pub use adjust::{process_rgba8, Crop, Delta, Detail, Field, Geometry, LevelsDelta, Settings, Tone};
 
 use core::f64::consts::PI;
 

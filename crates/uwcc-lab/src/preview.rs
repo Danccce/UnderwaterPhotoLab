@@ -10,7 +10,7 @@ use std::{
 };
 
 use slint::{Rgba8Pixel, SharedPixelBuffer, Weak};
-use uwcc_core::{process_rgba8, Correction, Settings};
+use uwcc_core::{Correction, Settings};
 use uwcc_photo::{Photo, RgbaImage};
 
 use crate::LabWindow;
@@ -34,17 +34,10 @@ impl Loaded {
         buffer(&self.original)
     }
 
-    /// Auf alle Kerne verteilt: ein Regler soll die Vorschau ohne spürbare Verzögerung ändern.
     pub fn corrected_buffer(&self) -> SharedPixelBuffer<Rgba8Pixel> {
         let mut buf = buffer(&self.original);
-        let bytes = buf.make_mut_bytes();
-        let threads = thread::available_parallelism().map_or(4, |n| n.get()).clamp(1, 8);
-        let chunk = ((bytes.len() / 4).div_ceil(threads) * 4).max(4);
-        thread::scope(|s| {
-            for part in bytes.chunks_mut(chunk) {
-                s.spawn(|| process_rgba8(part, &self.settings, &self.auto));
-            }
-        });
+        let (w, h) = self.original.dimensions();
+        uwcc_filters::render(buf.make_mut_bytes(), w, h, &self.settings, &uwcc_filters::Context::new(self.auto, w, h));
         buf
     }
 }
