@@ -14,6 +14,7 @@ mod programs;
 mod selection;
 mod store;
 mod strip;
+mod zoom;
 
 use std::{
     cell::RefCell,
@@ -237,9 +238,15 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
     let weak = app.as_weak();
-    app.on_pick(move |x, y, w, h| {
+    app.on_pick(move |fx, fy| {
         if let Some(app) = weak.upgrade() {
-            controls::pick(&app, x, y, w, h);
+            controls::pick(&app, fx, fy);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_zoom_changed(move || {
+        if let Some(app) = weak.upgrade() {
+            zoom::request(&app);
         }
     });
 
@@ -385,6 +392,7 @@ fn select(app: &LabWindow, index: i32) {
         return;
     };
     app.set_current(index);
+    zoom::new_image(app, None);
 
     let thumb = app.get_thumbs().row_data(index as usize).filter(|t| t.loaded && !t.failed);
     app.set_has_preview(thumb.is_some());
@@ -406,6 +414,7 @@ fn loaded(app: &LabWindow, result: Result<preview::Loaded, String>) {
             }
             app.set_preview_original(Image::from_rgba8(l.original_buffer()));
             app.set_has_preview(true);
+            zoom::new_image(app, Some(&l.full));
             info::show(app, &l.path, Some(&l));
             with_state(|st| st.current = Some(l));
             histogram::show_corrected(app);

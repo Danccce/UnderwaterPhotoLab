@@ -34,13 +34,15 @@ pub fn reset_field(app: &LabWindow, field: &str) {
     }
 }
 
-/// Pipette: `(x, y)` im Vorschaufeld der Größe `(w, h)`; setzt Temperatur und Tint so, dass
-/// die Stelle neutral grau wird.
-pub fn pick(app: &LabWindow, x: f32, y: f32, w: f32, h: f32) {
+/// Pipette: `(fx, fy)` als Anteil der Bildbreite und -höhe (0–1); setzt Temperatur und Tint so,
+/// dass die Stelle neutral grau wird.
+pub fn pick(app: &LabWindow, fx: f32, fy: f32) {
     let sample = with_state(|st| {
         let img = &st.current.as_ref()?.original;
-        let (px, py) = uwcc_photo::contain_point(x, y, w, h, img.width(), img.height())?;
-        Some(average(img, px, py))
+        if !(0.0..1.0).contains(&fx) || !(0.0..1.0).contains(&fy) {
+            return None;
+        }
+        Some(average(img, (fx * img.width() as f32) as u32, (fy * img.height() as f32) as u32))
     });
     let Some((r, g, b)) = sample else {
         app.set_status("Pipette: bitte auf eine Stelle im Bild klicken.".into());

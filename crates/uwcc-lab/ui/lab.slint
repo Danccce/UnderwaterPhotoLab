@@ -329,6 +329,58 @@ export component LabWindow inherits Window {
     in-out property <bool> clip-warning;
     callback clip-warning-changed();
 
+    // 100-%-Ansicht (Doppelklick oder Z): Rust rechnet den Ausschnitt ab `zoom-x/-y` des ganzen
+    // Bildes; `zoom-cx/-cy` ist die gewünschte Mitte in Bildpixeln.
+    in-out property <bool> zoomed;
+    in-out property <float> zoom-cx;
+    in-out property <float> zoom-cy;
+    in property <float> full-width: 1;
+    in property <float> full-height: 1;
+    in property <image> zoom-original;
+    in property <image> zoom-corrected;
+    in property <float> zoom-x;
+    in property <float> zoom-y;
+    out property <float> view-w: preview-box.width / 1phx;
+    out property <float> view-h: preview-box.height / 1phx;
+    callback zoom-changed();
+    property <length> fit: min(preview-box.width / root.full-width, preview-box.height / root.full-height);
+
+    // Hält die Mitte so, dass der Ausschnitt im Bild bleibt; kleinere Bilder stehen mittig.
+    public function set-center(x: float, y: float) {
+        root.zoom-cx = root.full-width <= root.view-w ? root.full-width / 2 : clamp(x, root.view-w / 2, root.full-width - root.view-w / 2);
+        root.zoom-cy = root.full-height <= root.view-h ? root.full-height / 2 : clamp(y, root.view-h / 2, root.full-height - root.view-h / 2);
+    }
+    // Mausposition im Vorschaufeld → Bildpixel, in beiden Ansichten.
+    pure function image-x(mx: length) -> float {
+        root.zoomed ? root.zoom-cx + (mx - preview-box.width / 2) / 1phx : (mx - (preview-box.width - root.full-width * root.fit) / 2) / root.fit
+    }
+    pure function image-y(my: length) -> float {
+        root.zoomed ? root.zoom-cy + (my - preview-box.height / 2) / 1phx : (my - (preview-box.height - root.full-height * root.fit) / 2) / root.fit
+    }
+    // Während des Ladens ist die Bildgröße noch unbekannt; dann zentriert Rust nach dem Laden.
+    in-out property <bool> center-on-load;
+    function zoom-in(mx: length, my: length) {
+        if root.loading {
+            root.center-on-load = true;
+        } else {
+            root.set-center(root.image-x(mx) - (mx - preview-box.width / 2) / 1phx, root.image-y(my) - (my - preview-box.height / 2) / 1phx);
+        }
+        root.zoomed = true;
+        root.zoom-changed();
+    }
+    changed view-w => {
+        if root.zoomed {
+            root.set-center(root.zoom-cx, root.zoom-cy);
+            root.zoom-changed();
+        }
+    }
+    changed view-h => {
+        if root.zoomed {
+            root.set-center(root.zoom-cx, root.zoom-cy);
+            root.zoom-changed();
+        }
+    }
+
     callback open-folder();
     // Klick in der Leiste: Index, Strg gedrückt, Umschalt gedrückt.
     callback thumb-pressed(int, bool, bool);
@@ -367,6 +419,7 @@ export component LabWindow inherits Window {
                 "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
                 "Original zeigen: Knopf „Original“ oder Leertaste gedrückt halten.",
                 "Split-Ansicht: Knopf „Split-Ansicht“ oder Taste S; die Trennlinie mit der Maus ziehen.",
+                "100-%-Ansicht: Doppelklick ins Bild (zoomt auf die Stelle) oder Taste Z; Ziehen verschiebt den Ausschnitt. Doppelklick, Z oder Esc zurück.",
                 "Bildinformationen: oben rechts auf den Dateinamen klicken.",
             ],
         },
@@ -433,8 +486,8 @@ export component LabWindow inherits Window {
     callback auto-toggled(bool);
     callback reset();
     callback reset-field(string);
-    // Pipette: Klickposition und Größe der Vorschaufläche in logischen Pixeln.
-    callback pick(float, float, float, float);
+    // Pipette: Klickposition als Anteil von Bildbreite und -höhe (0–1).
+    callback pick(float, float);
 
     property <length> cell-width: 132px;
     property <length> cell-gap: 8px;
@@ -470,6 +523,18 @@ export component LabWindow inherits Window {
             }
             if root.show-help && event.text == Key.Escape {
                 root.show-help = false;
+                return accept;
+            }
+            if root.zoomed && event.text == Key.Escape {
+                root.zoomed = false;
+                return accept;
+            }
+            if (event.text == "z" || event.text == "Z") && !event.modifiers.control && root.has-preview {
+                if root.zoomed {
+                    root.zoomed = false;
+                } else {
+                    root.zoom-in(preview-box.width / 2, preview-box.height / 2);
+                }
                 return accept;
             }
             if event.text == " " {
@@ -539,11 +604,19 @@ export component LabWindow inherits Window {
                     background: #141518;
                     clip: true;
 
-                    if root.has-preview: Image {
+                    if root.has-preview && !root.zoomed: Image {
                         width: 100%;
                         height: 100%;
                         source: root.preview-corrected;
                         image-fit: contain;
+                    }
+                    // 100 %: ein Bildpixel pro Bildschirmpixel.
+                    if root.has-preview && root.zoomed: Image {
+                        x: preview-box.width / 2 + (root.zoom-x - root.zoom-cx) * 1phx;
+                        y: preview-box.height / 2 + (root.zoom-y - root.zoom-cy) * 1phx;
+                        width: root.zoom-corrected.width * 1phx;
+                        height: root.zoom-corrected.height * 1phx;
+                        source: root.zoom-corrected;
                     }
                     if root.has-preview && root.original-fraction > 0: Rectangle {
                         x: 0;
@@ -551,13 +624,20 @@ export component LabWindow inherits Window {
                         width: preview-box.width * root.original-fraction;
                         height: 100%;
                         clip: true;
-                        Image {
+                        if !root.zoomed: Image {
                             x: 0;
                             y: 0;
                             width: preview-box.width;
                             height: preview-box.height;
                             source: root.preview-original;
                             image-fit: contain;
+                        }
+                        if root.zoomed: Image {
+                            x: preview-box.width / 2 + (root.zoom-x - root.zoom-cx) * 1phx;
+                            y: preview-box.height / 2 + (root.zoom-y - root.zoom-cy) * 1phx;
+                            width: root.zoom-original.width * 1phx;
+                            height: root.zoom-original.height * 1phx;
+                            source: root.zoom-original;
                         }
                     }
                     if root.has-preview && root.split && !root.hold: Rectangle {
@@ -599,10 +679,15 @@ export component LabWindow inherits Window {
                         y: 12px;
                         text: "Original";
                     }
-                    if root.loading: Tag {
+                    if root.loading || (root.zoomed && root.zoom-corrected.width == 0): Tag {
                         x: (preview-box.width - self.width) / 2;
                         y: 12px;
                         text: "Lade …";
+                    }
+                    if root.has-preview && root.zoomed: Tag {
+                        x: 12px;
+                        y: preview-box.height - self.height - 12px;
+                        text: "100 %";
                     }
                     if !root.has-preview: Text {
                         text: root.thumbs.length == 0 ? "Ordner öffnen oder hierher ziehen" : "Bild in der Leiste auswählen";
@@ -615,22 +700,58 @@ export component LabWindow inherits Window {
                         background: #2a7fff22;
                     }
 
+                    // Ohne Zoom verschiebt jeder Klick die Split-Linie; mit Zoom nur ein Griff an der
+                    // Linie, sonst verschiebt Ziehen den Ausschnitt.
                     TouchArea {
-                        mouse-cursor: root.picking ? MouseCursor.crosshair : (root.split && root.has-preview ? MouseCursor.ew-resize : MouseCursor.default);
+                        property <bool> panning;
+                        property <bool> splitting;
+                        property <length> start-x;
+                        property <length> start-y;
+                        property <float> start-cx;
+                        property <float> start-cy;
+                        property <bool> on-split: root.has-preview && root.split && !root.hold
+                            && (!root.zoomed || abs(self.mouse-x - preview-box.width * root.split-pos) < 12px);
+                        mouse-cursor: root.picking ? MouseCursor.crosshair
+                            : self.on-split || self.splitting ? MouseCursor.ew-resize
+                            : root.zoomed && root.has-preview ? (self.panning ? MouseCursor.grabbing : MouseCursor.grab)
+                            : MouseCursor.default;
                         pointer-event(event) => {
-                            if event.kind == PointerEventKind.down {
+                            if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
                                 keys.focus();
                                 if root.picking {
                                     root.picking = false;
-                                    root.pick(self.mouse-x / 1px, self.mouse-y / 1px, self.width / 1px, self.height / 1px);
-                                } else if root.split {
+                                    root.pick(root.image-x(self.mouse-x) / root.full-width, root.image-y(self.mouse-y) / root.full-height);
+                                } else if self.on-split {
+                                    self.splitting = true;
                                     root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
+                                } else if root.zoomed {
+                                    self.panning = true;
+                                    self.start-x = self.mouse-x;
+                                    self.start-y = self.mouse-y;
+                                    self.start-cx = root.zoom-cx;
+                                    self.start-cy = root.zoom-cy;
                                 }
+                            }
+                            if event.kind == PointerEventKind.up {
+                                self.panning = false;
+                                self.splitting = false;
                             }
                         }
                         moved => {
-                            if self.pressed && root.split && !root.picking {
+                            if self.splitting {
                                 root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
+                            } else if self.panning {
+                                root.set-center(self.start-cx - (self.mouse-x - self.start-x) / 1phx, self.start-cy - (self.mouse-y - self.start-y) / 1phx);
+                                root.zoom-changed();
+                            }
+                        }
+                        double-clicked => {
+                            if root.has-preview && !root.picking {
+                                if root.zoomed {
+                                    root.zoomed = false;
+                                } else {
+                                    root.zoom-in(self.mouse-x, self.mouse-y);
+                                }
                             }
                         }
                     }

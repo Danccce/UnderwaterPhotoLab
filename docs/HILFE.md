@@ -12,6 +12,7 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 - **Bild wechseln:** Klick in die Leiste oder Pfeiltasten ← →.
 - **Original zeigen:** Knopf „Original“ oder Leertaste gedrückt halten (der Knopf wird dabei blau).
 - **Split-Ansicht:** Knopf „Split-Ansicht“ oder Taste **S**; die Trennlinie mit der Maus ziehen.
+- **100-%-Ansicht:** Doppelklick ins Bild (zoomt auf diese Stelle) oder Taste **Z**; Ziehen verschiebt den Ausschnitt, die Trennlinie der Split-Ansicht greift man direkt an der Linie. Doppelklick, **Z** oder **Esc** zurück zur ganzen Ansicht. So lassen sich Schärfe, Rauschen und Schwebeteilchen beurteilen.
 - **Bildinformationen:** oben rechts auf den Dateinamen klicken (Aufnahme, Kamera, Objektiv, Belichtung, Auto-Analyse …).
 - **Leiste „Original | Korrigiert“:** bei „Korrigiert“ erscheinen exportierte Bilder korrigiert, alle anderen als Original – so sieht man, wo noch etwas zu tun ist.
 

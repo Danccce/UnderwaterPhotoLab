@@ -78,7 +78,7 @@ fn smoothed(bins: &[u64; 256]) -> [f32; 256] {
 }
 
 /// Lichter mit einem Kanal bei 255 werden rot, Tiefen mit einem Kanal bei 0 blau.
-fn mark_clipping(rgba: &mut [u8]) {
+pub fn mark_clipping(rgba: &mut [u8]) {
     for px in rgba.chunks_exact_mut(4) {
         if px[0] == 255 || px[1] == 255 || px[2] == 255 {
             px[..3].copy_from_slice(&[255, 0, 0]);
@@ -88,8 +88,9 @@ fn mark_clipping(rgba: &mut [u8]) {
     }
 }
 
-/// Rechnet die korrigierte Vorschau des aktuellen Bildes, setzt sie samt Histogramm und
-/// markiert bei eingeschalteter Warnung die beschnittenen Stellen.
+/// Rechnet die korrigierte Vorschau des aktuellen Bildes, setzt sie samt Histogramm,
+/// markiert bei eingeschalteter Warnung die beschnittenen Stellen und frischt die
+/// 100-%-Ansicht auf.
 pub fn show_corrected(app: &LabWindow) {
     let Some(mut buf) = with_state(|st| st.current.as_ref().map(|l| l.corrected_buffer())) else {
         return;
@@ -105,6 +106,7 @@ pub fn show_corrected(app: &LabWindow) {
         mark_clipping(buf.make_mut_bytes());
     }
     app.set_preview_corrected(Image::from_rgba8(buf));
+    crate::zoom::request(app);
 }
 
 /// Ohne geladenes Bild bleibt das Histogramm leer.

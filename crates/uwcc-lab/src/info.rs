@@ -37,7 +37,7 @@ pub fn show(app: &LabWindow, path: &Path, loaded: Option<&Loaded>) {
     ];
     if let Some(l) = loaded {
         let a = &l.auto;
-        rows.insert(7, ("Bildgröße", Some(format!("{} × {} px", l.width, l.height))));
+        rows.insert(7, ("Bildgröße", Some(format!("{} × {} px", l.full.width(), l.full.height()))));
         rows.push((
             "Auto-Analyse",
             Some(format!(

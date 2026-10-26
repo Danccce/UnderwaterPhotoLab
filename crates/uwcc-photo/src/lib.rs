@@ -79,6 +79,13 @@ impl Photo {
         img.into_rgba8()
     }
 
+    /// Das ganze Bild richtig gedreht, für die 100-%-Ansicht.
+    pub fn into_oriented(self) -> RgbaImage {
+        let mut img = DynamicImage::ImageRgba8(self.rgba);
+        img.apply_orientation(self.orientation);
+        img.into_rgba8()
+    }
+
     /// Exportiert nach [`output_path`] und gibt den Pfad zurück.
     pub fn export(&self, settings: &Settings, auto: &Correction, target: ExportTarget, quality: u8) -> Result<PathBuf, String> {
         let out = output_path(&self.path, target);

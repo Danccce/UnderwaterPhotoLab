@@ -20,8 +20,8 @@ pub const PREVIEW_MAX: u32 = 1280;
 
 pub struct Loaded {
     pub path: PathBuf,
-    pub width: u32,
-    pub height: u32,
+    /// Ganzes Bild, gedreht und unbearbeitet, für die 100-%-Ansicht.
+    pub full: Arc<RgbaImage>,
     /// Unbearbeitete, gedrehte Vorschau.
     pub original: RgbaImage,
     /// Auto-Analyse des ganzen Bildes in voller Auflösung.
@@ -57,12 +57,12 @@ pub fn load(
 ) {
     thread::spawn(move || {
         let result = Photo::open(&path).map(|photo| {
-            let (width, height) = photo.rgba.dimensions();
+            let auto = photo.analyze();
+            let original = photo.preview(PREVIEW_MAX);
             Loaded {
-                width,
-                height,
-                auto: photo.analyze(),
-                original: photo.preview(PREVIEW_MAX),
+                full: Arc::new(photo.into_oriented()),
+                auto,
+                original,
                 path,
                 settings: Settings::default(),
             }
