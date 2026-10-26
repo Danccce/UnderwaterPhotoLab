@@ -68,13 +68,10 @@ Diese Punkte sind keine Filter, entscheiden aber, ob man 50–400 Bilder bequem 
 - **100-%-Ansicht / Lupe:** Doppelklick oder Taste Z zoomt auf 100 %, Ziehen verschiebt. Ohne sie lassen sich
   Schärfe, Rauschen und Partikel nicht beurteilen.
 - **Rückgängig / Wiederholen** (Strg+Z / Strg+Y) je Bild.
-- **Auswahl der Guten (Bewertung):** Markieren (Taste P) / Verwerfen (X), 1–5 Sterne; Leiste nach Markierung
-  filtern; nur Markierte exportieren. Bei 400 Bildern eines Tauchgangs der eigentliche Zeitfresser.
 - **Selektives Übernehmen:** beim Übertragen wählen, welche Gruppen mitkommen (Farbe, Ton, Details, Zuschnitt).
 - **Presets pro Wasserart** (schon in v1 vorgesehen): „Rotes Meer“, „See grün“, „mit Blitz“ – gespeichert als
   Abweichung vom Auto-Wert plus Ton/Details.
-- **Export-Profile:** „Volle Größe“ und „Web/Teilen“ (lange Kante z. B. 2048 px, Ausgabeschärfung, sRGB,
-  kleinere Datei); Dateiname wie Original, Unterordner je Profil (`uw-korrigiert`, `uw-web`).
+- Zurückgestellt: Bewertung/Auswahl der Guten und ein Export-Profil „Web“ (siehe Entscheidungen).
 
 ## Architektur-Änderungen
 
@@ -135,11 +132,11 @@ Jede Phase endet mit grünen Tests, Messung gegen `uw-fotos` und eigenem Commit.
 
 ### Phase 12 – Viele Bilder
 
-- [ ] 12.1 Bewertung: Markieren/Verwerfen (P/X), Sterne (1–5), Anzeige in der Leiste, in `.uwcc.json`
-- [ ] 12.2 Leiste filtern (alle / markiert / ≥ n Sterne / unbearbeitet / nicht exportiert)
-- [ ] 12.3 Selektives Übernehmen (Gruppen wählen; Zuschnitt standardmäßig aus)
-- [ ] 12.4 Presets: speichern, anwenden, auf Auswahl anwenden; mitgelieferte für Blauwasser, Grünwasser, Blitz
-- [ ] 12.5 Export-Profile „Volle Größe“ / „Web“ (lange Kante, Ausgabeschärfung, Unterordner je Profil)
+- [ ] 12.1 Selektives Übernehmen (Gruppen wählen; Zuschnitt standardmäßig aus)
+- [ ] 12.2 Presets: speichern, anwenden, auf Auswahl anwenden; mitgelieferte für Blauwasser, Grünwasser, Blitz
+- [ ] 12.3 Leiste filtern (alle / unbearbeitet / nicht exportiert)
+
+Zurückgestellt (Entscheidung): Bewertung/Auswahl der Guten (Markieren, Sterne) und ein Export-Profil „Web“.
 
 ### Phase 13 – Feinschliff (optional)
 
@@ -154,9 +151,11 @@ Jede Phase endet mit grünen Tests, Messung gegen `uw-fotos` und eigenem Commit.
 - RAW-Entwicklung (bleibt JPG; RAW weiter über „In … öffnen“)
 - Objektivkorrektur, Panorama, HDR, KI-Funktionen
 
-## Offene Fragen
+## Entscheidungen
 
-- Bewertung/Auswahl der Guten (Phase 12.1/12.2) gewünscht?
-- Export-Profil „Web“ gewünscht, und welche Größe (z. B. lange Kante 2048 px)?
-- Sollen RAW-Dateien der E-M1 (ORF) zumindest angezeigt werden, oder bleibt es bei JPG?
-- Reihenfolge: zuerst Ton/Dehaze (sichtbarster Gewinn) oder zuerst Zuschneiden?
+| Frage | Entscheidung |
+|---|---|
+| Bewertung/Auswahl der Guten | später, nicht in v2 |
+| Export-Profil „Web“ | nein, nur volle Größe |
+| RAW (z. B. ORF) | nein, es bleibt bei JPG |
+| Reihenfolge | Phase 8 Grundlagen, dann Ton + Dehaze (9), Details (10), Zuschneiden (11), Viele Bilder (12) |
