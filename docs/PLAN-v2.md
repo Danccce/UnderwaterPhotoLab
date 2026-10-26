@@ -91,7 +91,7 @@ Diese Punkte sind keine Filter, entscheiden aber, ob man 50–400 Bilder bequem 
 - **Analyse** bleibt auf dem ganzen, ungeschnittenen Bild (stabil beim Zuschneiden); optional später
   „Auto auf Zuschnitt“.
 - **Nachbarschaftsfilter** mit trennbaren Box-/Gauß-Filtern bzw. Guided Filter (O(n), auf Kerne verteilt);
-  Radien in Prozent der Bildbreite.
+  Radien in Promille der langen Bildkante.
 - **Kern bleibt `no_std`, wo möglich**; Nachbarschaftsfilter brauchen Puffer und kommen in ein neues Crate
   `uwcc-filters` (std). Das PhotoCraft-Plug-in bleibt bei der reinen Farbkorrektur.
 - **Leistungsziel:** Vorschau nach Regleränderung ≤ 50 ms auch mit allen Filtern; Export ≤ 2 s pro 16-MP-Bild
@@ -103,11 +103,32 @@ Jede Phase endet mit grünen Tests, Messung gegen `uw-fotos` und eigenem Commit.
 
 ### Phase 8 – Grundlagen
 
-- [ ] 8.1 `Settings` v2 mit Gruppen, `.uwcc.json` Version 2 (liest v1), Tests
-- [ ] 8.2 Crate `uwcc-filters`: Puffer-Pipeline, trennbarer Box-/Gauß-Filter, Guided Filter, relative Radien
-- [ ] 8.3 Histogramm (RGB) + Beschnitt-Warnung (Dreiecke, Taste J, farbige Markierung im Bild)
-- [ ] 8.4 100-%-Ansicht: Doppelklick/Taste Z, Verschieben per Ziehen; Ausschnitt in voller Auflösung rechnen
+- [x] 8.1 `Settings` v2 mit Gruppen, `.uwcc.json` Version 2 (liest v1), Tests (`fb84679`)
+- [x] 8.2 Crate `uwcc-filters`: Puffer-Pipeline, trennbarer Box-/Gauß-Filter, Guided Filter, relative Radien (`fb84679`)
+- [x] 8.3 Histogramm (RGB) + Beschnitt-Warnung (Dreiecke, Taste J, farbige Markierung im Bild) (`0b374bf`)
+- [x] 8.4 100-%-Ansicht: Doppelklick/Taste Z, Verschieben per Ziehen; Ausschnitt in voller Auflösung rechnen (`7380739`)
 - [ ] 8.5 Rückgängig/Wiederholen je Bild (Strg+Z/Strg+Y)
+
+Umgesetzt – Abweichungen und Details:
+
+- **8.1:** Gruppen `tone` (Belichtung, Kontrast, Lichter, Schatten, Dehaze), `detail` (Klarheit, Schärfen,
+  Farb- und Luminanzrauschen) und `geometry` (Vierteldrehungen, Spiegeln, Geraderichten, Zuschnitt als Anteil
+  des Bildes). Die Gruppe `effects` (Vignette, Farbmischer) kommt erst mit Phase 13. `.uwcc.json` liest auch
+  Dateien mit UTF-8-BOM.
+- **8.2:** `uwcc_filters::render()` ist die einzige Pipeline für Vorschau, 100-%-Ansicht und Export; sie
+  verteilt auf bis zu 8 Kerne. Radien werden in **Promille der langen Kante** des ganzen Bildes angegeben
+  (`Context::radius_px`); die 100-%-Ansicht rechnet ihren Ausschnitt mit den Maßen des ganzen Bildes.
+  Noch offen für Phase 9/10: Ausschnitte brauchen einen Rand, sobald Nachbarschaftsfilter wirken.
+- **8.3:** Histogramm fest über der Reglerleiste, Kanäle halbtransparent überlagert, nur für die Anzeige
+  geglättet (die Tonwertspreizung erzeugt sonst einen Kamm). Ein Dreieck leuchtet ab 0,1 % beschnittener Pixel
+  in der Mischfarbe der betroffenen Kanäle (Rot, Gelb, Weiß …); kleinere Schwellen leuchteten bei fast jedem
+  Bild, weil die Auto-Korrektur absichtlich etwas beschneidet. Markierung: ein Kanal bei 255 → rot,
+  ein Kanal bei 0 → blau. Klick auf ein Dreieck oder J schaltet um.
+- **8.4:** Ein Bildpixel pro Bildschirmpixel. Das volle Bild bleibt nach dem Laden gedreht im Speicher;
+  der sichtbare Ausschnitt wird im Hintergrund gerechnet (höchstens eine Berechnung, danach eine mit dem
+  neuesten Stand), beim Ziehen wandert das letzte Ergebnis sofort mit. Doppelklick zoomt auf die Stelle,
+  Z auf die Mitte; Esc beendet. Split-Ansicht, Leertaste, Beschnitt-Warnung und Pipette wirken auch im Zoom;
+  die Split-Linie greift man im Zoom direkt an der Linie. Der Zoom bleibt beim Bildwechsel erhalten.
 
 ### Phase 9 – Ton und Dehaze
 
