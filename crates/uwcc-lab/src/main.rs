@@ -75,12 +75,21 @@ fn with_state<R>(f: impl FnOnce(&mut State) -> R) -> R {
 fn main() -> Result<(), slint::PlatformError> {
     slint::BackendSelector::new()
         .backend_name("winit".into())
-        // Dunkle Titelleiste passend zum dunklen Fensterinhalt.
-        .with_winit_window_attributes_hook(|a| a.with_theme(Some(slint::winit_030::winit::window::Theme::Dark)))
+        .with_winit_window_attributes_hook(|a| {
+            use slint::winit_030::winit::{
+                platform::windows::{Color, WindowAttributesExtWindows},
+                window::Theme,
+            };
+            // Titelleiste im Grau der Reglerleiste (Fluent dunkel: #2C2C2C).
+            let panel = Color::from_rgb(0x2C, 0x2C, 0x2C);
+            a.with_theme(Some(Theme::Dark))
+                .with_title_background_color(Some(panel))
+                .with_title_text_color(Color::from_rgb(0xE6, 0xE6, 0xE6))
+                .with_border_color(Some(panel))
+        })
         .select()?;
 
     let app = LabWindow::new()?;
-    app.window().set_maximized(true);
     app.set_status("Kein Ordner geöffnet.".into());
     let cfg = config::load();
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
@@ -108,10 +117,26 @@ fn main() -> Result<(), slint::PlatformError> {
     });
 
     let weak = app.as_weak();
+    let mut maximized = false;
     app.window().on_winit_window_event(move |_, event| {
         let Some(app) = weak.upgrade() else {
             return EventResult::Propagate;
         };
+        // Erst nach dem ersten Zeichnen maximieren: Slint setzt beim Anzeigen noch die
+        // Vorgabegröße, die sonst ein bereits maximiertes Fenster wieder verkleinert (der Rahmen
+        // bleibt maximiert, die Fläche nicht). Aus und wieder an, damit Windows neu misst.
+        if !maximized && matches!(event, WindowEvent::RedrawRequested) {
+            maximized = true;
+            let weak = app.as_weak();
+            slint::Timer::single_shot(std::time::Duration::ZERO, move || {
+                if let Some(app) = weak.upgrade() {
+                    app.window().with_winit_window(|w| {
+                        w.set_maximized(false);
+                        w.set_maximized(true);
+                    });
+                }
+            });
+        }
         match event {
             WindowEvent::HoveredFile(_) => app.set_drag_over(true),
             WindowEvent::HoveredFileCancelled => app.set_drag_over(false),
