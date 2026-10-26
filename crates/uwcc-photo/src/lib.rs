@@ -193,6 +193,17 @@ pub fn exif_thumbnail(path: &Path, max: u32) -> Option<RgbaImage> {
     Some(img.into_rgba8())
 }
 
+/// Ausschnitt `(x, y, w, h)` von `img`, auf `(out_w, out_h)` verkleinert (oder unverändert,
+/// wenn die Größe gleich bleibt).
+pub fn region(img: &RgbaImage, (x, y, w, h): (u32, u32, u32, u32), (out_w, out_h): (u32, u32)) -> RgbaImage {
+    let sub = imageops::crop_imm(img, x, y, w, h);
+    if (out_w, out_h) == (w, h) {
+        sub.to_image()
+    } else {
+        imageops::thumbnail(&*sub, out_w, out_h)
+    }
+}
+
 /// Bildkoordinate eines Punkts `(x, y)` in einer Fläche `(w, h)`, in die ein Bild der Größe
 /// `(iw, ih)` eingepasst ist (wie `image-fit: contain`); `None` außerhalb des Bildes.
 pub fn contain_point(x: f32, y: f32, w: f32, h: f32, iw: u32, ih: u32) -> Option<(u32, u32)> {

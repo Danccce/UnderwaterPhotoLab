@@ -107,6 +107,8 @@ Jede Phase endet mit grünen Tests, Messung gegen `uw-fotos` und eigenem Commit.
 - [x] 8.2 Crate `uwcc-filters`: Puffer-Pipeline, trennbarer Box-/Gauß-Filter, Guided Filter, relative Radien (`fb84679`)
 - [x] 8.3 Histogramm (RGB) + Beschnitt-Warnung (Dreiecke, Taste J, farbige Markierung im Bild) (`0b374bf`)
 - [x] 8.4 100-%-Ansicht: Doppelklick/Taste Z, Verschieben per Ziehen; Ausschnitt in voller Auflösung rechnen (`7380739`)
+- [x] 8.4b Stufenloser Zoom bis 400 %: Mausrad und Pinch (Windows meldet ihn als Strg+Rad) zoomen um den
+  Mauszeiger, zwei Finger auf dem Touchpad verschieben (Wunsch während Phase 8)
 - [ ] 8.5 Rückgängig/Wiederholen je Bild (Strg+Z/Strg+Y)
 
 Umgesetzt – Abweichungen und Details:
@@ -129,6 +131,10 @@ Umgesetzt – Abweichungen und Details:
   neuesten Stand), beim Ziehen wandert das letzte Ergebnis sofort mit. Doppelklick zoomt auf die Stelle,
   Z auf die Mitte; Esc beendet. Split-Ansicht, Leertaste, Beschnitt-Warnung und Pipette wirken auch im Zoom;
   die Split-Linie greift man im Zoom direkt an der Linie. Der Zoom bleibt beim Bildwechsel erhalten.
+- **8.4b:** Maßstab = Bildschirmpixel je Bildpixel. Unter 100 % wird der Ausschnitt erst verkleinert und dann
+  gerechnet (Radien passen sich an), ab 100 % in voller Auflösung und über 100 % pixelgenau vergrößert.
+  Mausrad und Touchpad unterscheidet das Programm an der Art der Scroll-Meldung (Rasten bzw. Pixel), die es vor
+  Slint abfängt. Eine Raste ≈ 15 %; zurück bis zum eingepassten Bild beendet den Zoom.
 
 ### Phase 9 – Ton und Dehaze
 

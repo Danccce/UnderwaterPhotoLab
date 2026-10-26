@@ -1,7 +1,8 @@
-//! 100-%-Ansicht: rechnet den sichtbaren Ausschnitt des ganzen Bildes im Hintergrund.
+//! Zoom-Ansicht: rechnet den sichtbaren Ausschnitt des ganzen Bildes im Hintergrund.
 //!
-//! Es läuft höchstens eine Berechnung; Anfragen währenddessen (Ziehen, Regler) führen danach zu
-//! genau einer weiteren mit dem neuesten Stand. Slint verschiebt das letzte Ergebnis sofort mit.
+//! Es läuft höchstens eine Berechnung; Anfragen währenddessen (Ziehen, Zoomen, Regler) führen
+//! danach zu genau einer weiteren mit dem neuesten Stand. Slint verschiebt und skaliert das letzte
+//! Ergebnis sofort mit.
 
 use std::{cell::Cell, path::PathBuf, sync::Arc, thread};
 
@@ -22,47 +23,49 @@ struct Job {
     settings: Settings,
     auto: Correction,
     warning: bool,
+    /// Ausschnitt in Bildpixeln.
     x: u32,
     y: u32,
     width: u32,
     height: u32,
+    /// Bildschirmpixel je Bildpixel; unter 1 wird der Ausschnitt verkleinert gerechnet.
+    scale: f32,
 }
 
 impl Job {
-    /// Original und Korrektur des Ausschnitts. Die Pipeline sieht die Maße des ganzen Bildes,
-    /// damit relative Radien wie beim Export wirken.
+    /// Original und Korrektur des Ausschnitts. Die Pipeline sieht das ganze Bild in der gerade
+    /// gerechneten Auflösung, damit relative Radien wie beim Export wirken.
     fn run(&self) -> (SharedPixelBuffer<Rgba8Pixel>, SharedPixelBuffer<Rgba8Pixel>) {
         let (fw, fh) = self.full.dimensions();
-        let row = self.width as usize * 4;
-        let mut crop = Vec::with_capacity(row * self.height as usize);
-        for y in self.y..self.y + self.height {
-            let start = (y as usize * fw as usize + self.x as usize) * 4;
-            crop.extend_from_slice(&self.full.as_raw()[start..start + row]);
-        }
-        let original = SharedPixelBuffer::clone_from_slice(&crop, self.width, self.height);
-        let ctx = uwcc_filters::Context::new(self.auto, fw, fh);
-        uwcc_filters::render(&mut crop, self.width, self.height, &self.settings, &ctx);
+        let s = self.scale.min(1.0);
+        let size = |v: u32| ((v as f32 * s).round() as u32).max(1);
+        let (ow, oh) = (size(self.width), size(self.height));
+        let mut crop = uwcc_photo::region(&self.full, (self.x, self.y, self.width, self.height), (ow, oh));
+        let original = SharedPixelBuffer::clone_from_slice(crop.as_raw(), ow, oh);
+        let ctx = uwcc_filters::Context::new(self.auto, size(fw), size(fh));
+        uwcc_filters::render(&mut crop, ow, oh, &self.settings, &ctx);
         if self.warning {
             histogram::mark_clipping(&mut crop);
         }
-        (original, SharedPixelBuffer::clone_from_slice(&crop, self.width, self.height))
+        (original, SharedPixelBuffer::clone_from_slice(crop.as_raw(), ow, oh))
     }
 }
 
-/// Der sichtbare Ausschnitt um die Mitte `zoom-cx/-cy`, so groß wie das Vorschaufeld in
-/// physischen Pixeln und innerhalb des Bildes.
+/// Der sichtbare Ausschnitt um die Mitte `zoom-cx/-cy` beim Maßstab `zoom-scale`, innerhalb des
+/// Bildes; ein Pixel Rand, damit beim Verschieben keine Lücke aufblitzt.
 fn job(app: &LabWindow) -> Option<Job> {
     let (path, full, settings, auto) =
         with_state(|st| st.current.as_ref().map(|l| (l.path.clone(), l.full.clone(), l.settings, l.auto)))?;
     let (fw, fh) = full.dimensions();
+    let scale = app.get_zoom_scale().max(0.01);
     let span = |view: f32, center: f32, size: u32| {
-        let len = (view.ceil().max(1.0) as u32).min(size);
+        let len = ((view / scale).ceil().max(1.0) as u32 + 2).min(size);
         let start = (center - len as f32 / 2.0).round().clamp(0.0, (size - len) as f32) as u32;
         (start, len)
     };
     let (x, width) = span(app.get_view_w(), app.get_zoom_cx(), fw);
     let (y, height) = span(app.get_view_h(), app.get_zoom_cy(), fh);
-    Some(Job { path, full, settings, auto, warning: app.get_clip_warning(), x, y, width, height })
+    Some(Job { path, full, settings, auto, warning: app.get_clip_warning(), x, y, width, height, scale })
 }
 
 pub fn request(app: &LabWindow) {
@@ -86,6 +89,8 @@ pub fn request(app: &LabWindow) {
                 app.set_zoom_corrected(Image::from_rgba8(corrected));
                 app.set_zoom_x(job.x as f32);
                 app.set_zoom_y(job.y as f32);
+                app.set_zoom_w(job.width as f32);
+                app.set_zoom_h(job.height as f32);
             }
             if AGAIN.replace(false) {
                 request(&app);

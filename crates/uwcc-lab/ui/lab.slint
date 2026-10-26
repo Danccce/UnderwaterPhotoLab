@@ -329,9 +329,11 @@ export component LabWindow inherits Window {
     in-out property <bool> clip-warning;
     callback clip-warning-changed();
 
-    // 100-%-Ansicht (Doppelklick oder Z): Rust rechnet den Ausschnitt ab `zoom-x/-y` des ganzen
-    // Bildes; `zoom-cx/-cy` ist die gewünschte Mitte in Bildpixeln.
+    // Zoom: Doppelklick oder Z auf 100 %, Mausrad oder Pinch stufenlos. Rust rechnet den Ausschnitt
+    // `zoom-x/-y/-w/-h` (Bildpixel) des ganzen Bildes; `zoom-cx/-cy` ist die gewünschte Mitte in
+    // Bildpixeln, `zoom-scale` sind Bildschirmpixel je Bildpixel (1 = 100 %).
     in-out property <bool> zoomed;
+    in-out property <float> zoom-scale: 1;
     in-out property <float> zoom-cx;
     in-out property <float> zoom-cy;
     in property <float> full-width: 1;
@@ -340,33 +342,57 @@ export component LabWindow inherits Window {
     in property <image> zoom-corrected;
     in property <float> zoom-x;
     in property <float> zoom-y;
+    in property <float> zoom-w;
+    in property <float> zoom-h;
+    // Setzt Rust bei jedem Scrollen: Touchpad schiebt, Mausrad zoomt.
+    in property <bool> wheel-from-touchpad;
     out property <float> view-w: preview-box.width / 1phx;
     out property <float> view-h: preview-box.height / 1phx;
     callback zoom-changed();
     property <length> fit: min(preview-box.width / root.full-width, preview-box.height / root.full-height);
+    property <float> fit-scale: root.fit / 1phx;
+    property <float> max-scale: 4;
+    // Bildstelle unter dem Mauszeiger, die beim Zoomen stehen bleibt.
+    property <float> anchor-x;
+    property <float> anchor-y;
 
     // Hält die Mitte so, dass der Ausschnitt im Bild bleibt; kleinere Bilder stehen mittig.
     public function set-center(x: float, y: float) {
-        root.zoom-cx = root.full-width <= root.view-w ? root.full-width / 2 : clamp(x, root.view-w / 2, root.full-width - root.view-w / 2);
-        root.zoom-cy = root.full-height <= root.view-h ? root.full-height / 2 : clamp(y, root.view-h / 2, root.full-height - root.view-h / 2);
+        root.zoom-cx = root.full-width * root.zoom-scale <= root.view-w ? root.full-width / 2
+            : clamp(x, root.view-w / 2 / root.zoom-scale, root.full-width - root.view-w / 2 / root.zoom-scale);
+        root.zoom-cy = root.full-height * root.zoom-scale <= root.view-h ? root.full-height / 2
+            : clamp(y, root.view-h / 2 / root.zoom-scale, root.full-height - root.view-h / 2 / root.zoom-scale);
     }
     // Mausposition im Vorschaufeld → Bildpixel, in beiden Ansichten.
     pure function image-x(mx: length) -> float {
-        root.zoomed ? root.zoom-cx + (mx - preview-box.width / 2) / 1phx : (mx - (preview-box.width - root.full-width * root.fit) / 2) / root.fit
+        root.zoomed ? root.zoom-cx + (mx - preview-box.width / 2) / 1phx / root.zoom-scale
+            : (mx - (preview-box.width - root.full-width * root.fit) / 2) / root.fit
     }
     pure function image-y(my: length) -> float {
-        root.zoomed ? root.zoom-cy + (my - preview-box.height / 2) / 1phx : (my - (preview-box.height - root.full-height * root.fit) / 2) / root.fit
+        root.zoomed ? root.zoom-cy + (my - preview-box.height / 2) / 1phx / root.zoom-scale
+            : (my - (preview-box.height - root.full-height * root.fit) / 2) / root.fit
     }
     // Während des Ladens ist die Bildgröße noch unbekannt; dann zentriert Rust nach dem Laden.
     in-out property <bool> center-on-load;
-    function zoom-in(mx: length, my: length) {
+    // Zoomt auf `scale`, die Bildstelle unter (mx, my) bleibt stehen; bis zum eingepassten Bild
+    // zurück beendet den Zoom.
+    function zoom-to(scale: float, mx: length, my: length) {
         if root.loading {
             root.center-on-load = true;
+            root.zoom-scale = min(scale, root.max-scale);
+            root.zoomed = true;
+            root.zoom-changed();
+        } else if scale <= root.fit-scale * 1.01 {
+            root.zoomed = false;
         } else {
-            root.set-center(root.image-x(mx) - (mx - preview-box.width / 2) / 1phx, root.image-y(my) - (my - preview-box.height / 2) / 1phx);
+            root.anchor-x = root.image-x(mx);
+            root.anchor-y = root.image-y(my);
+            root.zoom-scale = min(scale, root.max-scale);
+            root.zoomed = true;
+            root.set-center(root.anchor-x - (mx - preview-box.width / 2) / 1phx / root.zoom-scale,
+                root.anchor-y - (my - preview-box.height / 2) / 1phx / root.zoom-scale);
+            root.zoom-changed();
         }
-        root.zoomed = true;
-        root.zoom-changed();
     }
     changed view-w => {
         if root.zoomed {
@@ -419,7 +445,7 @@ export component LabWindow inherits Window {
                 "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
                 "Original zeigen: Knopf „Original“ oder Leertaste gedrückt halten.",
                 "Split-Ansicht: Knopf „Split-Ansicht“ oder Taste S; die Trennlinie mit der Maus ziehen.",
-                "100-%-Ansicht: Doppelklick ins Bild (zoomt auf die Stelle) oder Taste Z; Ziehen verschiebt den Ausschnitt. Doppelklick, Z oder Esc zurück.",
+                "Zoom: Doppelklick ins Bild (100 % an dieser Stelle) oder Taste Z; Mausrad oder zwei Finger auf- und zuziehen zoomt stufenlos bis 400 %. Ziehen oder zwei Finger schieben verschiebt den Ausschnitt. Doppelklick, Z oder Esc zurück.",
                 "Bildinformationen: oben rechts auf den Dateinamen klicken.",
             ],
         },
@@ -533,7 +559,7 @@ export component LabWindow inherits Window {
                 if root.zoomed {
                     root.zoomed = false;
                 } else {
-                    root.zoom-in(preview-box.width / 2, preview-box.height / 2);
+                    root.zoom-to(1, preview-box.width / 2, preview-box.height / 2);
                 }
                 return accept;
             }
@@ -610,13 +636,14 @@ export component LabWindow inherits Window {
                         source: root.preview-corrected;
                         image-fit: contain;
                     }
-                    // 100 %: ein Bildpixel pro Bildschirmpixel.
+                    // Zoom: Ausschnitt maßstabsgerecht; über 100 % pixelgenau vergrößert.
                     if root.has-preview && root.zoomed: Image {
-                        x: preview-box.width / 2 + (root.zoom-x - root.zoom-cx) * 1phx;
-                        y: preview-box.height / 2 + (root.zoom-y - root.zoom-cy) * 1phx;
-                        width: root.zoom-corrected.width * 1phx;
-                        height: root.zoom-corrected.height * 1phx;
+                        x: preview-box.width / 2 + (root.zoom-x - root.zoom-cx) * root.zoom-scale * 1phx;
+                        y: preview-box.height / 2 + (root.zoom-y - root.zoom-cy) * root.zoom-scale * 1phx;
+                        width: root.zoom-w * root.zoom-scale * 1phx;
+                        height: root.zoom-h * root.zoom-scale * 1phx;
                         source: root.zoom-corrected;
+                        image-rendering: root.zoom-scale > 1.01 ? ImageRendering.pixelated : ImageRendering.smooth;
                     }
                     if root.has-preview && root.original-fraction > 0: Rectangle {
                         x: 0;
@@ -633,11 +660,12 @@ export component LabWindow inherits Window {
                             image-fit: contain;
                         }
                         if root.zoomed: Image {
-                            x: preview-box.width / 2 + (root.zoom-x - root.zoom-cx) * 1phx;
-                            y: preview-box.height / 2 + (root.zoom-y - root.zoom-cy) * 1phx;
-                            width: root.zoom-original.width * 1phx;
-                            height: root.zoom-original.height * 1phx;
+                            x: preview-box.width / 2 + (root.zoom-x - root.zoom-cx) * root.zoom-scale * 1phx;
+                            y: preview-box.height / 2 + (root.zoom-y - root.zoom-cy) * root.zoom-scale * 1phx;
+                            width: root.zoom-w * root.zoom-scale * 1phx;
+                            height: root.zoom-h * root.zoom-scale * 1phx;
                             source: root.zoom-original;
+                            image-rendering: root.zoom-scale > 1.01 ? ImageRendering.pixelated : ImageRendering.smooth;
                         }
                     }
                     if root.has-preview && root.split && !root.hold: Rectangle {
@@ -687,7 +715,7 @@ export component LabWindow inherits Window {
                     if root.has-preview && root.zoomed: Tag {
                         x: 12px;
                         y: preview-box.height - self.height - 12px;
-                        text: "100 %";
+                        text: round(root.zoom-scale * 100) + " %";
                     }
                     if !root.has-preview: Text {
                         text: root.thumbs.length == 0 ? "Ordner öffnen oder hierher ziehen" : "Bild in der Leiste auswählen";
@@ -741,16 +769,34 @@ export component LabWindow inherits Window {
                             if self.splitting {
                                 root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
                             } else if self.panning {
-                                root.set-center(self.start-cx - (self.mouse-x - self.start-x) / 1phx, self.start-cy - (self.mouse-y - self.start-y) / 1phx);
+                                root.set-center(self.start-cx - (self.mouse-x - self.start-x) / 1phx / root.zoom-scale,
+                                    self.start-cy - (self.mouse-y - self.start-y) / 1phx / root.zoom-scale);
                                 root.zoom-changed();
                             }
+                        }
+                        // Mausrad und Pinch (kommt unter Windows als Strg+Rad) zoomen um den
+                        // Mauszeiger; zwei Finger auf dem Touchpad verschieben den Ausschnitt.
+                        scroll-event(event) => {
+                            if !root.has-preview || root.loading || root.picking {
+                                return reject;
+                            }
+                            if event.modifiers.control || !root.wheel-from-touchpad {
+                                root.zoom-to((root.zoomed ? root.zoom-scale : root.fit-scale) * pow(1.004, event.delta-y / 1px), self.mouse-x, self.mouse-y);
+                                return accept;
+                            }
+                            if root.zoomed {
+                                root.set-center(root.zoom-cx - event.delta-x / 1phx / root.zoom-scale, root.zoom-cy - event.delta-y / 1phx / root.zoom-scale);
+                                root.zoom-changed();
+                                return accept;
+                            }
+                            reject
                         }
                         double-clicked => {
                             if root.has-preview && !root.picking {
                                 if root.zoomed {
                                     root.zoomed = false;
                                 } else {
-                                    root.zoom-in(self.mouse-x, self.mouse-y);
+                                    root.zoom-to(1, self.mouse-x, self.mouse-y);
                                 }
                             }
                         }

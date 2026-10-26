@@ -32,7 +32,10 @@ use uwcc_photo::sidecar::Exported;
 const EXPORT_TARGET: uwcc_photo::ExportTarget = uwcc_photo::ExportTarget::Subfolder;
 
 use slint::{
-    winit_030::{winit::event::WindowEvent, EventResult, WinitWindowAccessor},
+    winit_030::{
+        winit::event::{MouseScrollDelta, WindowEvent},
+        EventResult, WinitWindowAccessor,
+    },
     ComponentHandle, Image, Model, ModelRc, VecModel,
 };
 
@@ -140,6 +143,10 @@ fn main() -> Result<(), slint::PlatformError> {
             });
         }
         match event {
+            // Das Mausrad meldet Rasterstufen, das Touchpad Pixel; Slint unterscheidet das nicht.
+            WindowEvent::MouseWheel { delta, .. } => {
+                app.set_wheel_from_touchpad(matches!(delta, MouseScrollDelta::PixelDelta(_)));
+            }
             WindowEvent::HoveredFile(_) => app.set_drag_over(true),
             WindowEvent::HoveredFileCancelled => app.set_drag_over(false),
             WindowEvent::DroppedFile(path) => {
