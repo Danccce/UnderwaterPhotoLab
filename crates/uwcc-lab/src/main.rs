@@ -7,6 +7,7 @@
 mod config;
 mod controls;
 mod export;
+mod histogram;
 mod info;
 mod preview;
 mod programs;
@@ -267,6 +268,12 @@ fn main() -> Result<(), slint::PlatformError> {
         update_config(&app, |c| c.strip_corrected = corrected);
     });
     let weak = app.as_weak();
+    app.on_clip_warning_changed(move || {
+        if let Some(app) = weak.upgrade() {
+            histogram::show_corrected(&app);
+        }
+    });
+    let weak = app.as_weak();
     app.on_jpeg_quality_changed(move |q| {
         let Some(app) = weak.upgrade() else { return };
         let q = (q.round() as u8).clamp(config::MIN_JPEG_QUALITY, 100);
@@ -398,12 +405,15 @@ fn loaded(app: &LabWindow, result: Result<preview::Loaded, String>) {
                 l.settings = s;
             }
             app.set_preview_original(Image::from_rgba8(l.original_buffer()));
-            app.set_preview_corrected(Image::from_rgba8(l.corrected_buffer()));
             app.set_has_preview(true);
             info::show(app, &l.path, Some(&l));
             with_state(|st| st.current = Some(l));
+            histogram::show_corrected(app);
             controls::refresh(app);
         }
-        Err(e) => info::show_error(app, &e),
+        Err(e) => {
+            histogram::clear(app);
+            info::show_error(app, &e);
+        }
     }
 }

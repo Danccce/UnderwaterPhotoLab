@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, time::Duration};
 
-use slint::{ComponentHandle, Image, Timer, TimerMode};
+use slint::{ComponentHandle, Timer, TimerMode};
 use uwcc_core::{Field, Settings};
 
 use crate::{with_state, LabWindow};
@@ -113,9 +113,8 @@ pub fn refresh(app: &LabWindow) {
         let t = t.borrow();
         if !t.running() {
             t.start(TimerMode::SingleShot, Duration::from_millis(16), move || {
-                let Some(app) = weak.upgrade() else { return };
-                if let Some(buffer) = with_state(|st| st.current.as_ref().map(|l| l.corrected_buffer())) {
-                    app.set_preview_corrected(Image::from_rgba8(buffer));
+                if let Some(app) = weak.upgrade() {
+                    crate::histogram::show_corrected(&app);
                 }
             });
         }

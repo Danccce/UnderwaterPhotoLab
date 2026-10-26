@@ -20,6 +20,8 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 ## Korrigieren
 
 - Die **Auto-Korrektur** stellt Rot wieder her und spreizt die Farbkanäle, für jedes Bild einzeln.
+- **Histogramm** oben rechts: Rot-, Grün- und Blaukanal des korrigierten Bildes. Die Dreiecke leuchten, wenn Tiefen (links) oder Lichter (rechts) beschnitten werden, in der Farbe der betroffenen Kanäle.
+- **Klick auf ein Dreieck oder Taste J:** beschnittene Stellen im Bild markieren (rot = Lichter, blau = Tiefen).
 - **Stärke:** wie stark die Korrektur wirkt (0 % = Original).
 - **Rot wiederherstellen:** wie viel Grün/Blau in den Rotkanal zurückgemischt wird.
 - **Temperatur** und **Grün ↔ Magenta:** Reststich ausgleichen.

@@ -193,6 +193,88 @@ component Segmented inherits Rectangle {
     }
 }
 
+// Beschnitt-Dreieck in einer Ecke des Histogramms; gefüllt, wenn Kanäle beschnitten sind.
+component ClipTriangle inherits TouchArea {
+    in property <bool> right;
+    in property <color> clipped;
+    in property <bool> warning;
+    width: 22px;
+    height: 22px;
+    mouse-cursor: MouseCursor.pointer;
+    Path {
+        x: root.right ? root.width - 16px : 4px;
+        y: 4px;
+        width: 12px;
+        height: 12px;
+        viewbox-width: 12;
+        viewbox-height: 12;
+        commands: root.right ? "M 0 0 L 12 0 L 12 12 Z" : "M 0 0 L 12 0 L 0 12 Z";
+        fill: root.clipped.alpha > 0 ? root.clipped : #ffffff22;
+        stroke: root.warning ? white : #00000000;
+        stroke-width: root.warning ? 1.5px : 0px;
+    }
+}
+
+component Histogram inherits Rectangle {
+    in property <string> red;
+    in property <string> green;
+    in property <string> blue;
+    in property <color> clip-shadows;
+    in property <color> clip-highlights;
+    in property <bool> warning;
+    callback toggled();
+    border-radius: 4px;
+    background: #18191c;
+    clip: true;
+
+    if root.red != "": Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 256;
+        viewbox-height: 100;
+        commands: root.red;
+        fill: #ff4a4a80;
+        stroke-width: 0px;
+    }
+    if root.green != "": Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 256;
+        viewbox-height: 100;
+        commands: root.green;
+        fill: #45d16480;
+        stroke-width: 0px;
+    }
+    if root.blue != "": Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 256;
+        viewbox-height: 100;
+        commands: root.blue;
+        fill: #4a8cff80;
+        stroke-width: 0px;
+    }
+    ClipTriangle {
+        x: 0;
+        y: 0;
+        clipped: root.clip-shadows;
+        warning: root.warning;
+        clicked => {
+            root.toggled();
+        }
+    }
+    ClipTriangle {
+        x: root.width - self.width;
+        y: 0;
+        right: true;
+        clipped: root.clip-highlights;
+        warning: root.warning;
+        clicked => {
+            root.toggled();
+        }
+    }
+}
+
 component Heading inherits Text {
     font-weight: 700;
     font-size: 13px;
@@ -235,6 +317,17 @@ export component LabWindow inherits Window {
     in property <bool> loading;
     in-out property <bool> split;
     in-out property <float> split-pos: 0.5;
+
+    // Histogramm der korrigierten Vorschau: SVG-Pfade im Raster 256 × 100 aus Rust.
+    in property <string> hist-red;
+    in property <string> hist-green;
+    in property <string> hist-blue;
+    // Farbe der Beschnitt-Dreiecke; durchsichtig, wenn nichts beschnitten ist.
+    in property <color> clip-shadows;
+    in property <color> clip-highlights;
+    // Taste J oder Klick auf ein Dreieck: beschnittene Stellen im Bild markieren.
+    in-out property <bool> clip-warning;
+    callback clip-warning-changed();
 
     callback open-folder();
     // Klick in der Leiste: Index, Strg gedrückt, Umschalt gedrückt.
@@ -281,6 +374,8 @@ export component LabWindow inherits Window {
             title: "Korrigieren",
             lines: [
                 "Die Auto-Korrektur stellt Rot wieder her und spreizt die Farbkanäle für jedes Bild einzeln.",
+                "Histogramm oben rechts: Rot-, Grün- und Blaukanal des korrigierten Bildes. Die Dreiecke leuchten, wenn Tiefen (links) oder Lichter (rechts) beschnitten werden, in der Farbe der betroffenen Kanäle.",
+                "Klick auf ein Dreieck oder Taste J: beschnittene Stellen im Bild markieren (rot = Lichter, blau = Tiefen).",
                 "Stärke: wie stark die Korrektur wirkt (0 % = Original).",
                 "Temperatur und Grün ↔ Magenta: Reststich ausgleichen.",
                 "Pipette: Knopf drücken, dann eine eigentlich neutrale Stelle anklicken (Sand, Flosse, Graukarte).",
@@ -407,6 +502,11 @@ export component LabWindow inherits Window {
             }
             if (event.text == "s" || event.text == "S") && root.has-preview {
                 root.split = !root.split;
+                return accept;
+            }
+            if (event.text == "j" || event.text == "J") && root.has-preview {
+                root.clip-warning = !root.clip-warning;
+                root.clip-warning-changed();
                 return accept;
             }
             reject
@@ -544,6 +644,23 @@ export component LabWindow inherits Window {
                     VerticalLayout {
                         padding: 14px;
                         spacing: 10px;
+
+                        Histogram {
+                            height: 96px;
+                            red: root.hist-red;
+                            green: root.hist-green;
+                            blue: root.hist-blue;
+                            clip-shadows: root.clip-shadows;
+                            clip-highlights: root.clip-highlights;
+                            warning: root.clip-warning;
+                            toggled => {
+                                if root.has-preview {
+                                    root.clip-warning = !root.clip-warning;
+                                    root.clip-warning-changed();
+                                }
+                                keys.focus();
+                            }
+                        }
 
                         panel := ScrollView {
                             vertical-stretch: 1;
