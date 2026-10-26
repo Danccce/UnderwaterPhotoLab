@@ -27,6 +27,8 @@ pub struct Config {
     /// Programm für „In … öffnen“.
     pub open_with: String,
     pub programs: Vec<ProgramPath>,
+    /// Zuletzt geöffneter Ordner; wird beim Start ohne Argument wieder geöffnet.
+    pub last_folder: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -36,6 +38,7 @@ impl Default for Config {
             strip_corrected: false,
             open_with: crate::programs::DEFAULT_PROGRAM.to_owned(),
             programs: Vec::new(),
+            last_folder: None,
         }
     }
 }
@@ -82,6 +85,7 @@ pub fn load() -> Config {
             .and_then(Value::as_array)
             .map(|a| a.iter().filter_map(program_from_json).collect())
             .unwrap_or_default(),
+        last_folder: o.get("lastFolder").and_then(Value::as_str).map(PathBuf::from),
     }
 }
 
@@ -98,6 +102,10 @@ pub fn save(config: &Config) -> Result<(), String> {
         .map(|p| json!({"id": p.id, "name": p.name, "exe": p.exe.display().to_string(), "args": p.args}))
         .collect();
     o.insert("programs".into(), programs.into());
+    match &config.last_folder {
+        Some(dir) => o.insert("lastFolder".into(), dir.display().to_string().into()),
+        None => o.remove("lastFolder"),
+    };
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }

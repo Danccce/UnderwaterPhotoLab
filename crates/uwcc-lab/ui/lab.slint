@@ -374,18 +374,6 @@ export component LabWindow inherits Window {
     }
     // Während des Ladens ist die Bildgröße noch unbekannt; dann zentriert Rust nach dem Laden.
     in-out property <bool> center-on-load;
-    // Zwei Finger auf dem Touchbildschirm (aus Rust): `factor` ist die Abstandsänderung, (mx, my)
-    // der Mittelpunkt im Fenster, (dx, dy) seine Bewegung; das Bild folgt den Fingern.
-    public function touch-gesture(factor: float, mx: length, my: length, dx: length, dy: length) {
-        if root.has-preview && !root.loading {
-            root.zoom-to((root.zoomed ? root.zoom-scale : root.fit-scale) * factor,
-                mx - preview-box.absolute-position.x, my - preview-box.absolute-position.y);
-            if root.zoomed {
-                root.set-center(root.zoom-cx - dx / 1phx / root.zoom-scale, root.zoom-cy - dy / 1phx / root.zoom-scale);
-                root.zoom-changed();
-            }
-        }
-    }
     // Zoomt auf `scale`, die Bildstelle unter (mx, my) bleibt stehen; bis zum eingepassten Bild
     // zurück beendet den Zoom.
     function zoom-to(scale: float, mx: length, my: length) {
@@ -453,7 +441,7 @@ export component LabWindow inherits Window {
         {
             title: "Bilder auswählen und vergleichen",
             lines: [
-                "Ordner öffnen: Knopf links in der Leiste, Ordner oder Bild ins Fenster ziehen, oder Ordner auf die .exe ziehen.",
+                "Ordner öffnen: Knopf links in der Leiste, Ordner oder Bild ins Fenster ziehen, oder Ordner auf die .exe ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner.",
                 "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
                 "Original zeigen: Knopf „Original“ oder Leertaste gedrückt halten.",
                 "Split-Ansicht: Knopf „Split-Ansicht“ oder Taste S; die Trennlinie mit der Maus ziehen.",
@@ -753,7 +741,7 @@ export component LabWindow inherits Window {
                             && (!root.zoomed || abs(self.mouse-x - preview-box.width * root.split-pos) < 12px);
                         mouse-cursor: root.picking ? MouseCursor.crosshair
                             : self.on-split || self.splitting ? MouseCursor.ew-resize
-                            : root.zoomed && root.has-preview ? (self.panning ? MouseCursor.grabbing : MouseCursor.grab)
+                            : self.panning ? MouseCursor.move
                             : MouseCursor.default;
                         pointer-event(event) => {
                             if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
@@ -772,7 +760,8 @@ export component LabWindow inherits Window {
                                     self.start-cy = root.zoom-cy;
                                 }
                             }
-                            if event.kind == PointerEventKind.up {
+                            // Beginnt eine Zwei-Finger-Geste, bricht Slint das Ziehen mit `cancel` ab.
+                            if event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel {
                                 self.panning = false;
                                 self.splitting = false;
                             }
@@ -811,6 +800,29 @@ export component LabWindow inherits Window {
                                     root.zoom-to(1, self.mouse-x, self.mouse-y);
                                 }
                             }
+                        }
+                    }
+                    // Zwei Finger auf dem Touchbildschirm: auseinanderziehen zoomt um den Mittelpunkt,
+                    // gemeinsam schieben verschiebt. Liegt über der TouchArea und lässt alles andere durch.
+                    ScaleRotateGestureHandler {
+                        property <float> start-scale;
+                        property <length> last-x;
+                        property <length> last-y;
+                        enabled: root.has-preview && !root.loading;
+                        started => {
+                            self.start-scale = root.zoomed ? root.zoom-scale : root.fit-scale;
+                            self.last-x = self.center.x;
+                            self.last-y = self.center.y;
+                        }
+                        updated => {
+                            root.zoom-to(self.start-scale * self.scale, self.center.x, self.center.y);
+                            if root.zoomed {
+                                root.set-center(root.zoom-cx - (self.center.x - self.last-x) / 1phx / root.zoom-scale,
+                                    root.zoom-cy - (self.center.y - self.last-y) / 1phx / root.zoom-scale);
+                                root.zoom-changed();
+                            }
+                            self.last-x = self.center.x;
+                            self.last-y = self.center.y;
                         }
                     }
                 }

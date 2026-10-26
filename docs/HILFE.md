@@ -8,7 +8,7 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 
 ## Bilder auswählen und vergleichen
 
-- **Ordner öffnen:** Knopf links in der Bildleiste, einen Ordner oder ein Bild ins Fenster ziehen, oder einen Ordner auf `UnderwaterPhotoLab.exe` ziehen.
+- **Ordner öffnen:** Knopf links in der Bildleiste, einen Ordner oder ein Bild ins Fenster ziehen, oder einen Ordner auf `UnderwaterPhotoLab.exe` ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner wieder.
 - **Bild wechseln:** Klick in die Leiste oder Pfeiltasten ← →.
 - **Original zeigen:** Knopf „Original“ oder Leertaste gedrückt halten (der Knopf wird dabei blau).
 - **Split-Ansicht:** Knopf „Split-Ansicht“ oder Taste **S**; die Trennlinie mit der Maus ziehen.

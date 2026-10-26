@@ -14,7 +14,6 @@ mod programs;
 mod selection;
 mod store;
 mod strip;
-mod touch;
 mod zoom;
 
 use std::{
@@ -124,7 +123,6 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let weak = app.as_weak();
     let mut maximized = false;
-    let mut touches = touch::Touches::default();
     app.window().on_winit_window_event(move |_, event| {
         let Some(app) = weak.upgrade() else {
             return EventResult::Propagate;
@@ -148,9 +146,7 @@ fn main() -> Result<(), slint::PlatformError> {
             // Das Mausrad meldet Rasterstufen, das Touchpad Pixel; Slint unterscheidet das nicht.
             WindowEvent::MouseWheel { delta, .. } => {
                 app.set_wheel_from_touchpad(matches!(delta, MouseScrollDelta::PixelDelta(_)));
-            }
-            WindowEvent::Touch(t) => return touches.handle(&app, t),
-            WindowEvent::HoveredFile(_) => app.set_drag_over(true),
+            }            WindowEvent::HoveredFile(_) => app.set_drag_over(true),
             WindowEvent::HoveredFileCancelled => app.set_drag_over(false),
             WindowEvent::DroppedFile(path) => {
                 app.set_drag_over(false);
@@ -298,9 +294,12 @@ fn main() -> Result<(), slint::PlatformError> {
         update_config(&app, |c| c.jpeg_quality = q);
     });
 
-    // Ordner oder Bild als Argument: „Öffnen mit“ oder auf die .exe gezogen.
+    // Ordner oder Bild als Argument: „Öffnen mit“ oder auf die .exe gezogen; sonst der zuletzt
+    // geöffnete Ordner, sofern es ihn noch gibt.
     if let Some(path) = std::env::args_os().nth(1) {
         open(&app, Path::new(&path));
+    } else if let Some(dir) = with_state(|st| st.config.last_folder.clone()).filter(|d| d.is_dir()) {
+        open(&app, &dir);
     }
 
     let result = app.run();
@@ -341,6 +340,9 @@ fn open(app: &LabWindow, path: &Path) {
         }
     };
     store::save_now(app);
+    if with_state(|st| st.config.last_folder.as_deref() != Some(dir.as_path())) {
+        update_config(app, |c| c.last_folder = Some(dir.clone()));
+    }
 
     let rows: Vec<Thumb> = files
         .iter()

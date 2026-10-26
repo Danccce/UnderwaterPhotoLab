@@ -135,8 +135,12 @@ Umgesetzt – Abweichungen und Details:
   gerechnet (Radien passen sich an), ab 100 % in voller Auflösung und über 100 % pixelgenau vergrößert.
   Mausrad und Touchpad unterscheidet das Programm an der Art der Scroll-Meldung (Rasten bzw. Pixel), die es vor
   Slint abfängt. Eine Raste ≈ 15 %; zurück bis zum eingepassten Bild beendet den Zoom.
-  Touchbildschirm: Slint macht aus Berührungen nur einen Mauszeiger; die Zwei-Finger-Geste (Abstand → Zoom,
-  Mittelpunkt → Verschieben) wertet `touch.rs` aus den rohen Berührungen aus und hält sie von Slint fern.
+  Touchbildschirm: Slints `ScaleRotateGestureHandler` liefert die Zwei-Finger-Geste (Abstand → Zoom,
+  Mittelpunkt → Verschieben); ein Finger bleibt Ziehen. Ein eigenes Abfangen der rohen Berührungen brachte
+  Slints Fingerzählung durcheinander (danach ging Verschieben nur noch mit zwei Fingern) und wurde verworfen.
+  Der Mauszeiger wird erst beim Ziehen zum Vier-Wege-Pfeil.
+- **Nebenbei:** Der zuletzt geöffnete Ordner steht als `lastFolder` in `config.json` und wird beim Start ohne
+  Argument wieder geöffnet.
 
 ### Phase 9 – Ton und Dehaze
 
