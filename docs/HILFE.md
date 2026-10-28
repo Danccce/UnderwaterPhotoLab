@@ -10,8 +10,8 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 
 - **Ordner öffnen:** Knopf links in der Bildleiste, einen Ordner oder ein Bild ins Fenster ziehen, oder einen Ordner auf `UnderwaterPhotoLab.exe` ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner wieder.
 - **Bild wechseln:** Klick in die Leiste oder Pfeiltasten ← →.
-- **Original zeigen:** Knopf „Original“ oder Leertaste gedrückt halten (der Knopf wird dabei blau).
-- **Split-Ansicht:** Knopf „Split-Ansicht“ oder Taste **S**; die Trennlinie mit der Maus ziehen.
+- **Original zeigen:** Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten (der Knopf wird dabei blau).
+- **Split-Ansicht:** Knopf „Split-Ansicht“ unter dem Bild oder Taste **S**; die Trennlinie mit der Maus ziehen.
 - **Zoom:** Doppelklick ins Bild (100 % an dieser Stelle) oder Taste **Z** (100 % in der Mitte). **Mausrad** oder am Touchpad bzw. Touchbildschirm **zwei Finger auf- und zuziehen** zoomt stufenlos bis 400 %; die Stelle unter dem Mauszeiger bleibt stehen. **Ziehen** mit der Maus oder **zwei Finger schieben** am Touchpad verschiebt den Ausschnitt; die Trennlinie der Split-Ansicht greift man direkt an der Linie. Doppelklick, **Z** oder **Esc** zurück zur ganzen Ansicht. So lassen sich Schärfe, Rauschen und Schwebeteilchen beurteilen.
 - **Bildinformationen:** oben rechts auf den Dateinamen klicken (Aufnahme, Kamera, Objektiv, Belichtung, Auto-Analyse …).
 - **Leiste „Original | Korrigiert“:** bei „Korrigiert“ erscheinen exportierte Bilder korrigiert, alle anderen als Original – so sieht man, wo noch etwas zu tun ist.
@@ -52,6 +52,7 @@ Die Regler sind in Gruppen geteilt: der Umschalter **Farbe | Ton | Details** unt
 ## Export und Weiterbearbeiten
 
 - **Export:** Strg+E (aktuelles Bild), Strg+Umschalt+E (Auswahl). Ziel ist immer der Unterordner `uw-korrigiert` neben den Originalen, mit gleichem Dateinamen; EXIF, Farbprofil und Ausrichtung bleiben erhalten, das eingebettete Vorschaubild wird aus dem korrigierten Bild neu erzeugt.
+- **JPG-Qualität:** im Menü am Pfeil rechts neben „Aktuelles Bild exportieren“ (Standard 95; Doppelklick auf den Regler setzt zurück).
 - **Originale werden nie verändert;** ein erneuter Export ersetzt das vorherige Ergebnis.
 - In der Leiste: **✓** = mit den jetzigen Einstellungen exportiert, **●** = bearbeitet.
 - **„In … öffnen“** exportiert Fehlendes oder Veraltetes zuerst und übergibt die Bilder dem Programm. Der Pfeil daneben wechselt das Programm; nicht gefundene Programme lassen sich dort suchen, eigene über „Anderes Programm hinzufügen …“.

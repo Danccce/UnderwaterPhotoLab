@@ -454,8 +454,8 @@ export component LabWindow inherits Window {
             lines: [
                 "Ordner öffnen: Knopf links in der Leiste, Ordner oder Bild ins Fenster ziehen, oder Ordner auf die .exe ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner.",
                 "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
-                "Original zeigen: Knopf „Original“ oder Leertaste gedrückt halten.",
-                "Split-Ansicht: Knopf „Split-Ansicht“ oder Taste S; die Trennlinie mit der Maus ziehen.",
+                "Original zeigen: Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten.",
+                "Split-Ansicht: Knopf „Split-Ansicht“ unter dem Bild oder Taste S; die Trennlinie mit der Maus ziehen.",
                 "Zoom: Doppelklick ins Bild (100 % an dieser Stelle) oder Taste Z; Mausrad oder zwei Finger auf- und zuziehen (Touchpad, Touchbildschirm) zoomt stufenlos bis 400 %. Ziehen oder zwei Finger schieben verschiebt den Ausschnitt. Doppelklick, Z oder Esc zurück.",
                 "Bildinformationen: oben rechts auf den Dateinamen klicken.",
             ],
@@ -493,6 +493,7 @@ export component LabWindow inherits Window {
             title: "Export und Weiterbearbeiten",
             lines: [
                 "Export (Strg+E, Auswahl Strg+Umschalt+E) in den Unterordner „uw-korrigiert“: gleicher Dateiname, EXIF und Farbprofil bleiben.",
+                "JPG-Qualität: Pfeil rechts neben „Aktuelles Bild exportieren“.",
                 "Originale werden nie verändert; ein erneuter Export ersetzt das vorherige Ergebnis.",
                 "Leiste: ✓ = mit den jetzigen Einstellungen exportiert, ● = bearbeitet.",
                 "Leiste „Korrigiert“: exportierte Bilder erscheinen korrigiert, alle anderen als Original.",
@@ -956,36 +957,6 @@ export component LabWindow inherits Window {
                                 }
 
                                 Heading {
-                                    text: "Ansicht";
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    // Gedrückt halten (oder Leertaste): ganzes Bild als Original.
-                                    before-button := Button {
-                                        horizontal-stretch: 1;
-                                        text: "Original";
-                                        primary: self.pressed || root.space-held;
-                                        enabled: root.has-preview;
-                                        clicked => {
-                                            keys.focus();
-                                        }
-                                    }
-                                    Button {
-                                        horizontal-stretch: 1;
-                                        text: "Split-Ansicht";
-                                        checkable: true;
-                                        checked <=> root.split;
-                                        enabled: root.has-preview;
-                                        clicked => {
-                                            keys.focus();
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    height: 6px;
-                                }
-                                Heading {
                                     text: "Auto-Korrektur";
                                 }
                                 HorizontalLayout {
@@ -1221,38 +1192,82 @@ export component LabWindow inherits Window {
                                         keys.focus();
                                     }
                                 }
-
-                                Rectangle {
-                                    height: 6px;
-                                }
-                                Heading {
-                                    text: "Export";
-                                }
-                                SliderRow {
-                                    label: "JPG-Qualität";
-                                    text: round(root.jpeg-quality);
-                                    minimum: 50;
-                                    maximum: 100;
-                                    value <=> root.jpeg-quality;
-                                    enabled: !root.exporting;
-                                    field: "jpeg-quality";
-                                    edited(f, v) => { root.jpeg-quality-changed(v); }
-                                    reset(f) => { root.jpeg-quality-changed(95); keys.focus(); }
-                                    released => { keys.focus(); }
-                                }
                             }
                         }
                         Rectangle {
                             height: 1px;
                             background: #00000060;
                         }
-                        if !root.exporting: Button {
-                            text: "Aktuelles Bild exportieren (Strg+E)";
-                            primary: true;
-                            enabled: root.current >= 0;
-                            clicked => {
-                                root.export-current();
-                                keys.focus();
+                        if !root.exporting: HorizontalLayout {
+                            spacing: 6px;
+                            Button {
+                                horizontal-stretch: 1;
+                                text: "Aktuelles Bild exportieren (Strg+E)";
+                                primary: true;
+                                enabled: root.current >= 0;
+                                clicked => {
+                                    root.export-current();
+                                    keys.focus();
+                                }
+                            }
+                            // Export-Einstellungen; Dreieck wie bei der Programmauswahl darunter.
+                            Rectangle {
+                                width: 34px;
+                                border-radius: 4px;
+                                background: export-menu-touch.has-hover ? #ffffff26 : #ffffff12;
+                                Path {
+                                    x: (parent.width - 10px) / 2;
+                                    y: (parent.height - 10px) / 2;
+                                    width: 10px;
+                                    height: 10px;
+                                    viewbox-width: 10;
+                                    viewbox-height: 10;
+                                    commands: "M 0 2 L 10 2 L 5 8 Z";
+                                    fill: #c8ccd2;
+                                    stroke-width: 0px;
+                                }
+                                export-menu-touch := TouchArea {
+                                    clicked => {
+                                        export-menu.show();
+                                    }
+                                }
+                                export-menu := PopupWindow {
+                                    x: parent.width - 290px;
+                                    y: -self.height - 6px;
+                                    width: 290px;
+                                    height: 150px;
+                                    // Der Regler im Menü soll es beim Ziehen nicht schließen.
+                                    close-policy: PopupClosePolicy.close-on-click-outside;
+                                    Rectangle {
+                                        background: #2b2d31;
+                                        border-radius: 6px;
+                                        border-width: 1px;
+                                        border-color: #00000080;
+                                        VerticalLayout {
+                                            padding: 12px;
+                                            spacing: 8px;
+                                            Heading {
+                                                text: "Export-Einstellungen";
+                                            }
+                                            SliderRow {
+                                                label: "JPG-Qualität";
+                                                text: round(root.jpeg-quality);
+                                                minimum: 50;
+                                                maximum: 100;
+                                                value <=> root.jpeg-quality;
+                                                field: "jpeg-quality";
+                                                edited(f, v) => { root.jpeg-quality-changed(v); }
+                                                reset(f) => { root.jpeg-quality-changed(95); }
+                                            }
+                                            Text {
+                                                text: "Ziel ist immer der Unterordner „uw-korrigiert“: gleicher Dateiname, EXIF und Farbprofil bleiben.";
+                                                wrap: word-wrap;
+                                                color: #8a8f98;
+                                                font-size: 11px;
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                         if !root.exporting && root.selected-count > 1: Button {
@@ -1400,6 +1415,29 @@ export component LabWindow inherits Window {
                     padding-top: 4px;
                     padding-bottom: 4px;
                     spacing: 8px;
+
+                    // Ansicht des Bildes darüber. Gedrückt halten (oder Leertaste): ganzes Bild als Original.
+                    before-button := Button {
+                        text: "Original";
+                        primary: self.pressed || root.space-held;
+                        enabled: root.has-preview;
+                        clicked => {
+                            keys.focus();
+                        }
+                    }
+                    Button {
+                        text: "Split-Ansicht";
+                        checkable: true;
+                        checked <=> root.split;
+                        enabled: root.has-preview;
+                        clicked => {
+                            keys.focus();
+                        }
+                    }
+                    Rectangle {
+                        width: 1px;
+                        background: #00000060;
+                    }
 
                     Text {
                         text: root.thumbs.length == 0 ? "Kein Ordner geöffnet" : root.folder + "   ·   " + root.thumbs.length + " Bilder";
