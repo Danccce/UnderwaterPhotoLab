@@ -30,7 +30,9 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 - **Dynamik:** schwache Farben kräftiger, kräftige bleiben.
 - **Rot-Obergrenze:** begrenzt, wie stark der Rotkanal angehoben wird (weniger Rauschen).
 
-### Ton (Reglerleiste nach unten scrollen)
+Die Regler sind in Gruppen geteilt: der Umschalter **Farbe | Ton | Details** unter der Stärke zeigt die jeweilige Gruppe. Die Einstellungen der anderen Gruppen bleiben dabei wirksam. Die Regler oben gehören zu „Farbe“.
+
+### Ton (Umschalter „Ton“)
 
 - **Dunst entfernen:** nimmt den Schleier aus Schwebeteilchen heraus (Unterwasser-Verfahren aus Grün und Blau; die Wasserfarbe wird aus dem ganzen Bild geschätzt). Das Bild wird dabei oft dunkler – mit Belichtung oder Tiefen ausgleichen.
 - **Belichtung:** ±2 Blenden.

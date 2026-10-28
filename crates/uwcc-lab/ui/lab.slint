@@ -138,12 +138,11 @@ component SliderRow inherits VerticalLayout {
     }
 }
 
-// Zweigeteilter Umschalter: die aktive Hälfte ist hellblau hinterlegt.
+// Umschalter aus gleich breiten Teilen: der gewählte ist hellblau hinterlegt.
 component Segmented inherits Rectangle {
-    in property <string> left-text;
-    in property <string> right-text;
-    in-out property <bool> right-active;
-    callback changed(bool);
+    in property <[string]> options;
+    in property <int> selected;
+    callback changed(int);
     height: 26px;
     border-radius: 5px;
     border-width: 1px;
@@ -152,40 +151,23 @@ component Segmented inherits Rectangle {
     clip: true;
 
     HorizontalLayout {
-        Rectangle {
+        for option[i] in root.options: Rectangle {
             horizontal-stretch: 1;
-            background: !root.right-active ? #8cc4ff : left-touch.has-hover ? #ffffff14 : transparent;
+            background: i == root.selected ? #8cc4ff : touch.has-hover ? #ffffff14 : transparent;
+            if i > 0: Rectangle {
+                x: 0;
+                width: 1px;
+                background: #5a5d65;
+            }
             Text {
-                text: root.left-text;
+                text: option;
                 font-size: 12px;
-                color: !root.right-active ? #0d2440 : Palette.foreground;
+                color: i == root.selected ? #0d2440 : Palette.foreground;
             }
-            left-touch := TouchArea {
+            touch := TouchArea {
                 clicked => {
-                    if root.right-active {
-                        root.right-active = false;
-                        root.changed(false);
-                    }
-                }
-            }
-        }
-        Rectangle {
-            width: 1px;
-            background: #5a5d65;
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            background: root.right-active ? #8cc4ff : right-touch.has-hover ? #ffffff14 : transparent;
-            Text {
-                text: root.right-text;
-                font-size: 12px;
-                color: root.right-active ? #0d2440 : Palette.foreground;
-            }
-            right-touch := TouchArea {
-                clicked => {
-                    if !root.right-active {
-                        root.right-active = true;
-                        root.changed(true);
+                    if i != root.selected {
+                        root.changed(i);
                     }
                 }
             }
@@ -485,6 +467,7 @@ export component LabWindow inherits Window {
                 "Histogramm oben rechts: Rot-, Grün- und Blaukanal des korrigierten Bildes. Die Dreiecke leuchten, wenn Tiefen (links) oder Lichter (rechts) beschnitten werden, in der Farbe der betroffenen Kanäle.",
                 "Klick auf ein Dreieck oder Taste J: beschnittene Stellen im Bild markieren (rot = Lichter, blau = Tiefen).",
                 "Stärke: wie stark die Korrektur wirkt (0 % = Original).",
+                "Der Umschalter „Farbe | Ton | Details“ unter der Stärke zeigt die jeweilige Reglergruppe; die Einstellungen der anderen Gruppen bleiben wirksam.",
                 "Temperatur und Grün ↔ Magenta: Reststich ausgleichen.",
                 "Pipette: Knopf drücken, dann eine eigentlich neutrale Stelle anklicken (Sand, Flosse, Graukarte).",
                 "Dynamik: schwache Farben kräftiger, kräftige bleiben.",
@@ -543,6 +526,8 @@ export component LabWindow inherits Window {
     in-out property <float> v-highlights;
     in-out property <float> v-shadows;
     in-out property <float> v-dehaze;
+    // Reglergruppe unter dem Umschalter: 0 Farbe, 1 Ton, 2 Details.
+    in-out property <int> panel-tab;
     in-out property <bool> picking;
     property <bool> controls-enabled: root.has-preview && !root.loading;
 
@@ -1056,141 +1041,155 @@ export component LabWindow inherits Window {
                                 Rectangle {
                                     height: 6px;
                                 }
-                                Heading {
-                                    text: "Farbe";
-                                }
-                                SliderRow {
-                                    label: "Rot wiederherstellen";
-                                    text: round(root.v-hue) + "°";
-                                    minimum: 0;
-                                    maximum: 180;
-                                    value <=> root.v-hue;
-                                    enabled: root.controls-enabled;
-                                    field: "hue";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
-                                }
-                                SliderRow {
-                                    label: "Temperatur";
-                                    text: (root.v-temperature > 0.5 ? "+" : "") + round(root.v-temperature);
-                                    minimum: -100;
-                                    maximum: 100;
-                                    value <=> root.v-temperature;
-                                    enabled: root.controls-enabled;
-                                    field: "temperature";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
-                                }
-                                SliderRow {
-                                    label: "Grün ↔ Magenta";
-                                    text: (root.v-tint > 0.5 ? "+" : "") + round(root.v-tint);
-                                    minimum: -100;
-                                    maximum: 100;
-                                    value <=> root.v-tint;
-                                    enabled: root.controls-enabled;
-                                    field: "tint";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
-                                }
-                                Button {
-                                    text: root.picking ? "Neutrale Stelle im Bild anklicken …" : "Pipette: Weißabgleich";
-                                    checkable: true;
-                                    checked <=> root.picking;
-                                    enabled: root.controls-enabled;
-                                }
-                                SliderRow {
-                                    label: "Dynamik";
-                                    text: (root.v-vibrance > 0.5 ? "+" : "") + round(root.v-vibrance);
-                                    minimum: -100;
-                                    maximum: 100;
-                                    value <=> root.v-vibrance;
-                                    enabled: root.controls-enabled;
-                                    field: "vibrance";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
-                                }
-                                SliderRow {
-                                    label: "Rot-Obergrenze";
-                                    text: "× " + round(root.v-red-limit * 10) / 10;
-                                    minimum: 1;
-                                    maximum: 8;
-                                    value <=> root.v-red-limit;
-                                    enabled: root.controls-enabled;
-                                    field: "red-limit";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
+                                Segmented {
+                                    options: ["Farbe", "Ton", "Details"];
+                                    selected: root.panel-tab;
+                                    changed(i) => {
+                                        root.panel-tab = i;
+                                        keys.focus();
+                                    }
                                 }
 
-                                Rectangle {
-                                    height: 6px;
+                                if root.panel-tab == 0: VerticalLayout {
+                                    spacing: 8px;
+                                    SliderRow {
+                                        label: "Rot wiederherstellen";
+                                        text: round(root.v-hue) + "°";
+                                        minimum: 0;
+                                        maximum: 180;
+                                        value <=> root.v-hue;
+                                        enabled: root.controls-enabled;
+                                        field: "hue";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Temperatur";
+                                        text: (root.v-temperature > 0.5 ? "+" : "") + round(root.v-temperature);
+                                        minimum: -100;
+                                        maximum: 100;
+                                        value <=> root.v-temperature;
+                                        enabled: root.controls-enabled;
+                                        field: "temperature";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Grün ↔ Magenta";
+                                        text: (root.v-tint > 0.5 ? "+" : "") + round(root.v-tint);
+                                        minimum: -100;
+                                        maximum: 100;
+                                        value <=> root.v-tint;
+                                        enabled: root.controls-enabled;
+                                        field: "tint";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    Button {
+                                        text: root.picking ? "Neutrale Stelle im Bild anklicken …" : "Pipette: Weißabgleich";
+                                        checkable: true;
+                                        checked <=> root.picking;
+                                        enabled: root.controls-enabled;
+                                    }
+                                    SliderRow {
+                                        label: "Dynamik";
+                                        text: (root.v-vibrance > 0.5 ? "+" : "") + round(root.v-vibrance);
+                                        minimum: -100;
+                                        maximum: 100;
+                                        value <=> root.v-vibrance;
+                                        enabled: root.controls-enabled;
+                                        field: "vibrance";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Rot-Obergrenze";
+                                        text: "× " + round(root.v-red-limit * 10) / 10;
+                                        minimum: 1;
+                                        maximum: 8;
+                                        value <=> root.v-red-limit;
+                                        enabled: root.controls-enabled;
+                                        field: "red-limit";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
                                 }
-                                Heading {
-                                    text: "Ton";
+
+                                if root.panel-tab == 1: VerticalLayout {
+                                    spacing: 8px;
+                                    SliderRow {
+                                        label: "Dunst entfernen";
+                                        text: round(root.v-dehaze);
+                                        minimum: 0;
+                                        maximum: 100;
+                                        value <=> root.v-dehaze;
+                                        enabled: root.controls-enabled;
+                                        field: "dehaze";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Belichtung";
+                                        text: (root.v-exposure > 2.5 ? "+" : "") + round(root.v-exposure / 5) / 10 + " EV";
+                                        minimum: -100;
+                                        maximum: 100;
+                                        value <=> root.v-exposure;
+                                        enabled: root.controls-enabled;
+                                        field: "exposure";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Kontrast";
+                                        text: (root.v-contrast > 0.5 ? "+" : "") + round(root.v-contrast);
+                                        minimum: -100;
+                                        maximum: 100;
+                                        value <=> root.v-contrast;
+                                        enabled: root.controls-enabled;
+                                        field: "contrast";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Lichter";
+                                        text: (root.v-highlights > 0.5 ? "+" : "") + round(root.v-highlights);
+                                        minimum: -100;
+                                        maximum: 100;
+                                        value <=> root.v-highlights;
+                                        enabled: root.controls-enabled;
+                                        field: "highlights";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Tiefen";
+                                        text: (root.v-shadows > 0.5 ? "+" : "") + round(root.v-shadows);
+                                        minimum: -100;
+                                        maximum: 100;
+                                        value <=> root.v-shadows;
+                                        enabled: root.controls-enabled;
+                                        field: "shadows";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
                                 }
-                                SliderRow {
-                                    label: "Dunst entfernen";
-                                    text: round(root.v-dehaze);
-                                    minimum: 0;
-                                    maximum: 100;
-                                    value <=> root.v-dehaze;
-                                    enabled: root.controls-enabled;
-                                    field: "dehaze";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
-                                }
-                                SliderRow {
-                                    label: "Belichtung";
-                                    text: (root.v-exposure > 2.5 ? "+" : "") + round(root.v-exposure / 5) / 10 + " EV";
-                                    minimum: -100;
-                                    maximum: 100;
-                                    value <=> root.v-exposure;
-                                    enabled: root.controls-enabled;
-                                    field: "exposure";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
-                                }
-                                SliderRow {
-                                    label: "Kontrast";
-                                    text: (root.v-contrast > 0.5 ? "+" : "") + round(root.v-contrast);
-                                    minimum: -100;
-                                    maximum: 100;
-                                    value <=> root.v-contrast;
-                                    enabled: root.controls-enabled;
-                                    field: "contrast";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
-                                }
-                                SliderRow {
-                                    label: "Lichter";
-                                    text: (root.v-highlights > 0.5 ? "+" : "") + round(root.v-highlights);
-                                    minimum: -100;
-                                    maximum: 100;
-                                    value <=> root.v-highlights;
-                                    enabled: root.controls-enabled;
-                                    field: "highlights";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
-                                }
-                                SliderRow {
-                                    label: "Tiefen";
-                                    text: (root.v-shadows > 0.5 ? "+" : "") + round(root.v-shadows);
-                                    minimum: -100;
-                                    maximum: 100;
-                                    value <=> root.v-shadows;
-                                    enabled: root.controls-enabled;
-                                    field: "shadows";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
+
+                                // Klarheit, Schärfen und Rauschreduzierung kommen mit Phase 10.
+                                if root.panel-tab == 2: Text {
+                                    text: "Klarheit, Schärfen und Rauschreduzierung folgen in einer der nächsten Versionen.";
+                                    wrap: word-wrap;
+                                    color: #8a8f98;
+                                    font-size: 12px;
                                 }
 
                                 if root.selected-count > 1 || root.can-undo-transfer: Rectangle {
@@ -1418,11 +1417,10 @@ export component LabWindow inherits Window {
                         alignment: center;
                         Segmented {
                             width: 190px;
-                            left-text: "Original";
-                            right-text: "Korrigiert";
-                            right-active <=> root.strip-corrected;
-                            changed(corrected) => {
-                                root.strip-mode-changed(corrected);
+                            options: ["Original", "Korrigiert"];
+                            selected: root.strip-corrected ? 1 : 0;
+                            changed(i) => {
+                                root.strip-mode-changed(i == 1);
                                 keys.focus();
                             }
                         }
