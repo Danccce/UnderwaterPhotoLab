@@ -107,6 +107,8 @@ component SliderRow inherits VerticalLayout {
     callback reset(string);
     callback released();
     spacing: 0px;
+    // Sonst wächst die Zeile in einer festen Spalte mit und Beschriftung und Regler rücken auseinander.
+    vertical-stretch: 0;
 
     HorizontalLayout {
         Text {
@@ -316,11 +318,10 @@ export component LabWindow inherits Window {
     in-out property <int> current: -1;
     in property <string> folder;
     in property <string> status;
-    // Bildinformationen: eingeklappt nur die Zusammenfassung, ausgeklappt alle Zeilen.
+    // Bildinformationen: in der Leiste die Zusammenfassung, im Fenster am Dateinamen alle Zeilen.
     in property <string> info-title;
     in property <string> info-summary;
     in property <[InfoRow]> info-rows;
-    property <bool> show-info;
     in property <bool> drag-over;
     in property <image> preview-original;
     in property <image> preview-corrected;
@@ -457,7 +458,7 @@ export component LabWindow inherits Window {
                 "Original zeigen: Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten.",
                 "Split-Ansicht: Knopf „Split-Ansicht“ unter dem Bild oder Taste S; die Trennlinie mit der Maus ziehen.",
                 "Zoom: Doppelklick ins Bild (100 % an dieser Stelle) oder Taste Z; Mausrad oder zwei Finger auf- und zuziehen (Touchpad, Touchbildschirm) zoomt stufenlos bis 400 %. Ziehen oder zwei Finger schieben verschiebt den Ausschnitt. Doppelklick, Z oder Esc zurück.",
-                "Bildinformationen: oben rechts auf den Dateinamen klicken.",
+                "Bildinformationen: oben rechts auf den Dateinamen klicken; ein Fenster mit allen Angaben öffnet sich, ein Klick daneben schließt es.",
             ],
         },
         {
@@ -894,6 +895,138 @@ export component LabWindow inherits Window {
                             }
                         }
 
+                        // Fest stehen Bildinfo, Auto-Korrektur, Stärke und Umschalter; nur die Regler der
+                        // gewählten Gruppe scrollen.
+                        if root.info-title != "": TouchArea {
+                            height: info-heading.preferred-height;
+                            mouse-cursor: MouseCursor.pointer;
+                            clicked => {
+                                info-popup.show();
+                            }
+                            // Dreieck selbst gezeichnet: Windows zeigt ◀ sonst als Emoji.
+                            Path {
+                                x: 0;
+                                y: (parent.height - 10px) / 2;
+                                width: 10px;
+                                height: 10px;
+                                viewbox-width: 10;
+                                viewbox-height: 10;
+                                commands: "M 8 0 L 2 5 L 8 10 Z";
+                                fill: #c8ccd2;
+                                stroke-width: 0px;
+                            }
+                            info-heading := Heading {
+                                x: 16px;
+                                width: parent.width - 16px;
+                                text: root.info-title;
+                                overflow: elide;
+                            }
+                            // Alle Bildinformationen in einem Fenster links neben der Leiste, über dem Bild.
+                            info-popup := PopupWindow {
+                                x: -self.width - 24px;
+                                y: 0;
+                                width: 380px;
+                                Rectangle {
+                                    background: #2b2d31;
+                                    border-radius: 6px;
+                                    border-width: 1px;
+                                    border-color: #00000080;
+                                    VerticalLayout {
+                                        padding: 14px;
+                                        spacing: 4px;
+                                        Heading {
+                                            text: root.info-title;
+                                        }
+                                        Rectangle {
+                                            height: 4px;
+                                        }
+                                        for row in root.info-rows: HorizontalLayout {
+                                            spacing: 10px;
+                                            Text {
+                                                width: 110px;
+                                                text: row.label;
+                                                color: #8a8f98;
+                                                font-size: 12px;
+                                            }
+                                            Text {
+                                                horizontal-stretch: 1;
+                                                text: row.value;
+                                                wrap: word-wrap;
+                                                font-size: 12px;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if root.info-title != "": Text {
+                            text: root.info-summary;
+                            wrap: word-wrap;
+                            color: #8a8f98;
+                            font-size: 11px;
+                        }
+
+                        Heading {
+                            text: "Auto-Korrektur";
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            CheckBox {
+                                text: "Auto";
+                                checked <=> root.auto-on;
+                                enabled: root.controls-enabled;
+                                toggled => {
+                                    root.auto-toggled(self.checked);
+                                    keys.focus();
+                                }
+                            }
+                            Button {
+                                text: "Zurücksetzen";
+                                enabled: root.controls-enabled;
+                                clicked => {
+                                    root.reset();
+                                    keys.focus();
+                                }
+                            }
+                            // Pfeile selbst gezeichnet; ↶ ↷ zeigt Windows nicht zuverlässig.
+                            IconButton {
+                                commands: "M 5.5 2.5 L 2 6 L 5.5 9.5 M 2 6 L 10 6 C 12.5 6 14 7.8 14 10 C 14 12.2 12.5 14 10 14 L 6 14";
+                                enabled: root.controls-enabled && root.can-undo;
+                                clicked => {
+                                    root.undo();
+                                    keys.focus();
+                                }
+                            }
+                            IconButton {
+                                commands: "M 10.5 2.5 L 14 6 L 10.5 9.5 M 14 6 L 6 6 C 3.5 6 2 7.8 2 10 C 2 12.2 3.5 14 6 14 L 10 14";
+                                enabled: root.controls-enabled && root.can-redo;
+                                clicked => {
+                                    root.redo();
+                                    keys.focus();
+                                }
+                            }
+                        }
+                        SliderRow {
+                            label: "Stärke";
+                            text: round(root.v-strength) + " %";
+                            minimum: 0;
+                            maximum: 100;
+                            value <=> root.v-strength;
+                            enabled: root.controls-enabled;
+                            field: "strength";
+                            edited(f, v) => { root.edited(f, v); }
+                            reset(f) => { root.reset-field(f); keys.focus(); }
+                            released => { keys.focus(); }
+                        }
+                        Segmented {
+                            options: ["Farbe", "Ton", "Details"];
+                            selected: root.panel-tab;
+                            changed(i) => {
+                                root.panel-tab = i;
+                                keys.focus();
+                            }
+                        }
+
                         panel := ScrollView {
                             vertical-stretch: 1;
                             content-width: self.visible-width;
@@ -902,124 +1035,6 @@ export component LabWindow inherits Window {
                             controls := VerticalLayout {
                                 width: panel.visible-width - 12px;
                                 spacing: 8px;
-
-                                if root.info-title != "": TouchArea {
-                                    height: info-heading.preferred-height;
-                                    mouse-cursor: MouseCursor.pointer;
-                                    clicked => {
-                                        root.show-info = !root.show-info;
-                                    }
-                                    // Dreieck selbst gezeichnet: Windows zeigt ▶ sonst als Emoji.
-                                    Path {
-                                        x: 0;
-                                        y: (parent.height - 10px) / 2;
-                                        width: 10px;
-                                        height: 10px;
-                                        viewbox-width: 10;
-                                        viewbox-height: 10;
-                                        commands: root.show-info ? "M 0 2 L 10 2 L 5 8 Z" : "M 2 0 L 8 5 L 2 10 Z";
-                                        fill: #c8ccd2;
-                                        stroke-width: 0px;
-                                    }
-                                    info-heading := Heading {
-                                        x: 16px;
-                                        width: parent.width - 16px;
-                                        text: root.info-title;
-                                        overflow: elide;
-                                    }
-                                }
-                                if root.info-title != "" && !root.show-info: Text {
-                                    text: root.info-summary;
-                                    wrap: word-wrap;
-                                    color: #8a8f98;
-                                    font-size: 11px;
-                                }
-                                if root.info-title != "" && root.show-info: VerticalLayout {
-                                    spacing: 3px;
-                                    for row in root.info-rows: HorizontalLayout {
-                                        spacing: 8px;
-                                        Text {
-                                            width: 96px;
-                                            text: row.label;
-                                            color: #8a8f98;
-                                            font-size: 11px;
-                                        }
-                                        Text {
-                                            horizontal-stretch: 1;
-                                            text: row.value;
-                                            wrap: word-wrap;
-                                            font-size: 11px;
-                                        }
-                                    }
-                                }
-                                if root.info-title != "": Rectangle {
-                                    height: 6px;
-                                }
-
-                                Heading {
-                                    text: "Auto-Korrektur";
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    CheckBox {
-                                        text: "Auto";
-                                        checked <=> root.auto-on;
-                                        enabled: root.controls-enabled;
-                                        toggled => {
-                                            root.auto-toggled(self.checked);
-                                            keys.focus();
-                                        }
-                                    }
-                                    Button {
-                                        text: "Zurücksetzen";
-                                        enabled: root.controls-enabled;
-                                        clicked => {
-                                            root.reset();
-                                            keys.focus();
-                                        }
-                                    }
-                                    // Pfeile selbst gezeichnet; ↶ ↷ zeigt Windows nicht zuverlässig.
-                                    IconButton {
-                                        commands: "M 5.5 2.5 L 2 6 L 5.5 9.5 M 2 6 L 10 6 C 12.5 6 14 7.8 14 10 C 14 12.2 12.5 14 10 14 L 6 14";
-                                        enabled: root.controls-enabled && root.can-undo;
-                                        clicked => {
-                                            root.undo();
-                                            keys.focus();
-                                        }
-                                    }
-                                    IconButton {
-                                        commands: "M 10.5 2.5 L 14 6 L 10.5 9.5 M 14 6 L 6 6 C 3.5 6 2 7.8 2 10 C 2 12.2 3.5 14 6 14 L 10 14";
-                                        enabled: root.controls-enabled && root.can-redo;
-                                        clicked => {
-                                            root.redo();
-                                            keys.focus();
-                                        }
-                                    }
-                                }
-                                SliderRow {
-                                    label: "Stärke";
-                                    text: round(root.v-strength) + " %";
-                                    minimum: 0;
-                                    maximum: 100;
-                                    value <=> root.v-strength;
-                                    enabled: root.controls-enabled;
-                                    field: "strength";
-                                    edited(f, v) => { root.edited(f, v); }
-                                    reset(f) => { root.reset-field(f); keys.focus(); }
-                                    released => { keys.focus(); }
-                                }
-
-                                Rectangle {
-                                    height: 6px;
-                                }
-                                Segmented {
-                                    options: ["Farbe", "Ton", "Details"];
-                                    selected: root.panel-tab;
-                                    changed(i) => {
-                                        root.panel-tab = i;
-                                        keys.focus();
-                                    }
-                                }
 
                                 if root.panel-tab == 0: VerticalLayout {
                                     spacing: 8px;
@@ -1162,36 +1177,33 @@ export component LabWindow inherits Window {
                                     color: #8a8f98;
                                     font-size: 12px;
                                 }
+                            }
+                        }
 
-                                if root.selected-count > 1 || root.can-undo-transfer: Rectangle {
-                                    height: 6px;
-                                }
-                                if root.selected-count > 1 || root.can-undo-transfer: Heading {
-                                    text: root.selected-count > 1 ? "Mehrere Bilder (" + root.selected-count + ")" : "Mehrere Bilder";
-                                }
-                                if root.selected-count > 1: Button {
-                                    text: "Gleiche Werte übernehmen";
-                                    enabled: root.controls-enabled;
-                                    clicked => {
-                                        root.transfer-fixed();
-                                        keys.focus();
-                                    }
-                                }
-                                if root.selected-count > 1: Button {
-                                    text: "Auto + Abweichung übernehmen";
-                                    enabled: root.controls-enabled;
-                                    clicked => {
-                                        root.transfer-relative();
-                                        keys.focus();
-                                    }
-                                }
-                                if root.can-undo-transfer: Button {
-                                    text: "Letzte Übernahme rückgängig";
-                                    clicked => {
-                                        root.undo-transfer();
-                                        keys.focus();
-                                    }
-                                }
+                        if root.selected-count > 1 || root.can-undo-transfer: Heading {
+                            text: root.selected-count > 1 ? "Mehrere Bilder (" + root.selected-count + ")" : "Mehrere Bilder";
+                        }
+                        if root.selected-count > 1: Button {
+                            text: "Gleiche Werte übernehmen";
+                            enabled: root.controls-enabled;
+                            clicked => {
+                                root.transfer-fixed();
+                                keys.focus();
+                            }
+                        }
+                        if root.selected-count > 1: Button {
+                            text: "Auto + Abweichung übernehmen";
+                            enabled: root.controls-enabled;
+                            clicked => {
+                                root.transfer-relative();
+                                keys.focus();
+                            }
+                        }
+                        if root.can-undo-transfer: Button {
+                            text: "Letzte Übernahme rückgängig";
+                            clicked => {
+                                root.undo-transfer();
+                                keys.focus();
                             }
                         }
                         Rectangle {
