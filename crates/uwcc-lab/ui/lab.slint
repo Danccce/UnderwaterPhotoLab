@@ -140,7 +140,8 @@ component SliderRow inherits VerticalLayout {
     }
 }
 
-// Umschalter aus gleich breiten Teilen: der gewählte ist hellblau hinterlegt.
+// Umschalter aus gleich breiten Teilen: der gewählte ist in der Markierungsfarbe hinterlegt.
+// Markierungsfarbe überall: Palette.accent-background, wie bei Reglern, Checkbox und Hauptknopf.
 component Segmented inherits Rectangle {
     in property <[string]> options;
     in property <int> selected;
@@ -155,7 +156,7 @@ component Segmented inherits Rectangle {
     HorizontalLayout {
         for option[i] in root.options: Rectangle {
             horizontal-stretch: 1;
-            background: i == root.selected ? #8cc4ff : touch.has-hover ? #ffffff14 : transparent;
+            background: i == root.selected ? Palette.accent-background : touch.has-hover ? #ffffff14 : transparent;
             if i > 0: Rectangle {
                 x: 0;
                 width: 1px;
@@ -164,7 +165,7 @@ component Segmented inherits Rectangle {
             Text {
                 text: option;
                 font-size: 12px;
-                color: i == root.selected ? #0d2440 : Palette.foreground;
+                color: i == root.selected ? Palette.accent-foreground : Palette.foreground;
             }
             touch := TouchArea {
                 clicked => {
@@ -288,7 +289,7 @@ component IconButton inherits Rectangle {
     }
 }
 
-// Flacher Knopf für die Leiste unter dem Bild; hellblau wie der Umschalter, wenn `active`.
+// Flacher Knopf für die Leiste unter dem Bild; in der Markierungsfarbe wie der Umschalter, wenn `active`.
 component SmallButton inherits Rectangle {
     in property <string> text;
     in property <bool> active;
@@ -298,11 +299,11 @@ component SmallButton inherits Rectangle {
     height: 24px;
     width: label.preferred-width + 20px;
     border-radius: 4px;
-    background: root.active ? #8cc4ff : touch.has-hover && root.enabled ? #ffffff26 : #ffffff12;
+    background: root.active ? Palette.accent-background : touch.has-hover && root.enabled ? #ffffff26 : #ffffff12;
     label := Text {
         text: root.text;
         font-size: 12px;
-        color: root.active ? #0d2440 : root.enabled ? Palette.foreground : #6b7078;
+        color: root.active ? Palette.accent-foreground : root.enabled ? Palette.foreground : #6b7078;
     }
     touch := TouchArea {
         enabled: root.enabled;
@@ -754,7 +755,7 @@ export component LabWindow inherits Window {
                             viewbox-width: 28;
                             viewbox-height: 28;
                             commands: "M 11.5 8.5 L 5 14 L 11.5 19.5 Z M 16.5 8.5 L 23 14 L 16.5 19.5 Z";
-                            fill: #2a7fff;
+                            fill: Palette.accent-background;
                             stroke-width: 0px;
                         }
                     }
@@ -790,8 +791,8 @@ export component LabWindow inherits Window {
                     }
                     if root.drag-over: Rectangle {
                         border-width: 3px;
-                        border-color: #2a7fff;
-                        background: #2a7fff22;
+                        border-color: Palette.accent-background;
+                        background: Palette.accent-background.transparentize(0.87);
                     }
 
                     // Ohne Zoom verschiebt jeder Klick die Split-Linie; mit Zoom nur ein Griff an der
@@ -1359,7 +1360,7 @@ export component LabWindow inherits Window {
                                             for program[i] in root.programs: Rectangle {
                                                 height: 30px;
                                                 border-radius: 4px;
-                                                background: row-touch.has-hover ? #2a7fff33 : transparent;
+                                                background: row-touch.has-hover ? Palette.accent-background.transparentize(0.8) : transparent;
                                                 HorizontalLayout {
                                                     padding-left: 8px;
                                                     padding-right: 8px;
@@ -1368,7 +1369,7 @@ export component LabWindow inherits Window {
                                                         width: 14px;
                                                         text: program.chosen ? "✓" : "";
                                                         vertical-alignment: center;
-                                                        color: #2a7fff;
+                                                        color: Palette.accent-background;
                                                     }
                                                     Text {
                                                         horizontal-stretch: 1;
@@ -1397,7 +1398,7 @@ export component LabWindow inherits Window {
                                             Rectangle {
                                                 height: 30px;
                                                 border-radius: 4px;
-                                                background: add-touch.has-hover ? #2a7fff33 : transparent;
+                                                background: add-touch.has-hover ? Palette.accent-background.transparentize(0.8) : transparent;
                                                 Text {
                                                     x: 28px;
                                                     text: "Anderes Programm hinzufügen …";
@@ -1590,8 +1591,8 @@ export component LabWindow inherits Window {
                             height: 118px;
                             border-radius: 6px;
                             border-width: 2px;
-                            border-color: i == root.current ? #2a7fff : (thumb.selected ? #7fb0ff90 : transparent);
-                            background: i == root.current ? #2a7fff33 : (thumb.selected ? #2a7fff1c : #2b2d31);
+                            border-color: i == root.current ? Palette.accent-background : (thumb.selected ? Palette.accent-background.transparentize(0.45) : transparent);
+                            background: i == root.current ? Palette.accent-background.transparentize(0.8) : (thumb.selected ? Palette.accent-background.transparentize(0.89) : #2b2d31);
 
                             Image {
                                 x: 6px;
