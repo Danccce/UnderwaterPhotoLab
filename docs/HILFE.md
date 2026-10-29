@@ -42,7 +42,7 @@ Die Regler sind in Gruppen geteilt: der Umschalter **Farbe | Ton | Details** unt
 
 ### Details (Umschalter „Details“)
 
-Schärfen und Rauschreduzierung wirken auf einzelne Pixel; in der verkleinerten Ansicht sieht man sie kaum. Zum Beurteilen in die **100-%-Ansicht** gehen (Doppelklick ins Bild oder Taste **Z**).
+Schärfen und Rauschreduzierung wirken auf einzelne Pixel; die verkleinerte Ansicht zeigt sie nur ungefähr. Zum genauen Beurteilen in die **100-%-Ansicht** gehen (Doppelklick ins Bild oder Taste **Z**). Der zuletzt gewählte Reiter (Farbe, Ton, Details) bleibt beim nächsten Start erhalten.
 
 - **Klarheit:** Strukturen wie Korallen und Schuppen kräftiger (+) oder weicher (−); wirkt am stärksten in den Mitteltönen, ohne Lichthöfe an Kanten.
 - **Schärfen:** Stärke des Schärfens. **Radius:** Größe der geschärften Details in Pixeln des Originals (0,5–3; Standard 1). **Maskieren:** je höher, desto mehr bleiben glatte Flächen wie freies Wasser ungeschärft – nur Strukturen werden geschärft.

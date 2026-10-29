@@ -217,9 +217,17 @@ Umgesetzt – Details:
   Lightroom: geschärft wird nur, wo die mittlere Abweichung von der unscharfen Kopie über der Schwelle
   liegt). `.uwcc.json` schreibt `sharpenRadius`, `sharpenMask`; fehlt der Radius, gilt 1.
 - **Radien:** Schärfen und Rauschen in Pixeln der **vollen Auflösung** (`Context::full_px`, dafür merkt sich
-  die `Reference` die lange Kante des Originals). In der stark verkleinerten Vorschau (unter 1/2) entfallen
-  sie, das Verkleinern mittelt Rauschen ohnehin; beurteilt werden sie in der 100-%-Ansicht – darauf weist
-  ein Satz über den Reglern hin.
+  die `Reference` die lange Kante des Originals). In der verkleinerten Vorschau wäre der Radius unter einem
+  Pixel; dort rechnen sie mit mindestens einem Pixel (Schärfen mit 3 × 3-Mittel) und zeigen die Wirkung
+  ungefähr. Zuerst entfielen sie dort ganz – das wirkte, als hätten die Regler keine Funktion. Genau
+  beurteilt wird in der 100-%-Ansicht; darauf weist eine Zeile über den Reglern hin.
+- **Nachjustiert nach Test in der App:** Die Auto-Korrektur spreizt die Kanäle bis ×4, das Rauschen ist danach
+  kräftiger als angenommen. Helligkeitsrauschen glättet daher Schwankungen bis 0,08 (vorher 0,03),
+  Farbrauschen mit Radius bis 8 px und eps 0,02 (vorher 6 px, 0,0025; mit kleinem eps trug das Rauschen des
+  Leitbilds das Farbrauschen hindurch).
+- **Oberfläche:** Der Hinweis über den Detail-Reglern ist einzeilig; umbrochener Text zählt in der Höhe des
+  Scrollbereichs nur einzeilig, der letzte Regler („Rauschen: Helligkeit“) war deshalb halb abgeschnitten.
+  Der gewählte Reiter wird als `panelTab` in `config.json` gemerkt.
 - **Rand für Ausschnitte:** `margin_px` addiert jetzt die Reichweiten aller aktiven Filter (sie wirken
   nacheinander); vorher galt nur die größte.
 - **Geschwindigkeit:** Ebenen-Operationen laufen parallel; der Box-Filter rechnet Spalten zeilenweise mit

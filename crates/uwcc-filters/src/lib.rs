@@ -5,8 +5,8 @@
 //! Auflösung angegeben ([`Context::radius_px`]). Damit wirkt ein Filter in der 1280-px-Vorschau wie
 //! im Export, und ein Ausschnitt der Zoom-Ansicht wie das ganze Bild in voller Auflösung, sofern er
 //! mit [`margin_px`] Rand gerechnet wird. Ausnahme sind Schärfen und Rauschreduzierung: Sie wirken
-//! auf Pixelebene, ihre Radien sind Pixel der vollen Auflösung ([`Context::full_px`]); in der
-//! verkleinerten Vorschau sind sie daher kaum zu sehen, beurteilt werden sie in der 100-%-Ansicht.
+//! auf Pixelebene, ihre Radien sind Pixel der vollen Auflösung ([`Context::full_px`]); die
+//! verkleinerte Vorschau zeigt sie nur ungefähr (mindestens ein Pixel), genau die 100-%-Ansicht.
 
 pub mod plane;
 
@@ -40,12 +40,14 @@ const CLARITY_RADIUS: f32 = 20.0;
 /// Klarheit: Kanten mit mehr Varianz bleiben in der Grundhelligkeit, so entstehen keine Lichthöfe.
 const CLARITY_EPS: f32 = 0.01;
 /// Farbrauschen bei 100: Radius in Pixeln der vollen Auflösung.
-const NOISE_COLOR_RADIUS: f32 = 6.0;
-/// Farbrauschen: wie eng die Farbe den Helligkeitskanten folgt.
-const NOISE_COLOR_EPS: f32 = 0.0025;
+const NOISE_COLOR_RADIUS: f32 = 8.0;
+/// Farbrauschen: Varianz der Helligkeit, ab der die Farbe einer Kante folgt. Kleiner, und das
+/// Helligkeitsrauschen des Leitbilds trägt das Farbrauschen mit hindurch (die Auto-Korrektur
+/// spreizt die Kanäle bis ×4, entsprechend kräftig ist das Rauschen danach).
+const NOISE_COLOR_EPS: f32 = 0.02;
 /// Helligkeitsrauschen bei 100: Radius (Pixel der vollen Auflösung) und geglättete Schwankung (0–1).
 const NOISE_LUMA_RADIUS: f32 = 3.0;
-const NOISE_LUMA_LEVEL: f32 = 0.03;
+const NOISE_LUMA_LEVEL: f32 = 0.08;
 /// Schärfen bei 100: so viel des Unterschieds zur unscharfen Kopie kommt dazu.
 const SHARPEN_GAIN: f32 = 1.5;
 /// Maskieren bei 100: Struktur (mittlere Abweichung von der unscharfen Kopie), ab der voll geschärft wird.
@@ -486,12 +488,12 @@ fn details(rgb: &mut [[f32; 3]], w: usize, h: usize, n: &Neighborhood, ctx: &Con
         });
     }
 
-    // Rauschen liegt auf Pixelebene; ist die Ansicht stark verkleinert (Vorschau), hat das
-    // Verkleinern es schon gemittelt, und die Filter entfallen wie das Schärfen.
-    let pixel_level = ctx.full_px(1.0) >= 0.5;
+    // Rauschen und Schärfen liegen auf Pixelebene. In der verkleinerten Vorschau wäre ihr Radius
+    // kleiner als ein Pixel; dort rechnen sie mit mindestens einem Pixel und zeigen die Wirkung
+    // nur ungefähr – genau stimmt sie in der 100-%-Ansicht und im Export.
 
     // Farbrauschen: Farbanteile mit Y als Leitbild glätten; Farbkanten bleiben, wo Helligkeitskanten sind.
-    let chroma = (n.noise_color > 0.0 && pixel_level).then(|| {
+    let chroma = (n.noise_color > 0.0).then(|| {
         let cr = plane_of(w, h, |i| rgb[i][0] - y0.data[i]);
         let cb = plane_of(w, h, |i| rgb[i][2] - y0.data[i]);
         let smooth = guided_filter_many(&y, &[&cr, &cb], noise_color_radius(n, ctx), NOISE_COLOR_EPS);
@@ -500,15 +502,17 @@ fn details(rgb: &mut [[f32; 3]], w: usize, h: usize, n: &Neighborhood, ctx: &Con
     });
 
     // Helligkeitsrauschen: Schwankungen bis etwa `NOISE_LUMA_LEVEL` glätten, größere (Kanten) bleiben.
-    if n.noise_luma > 0.0 && pixel_level {
+    if n.noise_luma > 0.0 {
         let eps = (NOISE_LUMA_LEVEL * n.noise_luma).powi(2);
         y = guided_filter(&y, &y, noise_luma_radius(n, ctx), eps);
     }
 
     // Schärfen: Unscharf maskieren; mit Maskieren nur dort, wo genug Struktur ist.
     let sigma = ctx.full_px(n.sharpen_radius);
-    if n.sharpen > 0.0 && sigma >= 0.5 {
-        let detail = y.zip(&gaussian(&y, sigma), |v, b| v - b);
+    if n.sharpen > 0.0 {
+        // Unter einem halben Pixel (Vorschau) der kleinste Kern: 3 × 3-Mittel.
+        let blur = if sigma >= 0.5 { gaussian(&y, sigma) } else { box_blur(&y, 1) };
+        let detail = y.zip(&blur, |v, b| v - b);
         let mask = (n.sharpen_mask > 0.0).then(|| {
             let level = SHARPEN_MASK_LEVEL * n.sharpen_mask;
             box_blur(&detail.map(f32::abs), sigma.round().max(1.0) as usize)

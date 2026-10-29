@@ -102,6 +102,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let cfg = config::load();
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
     app.set_strip_corrected(cfg.strip_corrected);
+    app.set_panel_tab(cfg.panel_tab);
     with_state(|st| st.config = cfg);
     programs::refresh(&app);
 
@@ -294,6 +295,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let Some(app) = weak.upgrade() else { return };
         app.set_strip_corrected(corrected);
         update_config(&app, |c| c.strip_corrected = corrected);
+    });
+    let weak = app.as_weak();
+    app.on_panel_tab_changed(move |tab| {
+        if let Some(app) = weak.upgrade() {
+            update_config(&app, |c| c.panel_tab = tab);
+        }
     });
     let weak = app.as_weak();
     app.on_clip_warning_changed(move || {

@@ -562,8 +562,9 @@ export component LabWindow inherits Window {
     in-out property <float> v-sharpen-mask;
     in-out property <float> v-noise-color;
     in-out property <float> v-noise-luma;
-    // Reglergruppe unter dem Umschalter: 0 Farbe, 1 Ton, 2 Details.
+    // Reglergruppe unter dem Umschalter: 0 Farbe, 1 Ton, 2 Details; wird in config.json gemerkt.
     in-out property <int> panel-tab;
+    callback panel-tab-changed(int);
     in-out property <bool> picking;
     property <bool> controls-enabled: root.has-preview && !root.loading;
 
@@ -1057,6 +1058,7 @@ export component LabWindow inherits Window {
                             selected: root.panel-tab;
                             changed(i) => {
                                 root.panel-tab = i;
+                                root.panel-tab-changed(i);
                                 keys.focus();
                             }
                         }
@@ -1218,9 +1220,11 @@ export component LabWindow inherits Window {
                                         reset(f) => { root.reset-field(f); keys.focus(); }
                                         released => { keys.focus(); }
                                     }
+                                    // Eine Zeile: umbrochener Text zählt in der Höhe des Scrollbereichs nur
+                                    // einzeilig, der letzte Regler ließe sich sonst nicht ganz hineinscrollen.
                                     Text {
-                                        text: "Schärfen und Rauschen in der 100-%-Ansicht beurteilen (Doppelklick oder Z).";
-                                        wrap: word-wrap;
+                                        text: "Schärfen, Rauschen genau bei 100 % (Taste Z)";
+                                        overflow: elide;
                                         color: #8a8f98;
                                         font-size: 11px;
                                     }

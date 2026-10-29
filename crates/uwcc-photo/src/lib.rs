@@ -424,7 +424,8 @@ mod tests {
     }
 
     /// Sichtprüfung Details in voller Auflösung: Ausschnitt eines ISO-1600-Bildes als
-    /// „Auto | Rauschen Farbe 60, Helligkeit 30 | + Schärfen 60, Maskieren 40 | + Klarheit 40“,
+    /// „Auto | Rauschen Farbe 100 | Rauschen Helligkeit 100 | Farbe 60, Helligkeit 50, Schärfen 60,
+    /// Maskieren 40, Klarheit 30“,
     /// als `detail-samples.png` im Temp-Ordner.
     #[test]
     #[ignore = "braucht einen Fotoordner in UWCC_PHOTOS"]
@@ -440,9 +441,9 @@ mod tests {
         let (x, y) = (fw / 2 - 400, fh / 2 - 500);
         let variants = [
             Detail::default(),
-            Detail { noise_color: 60.0, noise_luma: 30.0, ..Detail::default() },
-            Detail { noise_color: 60.0, noise_luma: 30.0, sharpen: 60.0, sharpen_mask: 40.0, ..Detail::default() },
-            Detail { noise_color: 60.0, noise_luma: 30.0, sharpen: 60.0, sharpen_mask: 40.0, clarity: 40.0, ..Detail::default() },
+            Detail { noise_color: 100.0, ..Detail::default() },
+            Detail { noise_luma: 100.0, ..Detail::default() },
+            Detail { noise_color: 60.0, noise_luma: 50.0, sharpen: 60.0, sharpen_mask: 40.0, clarity: 30.0, ..Detail::default() },
         ];
         let mut sheet = RgbaImage::new(cw * 2, ch * 2);
         for (k, detail) in variants.iter().enumerate() {

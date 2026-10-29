@@ -29,6 +29,8 @@ pub struct Config {
     pub programs: Vec<ProgramPath>,
     /// Zuletzt geöffneter Ordner; wird beim Start ohne Argument wieder geöffnet.
     pub last_folder: Option<PathBuf>,
+    /// Zuletzt gewählte Reglergruppe: 0 Farbe, 1 Ton, 2 Details.
+    pub panel_tab: i32,
 }
 
 impl Default for Config {
@@ -39,6 +41,7 @@ impl Default for Config {
             open_with: crate::programs::DEFAULT_PROGRAM.to_owned(),
             programs: Vec::new(),
             last_folder: None,
+            panel_tab: 0,
         }
     }
 }
@@ -86,6 +89,7 @@ pub fn load() -> Config {
             .map(|a| a.iter().filter_map(program_from_json).collect())
             .unwrap_or_default(),
         last_folder: o.get("lastFolder").and_then(Value::as_str).map(PathBuf::from),
+        panel_tab: o.get("panelTab").and_then(Value::as_i64).map_or(d.panel_tab, |t| t.clamp(0, 2) as i32),
     }
 }
 
@@ -102,6 +106,7 @@ pub fn save(config: &Config) -> Result<(), String> {
         .map(|p| json!({"id": p.id, "name": p.name, "exe": p.exe.display().to_string(), "args": p.args}))
         .collect();
     o.insert("programs".into(), programs.into());
+    o.insert("panelTab".into(), config.panel_tab.into());
     match &config.last_folder {
         Some(dir) => o.insert("lastFolder".into(), dir.display().to_string().into()),
         None => o.remove("lastFolder"),
