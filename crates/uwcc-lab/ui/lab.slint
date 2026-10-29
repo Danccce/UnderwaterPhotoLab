@@ -288,6 +288,30 @@ component IconButton inherits Rectangle {
     }
 }
 
+// Flacher Knopf für die Leiste unter dem Bild; hellblau wie der Umschalter, wenn `active`.
+component SmallButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    in property <bool> enabled: true;
+    out property <bool> pressed: touch.pressed;
+    callback clicked();
+    height: 24px;
+    width: label.preferred-width + 20px;
+    border-radius: 4px;
+    background: root.active ? #8cc4ff : touch.has-hover && root.enabled ? #ffffff26 : #ffffff12;
+    label := Text {
+        text: root.text;
+        font-size: 12px;
+        color: root.active ? #0d2440 : root.enabled ? Palette.foreground : #6b7078;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
 component Heading inherits Text {
     font-weight: 700;
     font-size: 13px;
@@ -1429,21 +1453,27 @@ export component LabWindow inherits Window {
                     spacing: 8px;
 
                     // Ansicht des Bildes darüber. Gedrückt halten (oder Leertaste): ganzes Bild als Original.
-                    before-button := Button {
-                        text: "Original";
-                        primary: self.pressed || root.space-held;
-                        enabled: root.has-preview;
-                        clicked => {
-                            keys.focus();
-                        }
-                    }
-                    Button {
-                        text: "Split-Ansicht";
-                        checkable: true;
-                        checked <=> root.split;
-                        enabled: root.has-preview;
-                        clicked => {
-                            keys.focus();
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            spacing: 6px;
+                            before-button := SmallButton {
+                                text: "Original";
+                                active: self.pressed || root.space-held;
+                                enabled: root.has-preview;
+                                clicked => {
+                                    keys.focus();
+                                }
+                            }
+                            SmallButton {
+                                text: "Split-Ansicht";
+                                active: root.split;
+                                enabled: root.has-preview;
+                                clicked => {
+                                    root.split = !root.split;
+                                    keys.focus();
+                                }
+                            }
                         }
                     }
                     Rectangle {
