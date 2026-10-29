@@ -423,6 +423,45 @@ mod tests {
         println!("{}", out.display());
     }
 
+    /// Sichtprüfung Details in voller Auflösung: Ausschnitt eines ISO-1600-Bildes als
+    /// „Auto | Rauschen Farbe 60, Helligkeit 30 | + Schärfen 60, Maskieren 40 | + Klarheit 40“,
+    /// als `detail-samples.png` im Temp-Ordner.
+    #[test]
+    #[ignore = "braucht einen Fotoordner in UWCC_PHOTOS"]
+    fn detail_samples() {
+        use uwcc_core::Detail;
+        let dir = PathBuf::from(std::env::var("UWCC_PHOTOS").unwrap());
+        let path = dir.join("P4100207.JPG");
+        let photo = Photo::open(&path).unwrap();
+        let auto = photo.analyze();
+        let (fw, fh) = photo.rgba.dimensions();
+        let reference = std::sync::Arc::new(photo.reference());
+        let (cw, ch) = (480u32, 360u32);
+        let (x, y) = (fw / 2 - 400, fh / 2 - 500);
+        let variants = [
+            Detail::default(),
+            Detail { noise_color: 60.0, noise_luma: 30.0, ..Detail::default() },
+            Detail { noise_color: 60.0, noise_luma: 30.0, sharpen: 60.0, sharpen_mask: 40.0, ..Detail::default() },
+            Detail { noise_color: 60.0, noise_luma: 30.0, sharpen: 60.0, sharpen_mask: 40.0, clarity: 40.0, ..Detail::default() },
+        ];
+        let mut sheet = RgbaImage::new(cw * 2, ch * 2);
+        for (k, detail) in variants.iter().enumerate() {
+            let s = Settings { detail: *detail, ..Settings::default() };
+            let ctx = uwcc_filters::Context::new(auto, reference.clone(), fw, fh);
+            let m = uwcc_filters::margin_px(&s, &ctx);
+            let (ex, ey) = (x - m, y - m);
+            let (ew, eh) = (cw + 2 * m, ch + 2 * m);
+            let mut crop = imageops::crop_imm(&photo.rgba, ex, ey, ew, eh).to_image();
+            let ctx = uwcc_filters::Context { origin: (ex, ey), ..ctx };
+            uwcc_filters::render(&mut crop, ew, eh, &s, &ctx);
+            let inner = imageops::crop_imm(&crop, m, m, cw, ch).to_image();
+            imageops::overlay(&mut sheet, &inner, ((k as u32 % 2) * cw) as i64, ((k as u32 / 2) * ch) as i64);
+        }
+        let out = std::env::temp_dir().join("detail-samples.png");
+        sheet.save(&out).unwrap();
+        println!("{}", out.display());
+    }
+
     /// Gegen echte Fotos: `UWCC_PHOTOS=<Ordner> cargo test -p uwcc-photo --release -- --ignored --nocapture`
     #[test]
     #[ignore = "braucht einen Fotoordner in UWCC_PHOTOS"]
@@ -476,6 +515,14 @@ mod tests {
         println!("… mit uwcc_filters::render wie in der App: {:?} im Schnitt", start.elapsed() / 20);
         let toned = Settings {
             tone: uwcc_core::Tone { exposure: 10.0, contrast: 20.0, highlights: -40.0, shadows: 40.0, dehaze: 50.0 },
+            detail: uwcc_core::Detail {
+                clarity: 30.0,
+                sharpen: 50.0,
+                sharpen_radius: 1.0,
+                sharpen_mask: 30.0,
+                noise_color: 50.0,
+                noise_luma: 20.0,
+            },
             ..settings
         };
         let start = std::time::Instant::now();
@@ -483,13 +530,20 @@ mod tests {
             let mut px = preview.clone();
             uwcc_filters::render(&mut px, w, h, &toned, &ctx);
         }
-        println!("… mit Ton und Dehaze: {:?} im Schnitt", start.elapsed() / 20);
+        println!("… mit Ton, Dehaze und Details: {:?} im Schnitt", start.elapsed() / 20);
         let (fw, fh) = photo.rgba.dimensions();
         let full_ctx = uwcc_filters::Context::new(auto, reference, fw, fh);
-        let start = std::time::Instant::now();
-        let mut px = photo.rgba.clone();
-        uwcc_filters::render(&mut px, fw, fh, &toned, &full_ctx);
-        println!("Volle Auflösung {fw}×{fh} mit Ton und Dehaze: {:?}", start.elapsed());
+        // Bester von drei Läufen: im Akkubetrieb schwanken einzelne Messungen um den Faktor zwei.
+        let best = (0..3)
+            .map(|_| {
+                let start = std::time::Instant::now();
+                let mut px = photo.rgba.clone();
+                uwcc_filters::render(&mut px, fw, fh, &toned, &full_ctx);
+                start.elapsed()
+            })
+            .min()
+            .unwrap();
+        println!("Volle Auflösung {fw}×{fh} mit Ton, Dehaze und Details: {best:?} (bester von 3)");
 
         // Stapel-Export: 8 Bilder mit 4 Threads wie in der App, in einen Temp-Ordner.
         let out_dir = std::env::temp_dir().join("uwcc-photo-tests").join("batch");

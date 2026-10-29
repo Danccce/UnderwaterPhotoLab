@@ -39,6 +39,14 @@ Die Regler sind in Gruppen geteilt: der Umschalter **Farbe | Ton | Details** unt
 - **Belichtung:** ±2 Blenden.
 - **Kontrast:** S-Kurve; Schwarz, Weiß und die Mitte bleiben.
 - **Lichter:** helle Bereiche dunkler (−) oder heller (+). **Tiefen:** dunkle Bereiche heller (+) oder dunkler (−). Beide wirken nach der Helligkeit der Umgebung; Details und Kanten bleiben erhalten.
+
+### Details (Umschalter „Details“)
+
+Schärfen und Rauschreduzierung wirken auf einzelne Pixel; in der verkleinerten Ansicht sieht man sie kaum. Zum Beurteilen in die **100-%-Ansicht** gehen (Doppelklick ins Bild oder Taste **Z**).
+
+- **Klarheit:** Strukturen wie Korallen und Schuppen kräftiger (+) oder weicher (−); wirkt am stärksten in den Mitteltönen, ohne Lichthöfe an Kanten.
+- **Schärfen:** Stärke des Schärfens. **Radius:** Größe der geschärften Details in Pixeln des Originals (0,5–3; Standard 1). **Maskieren:** je höher, desto mehr bleiben glatte Flächen wie freies Wasser ungeschärft – nur Strukturen werden geschärft.
+- **Rauschen: Farbe:** nimmt bunte Flecken heraus, die beim Anheben von Rot in dunklen Bereichen entstehen. **Rauschen: Helligkeit:** glättet Körnung (hohe ISO); zu viel wirkt wachsartig.
 - **Doppelklick auf einen Regler** setzt nur diesen zurück; „Zurücksetzen“ setzt alle zurück.
 - **Rückgängig / Wiederholen:** **Strg+Z** bzw. **Strg+Y** (oder Strg+Umschalt+Z), oder die Pfeile neben „Zurücksetzen“. Jedes Bild hat seinen eigenen Verlauf (bis 100 Schritte, solange das Programm läuft); ein Zug an einem Regler zählt als ein Schritt. Auch eine Übernahme auf mehrere Bilder lässt sich je Bild zurücknehmen.
 

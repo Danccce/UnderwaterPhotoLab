@@ -197,11 +197,38 @@ Mit Ton und Dehaze wurde die Reglerleiste länger als das Fenster; deshalb vor P
 
 ### Phase 10 – Details
 
-- [ ] 10.1 Klarheit (großer Radius, nur Luminanz)
-- [ ] 10.2 Farbrauschen reduzieren (Chroma-Glättung kantenerhaltend)
-- [ ] 10.3 Luminanzrauschen, einfache Stufe
-- [ ] 10.4 Schärfen: Stärke, Radius, Schwelle (Maske ab Schwelle, damit Wasser glatt bleibt)
-- [ ] 10.5 Regler in die Gruppe „Details“ des Umschalters (ersetzt den Hinweis)
+- [x] 10.1 Klarheit (großer Radius, nur Luminanz)
+- [x] 10.2 Farbrauschen reduzieren (Chroma-Glättung kantenerhaltend)
+- [x] 10.3 Luminanzrauschen, einfache Stufe
+- [x] 10.4 Schärfen: Stärke, Radius, Schwelle (Maske ab Schwelle, damit Wasser glatt bleibt)
+- [x] 10.5 Regler in die Gruppe „Details“ des Umschalters (ersetzt den Hinweis)
+
+Umgesetzt – Details:
+
+- **Reihenfolge:** nach Lichter/Tiefen auf Helligkeit Y und Farbanteilen R − Y, B − Y: Klarheit →
+  Farbrauschen → Helligkeitsrauschen → Schärfen; danach wie bisher Kontrast und Stärke.
+- **10.1 Klarheit** (−100 … +100): Abstand zur kantenerhaltend geglätteten Grundhelligkeit (Fast Guided Filter
+  auf dem Raster, 20 ‰, eps 0,01) verstärkt bzw. abgeschwächt, gewichtet `1 − (2Y − 1)²` (Mitteltöne).
+- **10.2 Farbrauschen:** R − Y und B − Y mit Y als Leitbild geglättet (Radius 1–6 px, eps 0,0025; beide
+  Ebenen teilen Mittel und Varianz des Leitbilds).
+- **10.3 Helligkeitsrauschen:** Y mit sich selbst als Leitbild, Radius 1–3 px, geglättete Schwankung bis 0,03.
+- **10.4 Schärfen:** Unscharf maskieren auf Y (Gauß mit dem Radius, Stärke bis 150 %). Neue Felder in
+  `Detail`: `sharpen_radius` (0,5–3 px, Standard 1) und `sharpen_mask` (0–100, wie „Maskieren“ in
+  Lightroom: geschärft wird nur, wo die mittlere Abweichung von der unscharfen Kopie über der Schwelle
+  liegt). `.uwcc.json` schreibt `sharpenRadius`, `sharpenMask`; fehlt der Radius, gilt 1.
+- **Radien:** Schärfen und Rauschen in Pixeln der **vollen Auflösung** (`Context::full_px`, dafür merkt sich
+  die `Reference` die lange Kante des Originals). In der stark verkleinerten Vorschau (unter 1/2) entfallen
+  sie, das Verkleinern mittelt Rauschen ohnehin; beurteilt werden sie in der 100-%-Ansicht – darauf weist
+  ein Satz über den Reglern hin.
+- **Rand für Ausschnitte:** `margin_px` addiert jetzt die Reichweiten aller aktiven Filter (sie wirken
+  nacheinander); vorher galt nur die größte.
+- **Geschwindigkeit:** Ebenen-Operationen laufen parallel; der Box-Filter rechnet Spalten zeilenweise mit
+  laufenden Summen je Spaltenstreifen (vorher Spalte für Spalte, bei 16 MP sehr cache-unfreundlich).
+  Vorschau mit Ton, Dehaze und allen Details ≈ 41–51 ms; 16 MP ≈ 2,4 s – gemessen im Akkubetrieb mit stark
+  schwankenden Werten (einfacher Weg dabei 12–33 ms statt sonst ≈ 11 ms); am Netzteil nachmessen.
+- **Tests:** Schärfen hebt Kanten, Maskieren lässt verrauschtes Wasser ruhig; Farbrauschen halbiert die
+  Farbstreuung bei gleicher Helligkeit; Klarheit hebt bzw. senkt den lokalen Kontrast; Ausschnitt mit Rand =
+  ganzes Bild auch mit allen Details. Sichtprüfung `detail_samples` (ISO-1600-Ausschnitt in voller Auflösung).
 
 ### Phase 11 – Zuschneiden und Ausrichten
 

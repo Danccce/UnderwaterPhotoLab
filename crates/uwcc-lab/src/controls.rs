@@ -125,6 +125,12 @@ pub fn refresh(app: &LabWindow) {
             Field::Highlights => app.set_v_highlights(v),
             Field::Shadows => app.set_v_shadows(v),
             Field::Dehaze => app.set_v_dehaze(v),
+            Field::Clarity => app.set_v_clarity(v),
+            Field::Sharpen => app.set_v_sharpen(v),
+            Field::SharpenRadius => app.set_v_sharpen_radius(v),
+            Field::SharpenMask => app.set_v_sharpen_mask(v),
+            Field::NoiseColor => app.set_v_noise_color(v),
+            Field::NoiseLuma => app.set_v_noise_luma(v),
             // Die Levels je Kanal stellt nur die Auto-Analyse ein; im Fenster gibt es dafür keine Regler.
             Field::RedLow | Field::RedHigh | Field::GreenLow | Field::GreenHigh | Field::BlueLow | Field::BlueHigh => {}
         }

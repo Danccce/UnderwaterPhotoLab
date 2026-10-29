@@ -4,13 +4,15 @@
 //! Radien werden in Promille der langen Kante des *ganzen* Bildes in der gerade gerechneten
 //! Auflösung angegeben ([`Context::radius_px`]). Damit wirkt ein Filter in der 1280-px-Vorschau wie
 //! im Export, und ein Ausschnitt der Zoom-Ansicht wie das ganze Bild in voller Auflösung, sofern er
-//! mit [`margin_px`] Rand gerechnet wird.
+//! mit [`margin_px`] Rand gerechnet wird. Ausnahme sind Schärfen und Rauschreduzierung: Sie wirken
+//! auf Pixelebene, ihre Radien sind Pixel der vollen Auflösung ([`Context::full_px`]); in der
+//! verkleinerten Vorschau sind sie daher kaum zu sehen, beurteilt werden sie in der 100-%-Ansicht.
 
 pub mod plane;
 
 use std::{sync::Arc, thread};
 
-use plane::{guided_coefficients, min_filter, Plane};
+use plane::{box_blur, gaussian, guided_coefficients, guided_filter, guided_filter_many, min_filter, Plane};
 use uwcc_core::{luminance, process_rgba8, unit_rgb, Correction, PixelOps, Settings};
 
 /// Lange Kante der [`Reference`].
@@ -33,6 +35,21 @@ const TONE_EPS: f32 = 0.02;
 const TONE_STOPS: f32 = 1.2;
 /// Grobe Filter rechnen auf einem Raster, in dem ihr Radius etwa so viele Zellen hat.
 const GRID_RADIUS: f32 = 4.0;
+/// Klarheit: Radius der Grundhelligkeit, gegen die der lokale Kontrast verstärkt wird (‰).
+const CLARITY_RADIUS: f32 = 20.0;
+/// Klarheit: Kanten mit mehr Varianz bleiben in der Grundhelligkeit, so entstehen keine Lichthöfe.
+const CLARITY_EPS: f32 = 0.01;
+/// Farbrauschen bei 100: Radius in Pixeln der vollen Auflösung.
+const NOISE_COLOR_RADIUS: f32 = 6.0;
+/// Farbrauschen: wie eng die Farbe den Helligkeitskanten folgt.
+const NOISE_COLOR_EPS: f32 = 0.0025;
+/// Helligkeitsrauschen bei 100: Radius (Pixel der vollen Auflösung) und geglättete Schwankung (0–1).
+const NOISE_LUMA_RADIUS: f32 = 3.0;
+const NOISE_LUMA_LEVEL: f32 = 0.03;
+/// Schärfen bei 100: so viel des Unterschieds zur unscharfen Kopie kommt dazu.
+const SHARPEN_GAIN: f32 = 1.5;
+/// Maskieren bei 100: Struktur (mittlere Abweichung von der unscharfen Kopie), ab der voll geschärft wird.
+const SHARPEN_MASK_LEVEL: f32 = 0.04;
 
 /// Kleine Kopie des ganzen, unbearbeiteten Bildes (lange Kante 256 px). Daraus schätzt Dehaze die
 /// Wasserfarbe, für jeden Ausschnitt und jede Auflösung gleich.
@@ -41,12 +58,15 @@ pub struct Reference {
     width: usize,
     height: usize,
     rgb: Vec<[f32; 3]>,
+    /// Lange Kante des Originals in voller Auflösung.
+    full_long_edge: u32,
 }
 
 impl Reference {
     /// Blockmittel von `rgba` (`width × height`) auf höchstens 256 px lange Kante.
     pub fn from_rgba(rgba: &[u8], width: u32, height: u32) -> Self {
-        let f = width.max(height).div_ceil(REFERENCE_EDGE).max(1) as usize;
+        let full_long_edge = width.max(height);
+        let f = full_long_edge.div_ceil(REFERENCE_EDGE).max(1) as usize;
         let (width, height) = (width as usize, height as usize);
         let (w, h) = (width.div_ceil(f), height.div_ceil(f));
         let mut sum = vec![[0f32; 4]; w * h];
@@ -61,7 +81,7 @@ impl Reference {
             }
         }
         let rgb = sum.iter().map(|s| [s[0], s[1], s[2]].map(|v| v / s[3].max(1.0) / 255.0)).collect();
-        Self { width: w, height: h, rgb }
+        Self { width: w, height: h, rgb, full_long_edge }
     }
 
     /// Hintergrundlicht (Wasserfarbe) nach der Farbmatrix: Mittel der hellsten 0,1 % im dunklen
@@ -106,6 +126,11 @@ impl Context {
     /// Radius in Pixeln für `permille` Promille der langen Kante.
     pub fn radius_px(&self, permille: f32) -> f32 {
         permille * self.long_edge as f32 / 1000.0
+    }
+
+    /// `px` Pixel der vollen Auflösung in Pixeln der gerade gerechneten Auflösung.
+    pub fn full_px(&self, px: f32) -> f32 {
+        px * self.long_edge as f32 / self.reference.full_long_edge.max(1) as f32
     }
 }
 
@@ -200,15 +225,29 @@ struct Neighborhood {
     dehaze: f32,
     shadows: f32,
     highlights: f32,
+    clarity: f32,
+    sharpen: f32,
+    /// Pixel der vollen Auflösung.
+    sharpen_radius: f32,
+    sharpen_mask: f32,
+    noise_color: f32,
+    noise_luma: f32,
 }
 
 impl Neighborhood {
     fn of(settings: &Settings) -> Self {
-        let t = &settings.tone;
+        let (t, d) = (&settings.tone, &settings.detail);
+        let unit = |v: f32| v.clamp(0.0, 100.0) / 100.0;
         Self {
-            dehaze: t.dehaze.clamp(0.0, 100.0) / 100.0,
+            dehaze: unit(t.dehaze),
             shadows: t.shadows.clamp(-100.0, 100.0) / 100.0,
             highlights: t.highlights.clamp(-100.0, 100.0) / 100.0,
+            clarity: d.clarity.clamp(-100.0, 100.0) / 100.0,
+            sharpen: unit(d.sharpen),
+            sharpen_radius: d.sharpen_radius.clamp(0.5, 3.0),
+            sharpen_mask: unit(d.sharpen_mask),
+            noise_color: unit(d.noise_color),
+            noise_luma: unit(d.noise_luma),
         }
     }
 
@@ -216,25 +255,51 @@ impl Neighborhood {
         self.shadows != 0.0 || self.highlights != 0.0
     }
 
+    fn detail(&self) -> bool {
+        self.clarity != 0.0 || self.sharpen > 0.0 || self.noise_color > 0.0 || self.noise_luma > 0.0
+    }
+
     fn any(&self) -> bool {
-        self.dehaze > 0.0 || self.tone()
+        self.dehaze > 0.0 || self.tone() || self.detail()
     }
 }
 
 /// Rand in Pixeln (dieser Auflösung), den ein Ausschnitt rundum mitrechnen muss, damit Filter mit
-/// Nachbarschaft wie im ganzen Bild wirken. Der Guided Filter reicht zwei Radien weit, Raster-
-/// zellen und Interpolation noch einmal einige Zellen.
+/// Nachbarschaft wie im ganzen Bild wirken. Die Filter wirken nacheinander, ihre Reichweiten
+/// addieren sich. Der Guided Filter reicht zwei Radien weit, Rasterzellen und Interpolation noch
+/// einmal einige Zellen; die Gauß-Näherung etwa drei Sigma.
 pub fn margin_px(settings: &Settings, ctx: &Context) -> u32 {
     let n = Neighborhood::of(settings);
-    let reach = |radius: f32, patch: f32| radius * 2.0 + patch + 3.0 * (radius / GRID_RADIUS).max(1.0);
+    let grid = |radius: f32, patch: f32| radius * 2.0 + patch + 3.0 * (radius / GRID_RADIUS).max(1.0);
     let mut r = 0.0f32;
     if n.dehaze > 0.0 {
-        r = r.max(reach(ctx.radius_px(DEHAZE_REFINE), ctx.radius_px(DEHAZE_PATCH)));
+        r += grid(ctx.radius_px(DEHAZE_REFINE), ctx.radius_px(DEHAZE_PATCH));
     }
     if n.tone() {
-        r = r.max(reach(ctx.radius_px(TONE_RADIUS), 0.0));
+        r += grid(ctx.radius_px(TONE_RADIUS), 0.0);
+    }
+    if n.clarity != 0.0 {
+        r += grid(ctx.radius_px(CLARITY_RADIUS), 0.0);
+    }
+    if n.noise_color > 0.0 {
+        r += 2.0 * noise_color_radius(&n, ctx) as f32;
+    }
+    if n.noise_luma > 0.0 {
+        r += 2.0 * noise_luma_radius(&n, ctx) as f32;
+    }
+    if n.sharpen > 0.0 {
+        let sigma = ctx.full_px(n.sharpen_radius);
+        r += 3.0 * sigma + sigma.round().max(1.0) + 1.0;
     }
     (r.ceil() as u32 + 2) * u32::from(n.any())
+}
+
+fn noise_color_radius(n: &Neighborhood, ctx: &Context) -> usize {
+    ctx.full_px(1.0 + (NOISE_COLOR_RADIUS - 1.0) * n.noise_color).round().max(1.0) as usize
+}
+
+fn noise_luma_radius(n: &Neighborhood, ctx: &Context) -> usize {
+    ctx.full_px(1.0 + (NOISE_LUMA_RADIUS - 1.0) * n.noise_luma).round().max(1.0) as usize
 }
 
 fn threads() -> usize {
@@ -257,8 +322,9 @@ fn par_each<T: Send>(data: &mut [T], f: impl Fn(usize, &mut T) + Sync) {
 }
 
 /// Die Pipeline für 8-Bit-RGBA: `width × height` Pixel, gerechnet mit `settings`.
-/// Ohne Dehaze und Lichter/Tiefen genügt die Pipeline je Pixel, sonst:
-/// Farbmatrix → Dehaze → Weißabgleich, Dynamik, Belichtung → Lichter/Tiefen → Kontrast, Stärke.
+/// Ohne Filter mit Nachbarschaft genügt die Pipeline je Pixel, sonst: Farbmatrix → Dehaze →
+/// Weißabgleich, Dynamik, Belichtung → Lichter/Tiefen → Klarheit → Farbrauschen →
+/// Helligkeitsrauschen → Schärfen → Kontrast, Stärke.
 pub fn render(rgba: &mut [u8], width: u32, height: u32, settings: &Settings, ctx: &Context) {
     debug_assert_eq!(rgba.len(), width as usize * height as usize * 4);
     let n = Neighborhood::of(settings);
@@ -286,7 +352,19 @@ pub fn render(rgba: &mut [u8], width: u32, height: u32, settings: &Settings, ctx
     if n.dehaze > 0.0 {
         dehaze(&mut rgb, w, h, n.dehaze, &ops, ctx);
     }
-    let tone = n.tone().then(|| ToneMap::new(&rgb, w, h, &n, ctx));
+    let mut tone = n.tone().then(|| ToneMap::new(&rgb, w, h, &n, ctx));
+    if n.detail() {
+        // Die Details brauchen das Ergebnis von Lichter/Tiefen als ganze Ebene.
+        if let Some(t) = tone.take() {
+            par_rows(&mut rgb, w, |y, row| {
+                let r = t.row(y);
+                for (x, p) in row.iter_mut().enumerate() {
+                    *p = t.apply(*p, &r, x);
+                }
+            });
+        }
+        details(&mut rgb, w, h, &n, ctx);
+    }
     par_rows(rgba, w * 4, |y, row| {
         let tone_row = tone.as_ref().map(|t| t.row(y));
         for (x, p) in row.chunks_exact_mut(4).enumerate() {
@@ -377,10 +455,84 @@ impl ToneMap {
     }
 }
 
+/// Ebene aus `f(Pixelindex)`, auf alle Kerne verteilt.
+fn plane_of(w: usize, h: usize, f: impl Fn(usize) -> f32 + Sync) -> Plane {
+    let mut data = vec![0f32; w * h];
+    par_each(&mut data, |i, v| *v = f(i));
+    Plane { width: w, height: h, data }
+}
+
+/// Klarheit, Rauschreduzierung und Schärfen auf der Helligkeit Y und den Farbanteilen R − Y,
+/// B − Y; zum Schluss wieder RGB mit derselben Gewichtung wie [`luminance`].
+fn details(rgb: &mut [[f32; 3]], w: usize, h: usize, n: &Neighborhood, ctx: &Context) {
+    let y0 = plane_of(w, h, |i| lum(&rgb[i]));
+    let mut y = y0.clone();
+
+    // Klarheit: Abstand zur kantenerhaltend geglätteten Grundhelligkeit verstärken, am meisten in
+    // den Mitteltönen, damit Lichter und Tiefen nicht ausbrechen.
+    if n.clarity != 0.0 {
+        let radius = ctx.radius_px(CLARITY_RADIUS);
+        let grid = Grid::new(radius, w, h, ctx.origin);
+        let [low] = grid.pool(|i| [y.data[i]], [false]);
+        let (a, b) = guided_coefficients(&low, &low, grid.radius(radius), CLARITY_EPS);
+        let cols = grid.columns();
+        par_rows(&mut y.data, w, |row_y, row| {
+            let (ra, rb) = (grid.row(&a, row_y), grid.row(&b, row_y));
+            for (x, v) in row.iter_mut().enumerate() {
+                let base = lerp(&ra, cols[x]) * *v + lerp(&rb, cols[x]);
+                let mid = 1.0 - (2.0 * v.clamp(0.0, 1.0) - 1.0).powi(2);
+                *v += n.clarity * mid * (*v - base);
+            }
+        });
+    }
+
+    // Rauschen liegt auf Pixelebene; ist die Ansicht stark verkleinert (Vorschau), hat das
+    // Verkleinern es schon gemittelt, und die Filter entfallen wie das Schärfen.
+    let pixel_level = ctx.full_px(1.0) >= 0.5;
+
+    // Farbrauschen: Farbanteile mit Y als Leitbild glätten; Farbkanten bleiben, wo Helligkeitskanten sind.
+    let chroma = (n.noise_color > 0.0 && pixel_level).then(|| {
+        let cr = plane_of(w, h, |i| rgb[i][0] - y0.data[i]);
+        let cb = plane_of(w, h, |i| rgb[i][2] - y0.data[i]);
+        let smooth = guided_filter_many(&y, &[&cr, &cb], noise_color_radius(n, ctx), NOISE_COLOR_EPS);
+        let blend = |c: &Plane, s: &Plane| c.zip(s, |c, s| c + n.noise_color * (s - c));
+        (blend(&cr, &smooth[0]), blend(&cb, &smooth[1]))
+    });
+
+    // Helligkeitsrauschen: Schwankungen bis etwa `NOISE_LUMA_LEVEL` glätten, größere (Kanten) bleiben.
+    if n.noise_luma > 0.0 && pixel_level {
+        let eps = (NOISE_LUMA_LEVEL * n.noise_luma).powi(2);
+        y = guided_filter(&y, &y, noise_luma_radius(n, ctx), eps);
+    }
+
+    // Schärfen: Unscharf maskieren; mit Maskieren nur dort, wo genug Struktur ist.
+    let sigma = ctx.full_px(n.sharpen_radius);
+    if n.sharpen > 0.0 && sigma >= 0.5 {
+        let detail = y.zip(&gaussian(&y, sigma), |v, b| v - b);
+        let mask = (n.sharpen_mask > 0.0).then(|| {
+            let level = SHARPEN_MASK_LEVEL * n.sharpen_mask;
+            box_blur(&detail.map(f32::abs), sigma.round().max(1.0) as usize)
+                .map(|e| ((e - level * 0.5) / (level * 0.5)).clamp(0.0, 1.0))
+        });
+        let gain = SHARPEN_GAIN * n.sharpen;
+        par_each(&mut y.data, |i, v| *v += gain * mask.as_ref().map_or(1.0, |m| m.data[i]) * detail.data[i]);
+    }
+
+    par_each(rgb, |i, p| {
+        let v = y.data[i];
+        let (cr, cb) = match &chroma {
+            Some((cr, cb)) => (cr.data[i], cb.data[i]),
+            None => (p[0] - y0.data[i], p[2] - y0.data[i]),
+        };
+        let (r, b) = (v + cr, v + cb);
+        *p = [r, (v - 0.2126 * r - 0.0722 * b) / 0.7152, b];
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uwcc_core::Tone;
+    use uwcc_core::{Detail, Tone};
 
     /// Unterwasserartiges Testbild: blaugrüner Schleier, nach unten dunkler, mit Strukturen.
     fn scene(w: u32, h: u32) -> Vec<u8> {
@@ -402,6 +554,86 @@ mod tests {
 
     fn ctx(px: &[u8], w: u32, h: u32) -> Context {
         Context::new(Correction::NONE, Arc::new(Reference::from_rgba(px, w, h)), w, h)
+    }
+
+    /// Pseudo-Zufall −1 … 1 je Pixel und Kanal, ohne Abhängigkeiten.
+    fn noise(i: u32, c: u32) -> f32 {
+        let mut x = i.wrapping_mul(747_796_405).wrapping_add(c.wrapping_mul(2_891_336_453)).wrapping_add(1);
+        x ^= x >> 13;
+        x = x.wrapping_mul(1_274_126_177);
+        x ^= x >> 16;
+        (x % 2001) as f32 / 1000.0 - 1.0
+    }
+
+    fn with_detail(detail: Detail) -> Settings {
+        Settings { auto: false, detail, ..Settings::default() }
+    }
+
+    /// Standardabweichung von Kanal `c` im Rechteck `x0..x1 × y0..y1`.
+    fn spread(img: &[u8], w: u32, (x0, x1, y0, y1): (u32, u32, u32, u32), c: usize) -> f32 {
+        let v: Vec<f32> = (y0..y1).flat_map(|y| (x0..x1).map(move |x| img[((y * w + x) * 4) as usize + c] as f32)).collect();
+        let mean = v.iter().sum::<f32>() / v.len() as f32;
+        (v.iter().map(|x| (x - mean).powi(2)).sum::<f32>() / v.len() as f32).sqrt()
+    }
+
+    #[test]
+    fn sharpen_adds_edge_contrast_and_the_mask_spares_flat_water() {
+        let (w, h) = (128, 64);
+        // Links ruhiges Wasser mit leichtem Rauschen, rechts harte Streifen.
+        let px: Vec<u8> = (0..w * h)
+            .flat_map(|i| {
+                let x = i % w;
+                let base = if x < 64 { 120.0 + 2.0 * noise(i, 0) } else if (x / 4) % 2 == 0 { 60.0 } else { 190.0 };
+                [base as u8, base as u8, base as u8, 255]
+            })
+            .collect();
+        let c = ctx(&px, w, h);
+        let sharpen = |mask: f32| {
+            let mut out = px.clone();
+            let d = Detail { sharpen: 100.0, sharpen_radius: 1.0, sharpen_mask: mask, ..Detail::default() };
+            render(&mut out, w, h, &with_detail(d), &c);
+            out
+        };
+        let (plain, masked) = (sharpen(0.0), sharpen(60.0));
+        let water = (8, 56, 8, 56);
+        let stripes = (72, 120, 8, 56);
+        assert!(spread(&plain, w, stripes, 1) > spread(&px, w, stripes, 1) * 1.05, "Kanten werden kräftiger");
+        assert!(spread(&plain, w, water, 1) > spread(&px, w, water, 1) * 1.3, "ohne Maske auch das Rauschen");
+        assert!(spread(&masked, w, water, 1) < spread(&px, w, water, 1) * 1.1, "mit Maske bleibt Wasser ruhig");
+        assert!(spread(&masked, w, stripes, 1) > spread(&px, w, stripes, 1) * 1.05, "Kanten trotzdem geschärft");
+    }
+
+    #[test]
+    fn colour_noise_reduction_smooths_colour_but_keeps_brightness() {
+        let (w, h) = (96, 96);
+        let px: Vec<u8> = (0..w * h)
+            .flat_map(|i| {
+                let (r, b) = (128.0 + 25.0 * noise(i, 0), 128.0 + 25.0 * noise(i, 2));
+                // Grün so, dass die Helligkeit überall 128 ist: nur Farbrauschen.
+                let g = (128.0 - 0.2126 * r - 0.0722 * b) / 0.7152;
+                [r as u8, g.clamp(0.0, 255.0) as u8, b as u8, 255]
+            })
+            .collect();
+        let mut out = px.clone();
+        render(&mut out, w, h, &with_detail(Detail { noise_color: 100.0, ..Detail::default() }), &ctx(&px, w, h));
+        let area = (10, 86, 10, 86);
+        assert!(spread(&out, w, area, 0) < spread(&px, w, area, 0) * 0.5, "Rot ruhiger");
+        assert!(spread(&out, w, area, 2) < spread(&px, w, area, 2) * 0.5, "Blau ruhiger");
+        let mean_lum = |img: &[u8]| img.chunks_exact(4).map(|p| luminance(p[0] as f32, p[1] as f32, p[2] as f32)).sum::<f32>() / (w * h) as f32;
+        assert!((mean_lum(&out) - mean_lum(&px)).abs() < 1.5, "Helligkeit bleibt");
+    }
+
+    #[test]
+    fn clarity_raises_local_contrast_in_the_midtones() {
+        let (w, h) = (200, 150);
+        let px = scene(w, h);
+        let mut out = px.clone();
+        render(&mut out, w, h, &with_detail(Detail { clarity: 80.0, ..Detail::default() }), &ctx(&px, w, h));
+        let area = (20, 180, 10, 70);
+        assert!(spread(&out, w, area, 1) > spread(&px, w, area, 1) * 1.05);
+        let mut soft = px.clone();
+        render(&mut soft, w, h, &with_detail(Detail { clarity: -80.0, ..Detail::default() }), &ctx(&px, w, h));
+        assert!(spread(&soft, w, area, 1) < spread(&px, w, area, 1));
     }
 
     /// Zeiten der Vorschau-Größe; `cargo test --release -p uwcc-filters timing -- --ignored --nocapture`.
@@ -432,7 +664,7 @@ mod tests {
         println!("Wasserfarbe: {:?}", start.elapsed() / 10);
 
         let rgb: Vec<[f32; 3]> = px.chunks_exact(4).map(unit_rgb).collect();
-        let n = Neighborhood { dehaze: 0.0, shadows: 0.5, highlights: 0.0 };
+        let n = Neighborhood::of(&Settings { tone: Tone { shadows: 50.0, ..Tone::default() }, ..base });
         let (w, h) = (w as usize, h as usize);
         let grid = Grid::new(c.radius_px(TONE_RADIUS), w, h, (0, 0));
         let start = std::time::Instant::now();
@@ -551,7 +783,19 @@ mod tests {
     fn a_crop_with_margin_matches_the_whole_image() {
         let (w, h) = (1600, 1200);
         let px = scene(w, h);
-        let s = Settings { auto: false, tone: Tone { dehaze: 70.0, shadows: 60.0, ..Tone::default() }, ..Settings::default() };
+        let s = Settings {
+            auto: false,
+            tone: Tone { dehaze: 70.0, shadows: 60.0, ..Tone::default() },
+            detail: Detail {
+                clarity: 40.0,
+                sharpen: 60.0,
+                sharpen_radius: 1.5,
+                sharpen_mask: 20.0,
+                noise_color: 50.0,
+                noise_luma: 30.0,
+            },
+            ..Settings::default()
+        };
         let c = ctx(&px, w, h);
         let mut whole = px.clone();
         render(&mut whole, w, h, &s, &c);

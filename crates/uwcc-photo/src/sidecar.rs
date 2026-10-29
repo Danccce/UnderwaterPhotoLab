@@ -6,7 +6,8 @@
 //!     "settings": {"auto": true, "strength": 1, "temperature": 0, "tint": 0, "vibrance": 0,
 //!                  "redLimit": 4, "delta": {"hueShift": 0, "red": [0, 0], "green": [0, 0], "blue": [0, 0]},
 //!                  "tone": {"exposure": 0, "contrast": 0, "highlights": 0, "shadows": 0, "dehaze": 0},
-//!                  "detail": {"clarity": 0, "sharpen": 0, "noiseColor": 0, "noiseLuma": 0},
+//!                  "detail": {"clarity": 0, "sharpen": 0, "sharpenRadius": 1, "sharpenMask": 0,
+//!                             "noiseColor": 0, "noiseLuma": 0},
 //!                  "geometry": {"quarterTurns": 0, "flipHorizontal": false, "straighten": 0,
 //!                               "crop": {"x": 0, "y": 0, "width": 1, "height": 1}}},
 //!     "exported": {"settings": {…}, "target": "subfolder", "quality": 95}}}}
@@ -21,7 +22,7 @@ use std::{
 };
 
 use serde_json::{json, Map, Value};
-use uwcc_core::{Crop, Delta, Detail, Geometry, LevelsDelta, Settings, Tone};
+use uwcc_core::{Crop, Delta, Detail, Geometry, LevelsDelta, Settings, Tone, DEFAULT_SHARPEN_RADIUS};
 
 use crate::{ExportTarget, SUBFOLDER};
 
@@ -169,6 +170,8 @@ pub fn settings_to_json(s: &Settings) -> Value {
         "detail": {
             "clarity": s.detail.clarity,
             "sharpen": s.detail.sharpen,
+            "sharpenRadius": s.detail.sharpen_radius,
+            "sharpenMask": s.detail.sharpen_mask,
             "noiseColor": s.detail.noise_color,
             "noiseLuma": s.detail.noise_luma,
         },
@@ -230,6 +233,11 @@ fn detail_from_json(g: Option<&Value>) -> Detail {
     Detail {
         clarity: group_f32(g, "clarity"),
         sharpen: group_f32(g, "sharpen"),
+        sharpen_radius: g
+            .and_then(|g| g.get("sharpenRadius"))
+            .and_then(Value::as_f64)
+            .map_or(DEFAULT_SHARPEN_RADIUS, |r| r as f32),
+        sharpen_mask: group_f32(g, "sharpenMask"),
         noise_color: group_f32(g, "noiseColor"),
         noise_luma: group_f32(g, "noiseLuma"),
     }
@@ -257,7 +265,14 @@ mod tests {
         s.delta.hue_shift = -12.0;
         s.delta.blue = LevelsDelta { low: 5.0, high: -8.0 };
         s.tone = Tone { exposure: 0.3, contrast: 12.0, highlights: -40.0, shadows: 25.5, dehaze: 60.0 };
-        s.detail = Detail { clarity: 20.0, sharpen: 35.0, noise_color: 50.0, noise_luma: 10.0 };
+        s.detail = Detail {
+            clarity: 20.0,
+            sharpen: 35.0,
+            sharpen_radius: 1.4,
+            sharpen_mask: 30.0,
+            noise_color: 50.0,
+            noise_luma: 10.0,
+        };
         s.geometry = Geometry {
             quarter_turns: 3,
             flip_horizontal: true,

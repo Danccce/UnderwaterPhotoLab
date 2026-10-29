@@ -25,15 +25,31 @@ impl Plane {
         self.data[y * self.width + x]
     }
 
-    /// Wendet `f` elementweise auf zwei gleich große Ebenen an.
-    pub fn zip(&self, other: &Plane, f: impl Fn(f32, f32) -> f32) -> Plane {
-        debug_assert_eq!((self.width, self.height), (other.width, other.height));
-        let data = self.data.iter().zip(&other.data).map(|(&a, &b)| f(a, b)).collect();
-        Plane { width: self.width, height: self.height, data }
+    /// Ebene aus `f(Index)`, bei großen Ebenen auf alle Kerne verteilt.
+    pub fn par_from(width: usize, height: usize, f: impl Fn(usize) -> f32 + Sync) -> Self {
+        let mut data = vec![0f32; width * height];
+        let chunk = data.len().div_ceil(threads(data.len())).max(1);
+        if chunk == data.len() {
+            data.iter_mut().enumerate().for_each(|(i, v)| *v = f(i));
+        } else {
+            thread::scope(|s| {
+                for (k, part) in data.chunks_mut(chunk).enumerate() {
+                    let f = &f;
+                    s.spawn(move || part.iter_mut().enumerate().for_each(|(i, v)| *v = f(k * chunk + i)));
+                }
+            });
+        }
+        Self { width, height, data }
     }
 
-    pub fn map(&self, f: impl Fn(f32) -> f32) -> Plane {
-        Plane { width: self.width, height: self.height, data: self.data.iter().map(|&v| f(v)).collect() }
+    /// Wendet `f` elementweise auf zwei gleich große Ebenen an.
+    pub fn zip(&self, other: &Plane, f: impl Fn(f32, f32) -> f32 + Sync) -> Plane {
+        debug_assert_eq!((self.width, self.height), (other.width, other.height));
+        Plane::par_from(self.width, self.height, |i| f(self.data[i], other.data[i]))
+    }
+
+    pub fn map(&self, f: impl Fn(f32) -> f32 + Sync) -> Plane {
+        Plane::par_from(self.width, self.height, |i| f(self.data[i]))
     }
 }
 
@@ -86,16 +102,18 @@ fn running_min(src: &[f32], len: usize, stride: usize, r: usize, out: &mut dyn F
 
 /// Box-Filter mit Radius `r` (Fenster `2r + 1`), getrennt in Zeilen und Spalten.
 pub fn box_blur(p: &Plane, r: usize) -> Plane {
-    separable(p, r, running_mean)
+    separable(p, r, running_mean, true)
 }
 
 /// Minimum über ein Quadrat mit Radius `r` (Fenster `2r + 1`).
 pub fn min_filter(p: &Plane, r: usize) -> Plane {
-    separable(p, r, running_min)
+    separable(p, r, running_min, false)
 }
 
 /// Wendet `line` erst auf alle Zeilen, dann auf alle Spalten an, jeweils auf alle Kerne verteilt.
-fn separable(p: &Plane, r: usize, line: LineFilter) -> Plane {
+/// Mit `mean_columns` laufen die Spalten als Mittelwert über laufende Summen je Spaltenstreifen,
+/// Zeile für Zeile: Spalte für Spalte springt der Zugriff bei großen Bildern ständig am Cache vorbei.
+fn separable(p: &Plane, r: usize, line: LineFilter, mean_columns: bool) -> Plane {
     if r == 0 || p.data.is_empty() {
         return p.clone();
     }
@@ -125,9 +143,30 @@ fn separable(p: &Plane, r: usize, line: LineFilter) -> Plane {
     let rows = &rows;
     let out_ptr = SharedOut(out.as_mut_ptr());
     let column_pass = |start: usize| {
-        for x in start..(start + cols).min(w) {
-            // SAFETY: jeder Aufruf schreibt nur seine eigenen Spalten `start..start + cols`.
-            line(&rows[x..], h, w, r, &mut |y, v| unsafe { *out_ptr.at(y * w + x) = v });
+        let end = (start + cols).min(w);
+        if mean_columns {
+            let n = (2 * r + 1) as f32;
+            let row = |y: isize| {
+                let y = y.clamp(0, h as isize - 1) as usize;
+                &rows[y * w + start..y * w + end]
+            };
+            let mut sum = vec![0f32; end - start];
+            for k in -(r as isize)..=r as isize {
+                sum.iter_mut().zip(row(k)).for_each(|(s, v)| *s += v);
+            }
+            for y in 0..h as isize {
+                for (j, s) in sum.iter().enumerate() {
+                    // SAFETY: jeder Aufruf schreibt nur seine eigenen Spalten `start..end`.
+                    unsafe { *out_ptr.at(y as usize * w + start + j) = s / n };
+                }
+                let (add, sub) = (row(y + r as isize + 1), row(y - r as isize));
+                sum.iter_mut().zip(add).zip(sub).for_each(|((s, a), b)| *s += a - b);
+            }
+        } else {
+            for x in start..end {
+                // SAFETY: wie oben, nur die eigenen Spalten.
+                line(&rows[x..], h, w, r, &mut |y, v| unsafe { *out_ptr.at(y * w + x) = v });
+            }
         }
     };
     if threads == 1 {
@@ -168,33 +207,51 @@ pub fn gaussian(p: &Plane, sigma: f32) -> Plane {
 /// `eps` steuert, ab welchem Kontrast (Varianz) eine Kante erhalten bleibt.
 pub fn guided_filter(guide: &Plane, src: &Plane, r: usize, eps: f32) -> Plane {
     let (mean_a, mean_b) = guided_coefficients(guide, src, r, eps);
-    Plane {
-        width: src.width,
-        height: src.height,
-        data: (0..src.data.len()).map(|i| mean_a.data[i] * guide.data[i] + mean_b.data[i]).collect(),
-    }
+    Plane::par_from(src.width, src.height, |i| mean_a.data[i] * guide.data[i] + mean_b.data[i])
+}
+
+/// Guided Filter für mehrere Ebenen mit demselben Leitbild; dessen Mittel und Varianz werden nur
+/// einmal gerechnet.
+pub fn guided_filter_many(guide: &Plane, srcs: &[&Plane], r: usize, eps: f32) -> Vec<Plane> {
+    let (w, h) = (guide.width, guide.height);
+    let mean_i = box_blur(guide, r);
+    let corr_ii = box_blur(&guide.map(|v| v * v), r);
+    srcs.iter()
+        .map(|src| {
+            let mean_p = box_blur(src, r);
+            let corr_ip = box_blur(&guide.zip(src, |a, b| a * b), r);
+            let a = Plane::par_from(w, h, |i| {
+                let (mi, mp) = (mean_i.data[i], mean_p.data[i]);
+                (corr_ip.data[i] - mi * mp) / (corr_ii.data[i] - mi * mi + eps)
+            });
+            let b = Plane::par_from(w, h, |i| mean_p.data[i] - a.data[i] * mean_i.data[i]);
+            let (a, b) = (box_blur(&a, r), box_blur(&b, r));
+            Plane::par_from(w, h, |i| a.data[i] * guide.data[i] + b.data[i])
+        })
+        .collect()
 }
 
 /// Die geglätteten Koeffizienten `a`, `b` des Guided Filters; das Ergebnis ist `a · guide + b`.
 /// Sie ändern sich nur langsam und lassen sich daher auf verkleinerter Auflösung rechnen und mit
 /// dem vollen Leitbild anwenden (Fast Guided Filter, He & Sun 2015).
 pub fn guided_coefficients(guide: &Plane, src: &Plane, r: usize, eps: f32) -> (Plane, Plane) {
+    let (w, h) = (src.width, src.height);
+    let same = std::ptr::eq(guide, src);
     let mean_i = box_blur(guide, r);
-    let mean_p = box_blur(src, r);
-    let corr_ii = box_blur(&guide.zip(guide, |a, b| a * b), r);
-    let corr_ip = box_blur(&guide.zip(src, |a, b| a * b), r);
-    let var_i = corr_ii.zip(&mean_i, |c, m| c - m * m);
-    let cov_ip = Plane {
-        width: src.width,
-        height: src.height,
-        data: (0..src.data.len()).map(|i| corr_ip.data[i] - mean_i.data[i] * mean_p.data[i]).collect(),
+    let corr_ii = box_blur(&guide.map(|v| v * v), r);
+    let (own_p, own_ip);
+    let (mean_p, corr_ip) = if same {
+        (&mean_i, &corr_ii)
+    } else {
+        own_p = box_blur(src, r);
+        own_ip = box_blur(&guide.zip(src, |a, b| a * b), r);
+        (&own_p, &own_ip)
     };
-    let a = cov_ip.zip(&var_i, |c, v| c / (v + eps));
-    let b = Plane {
-        width: src.width,
-        height: src.height,
-        data: (0..src.data.len()).map(|i| mean_p.data[i] - a.data[i] * mean_i.data[i]).collect(),
-    };
+    let a = Plane::par_from(w, h, |i| {
+        let (mi, mp) = (mean_i.data[i], mean_p.data[i]);
+        (corr_ip.data[i] - mi * mp) / (corr_ii.data[i] - mi * mi + eps)
+    });
+    let b = Plane::par_from(w, h, |i| mean_p.data[i] - a.data[i] * mean_i.data[i]);
     (box_blur(&a, r), box_blur(&b, r))
 }
 

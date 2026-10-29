@@ -47,14 +47,37 @@ pub struct Tone {
     pub dehaze: f32,
 }
 
-/// Details; 0 … 100, 0 = aus.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+/// Standard für [`Detail::sharpen_radius`].
+pub const DEFAULT_SHARPEN_RADIUS: f32 = 1.0;
+
+/// Details; 0 = aus.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Detail {
-    /// Lokaler Kontrast.
+    /// Lokaler Kontrast, −100 … +100.
     pub clarity: f32,
+    /// Schärfen, 0 … 100.
     pub sharpen: f32,
+    /// Radius des Schärfens in Pixeln des ganzen Bildes in voller Auflösung, 0,5 … 3.
+    pub sharpen_radius: f32,
+    /// 0 … 100: schärft nur Stellen mit so viel Struktur; glatte Flächen (Wasser) bleiben ruhig.
+    pub sharpen_mask: f32,
+    /// Farbrauschen reduzieren, 0 … 100.
     pub noise_color: f32,
+    /// Helligkeitsrauschen reduzieren, 0 … 100.
     pub noise_luma: f32,
+}
+
+impl Default for Detail {
+    fn default() -> Self {
+        Self {
+            clarity: 0.0,
+            sharpen: 0.0,
+            sharpen_radius: DEFAULT_SHARPEN_RADIUS,
+            sharpen_mask: 0.0,
+            noise_color: 0.0,
+            noise_luma: 0.0,
+        }
+    }
 }
 
 /// Ausschnitt in normalisierten Koordinaten (0–1) des gedrehten und geradegerichteten Bildes.
@@ -180,10 +203,16 @@ pub enum Field {
     Highlights,
     Shadows,
     Dehaze,
+    Clarity,
+    Sharpen,
+    SharpenRadius,
+    SharpenMask,
+    NoiseColor,
+    NoiseLuma,
 }
 
 impl Field {
-    pub const ALL: [Field; 17] = [
+    pub const ALL: [Field; 23] = [
         Field::Strength,
         Field::Temperature,
         Field::Tint,
@@ -201,6 +230,12 @@ impl Field {
         Field::Highlights,
         Field::Shadows,
         Field::Dehaze,
+        Field::Clarity,
+        Field::Sharpen,
+        Field::SharpenRadius,
+        Field::SharpenMask,
+        Field::NoiseColor,
+        Field::NoiseLuma,
     ];
 
     pub fn name(self) -> &'static str {
@@ -222,6 +257,12 @@ impl Field {
             Field::Highlights => "highlights",
             Field::Shadows => "shadows",
             Field::Dehaze => "dehaze",
+            Field::Clarity => "clarity",
+            Field::Sharpen => "sharpen",
+            Field::SharpenRadius => "sharpen-radius",
+            Field::SharpenMask => "sharpen-mask",
+            Field::NoiseColor => "noise-color",
+            Field::NoiseLuma => "noise-luma",
         }
     }
 
@@ -252,6 +293,12 @@ impl Settings {
             Field::Highlights => self.tone.highlights as f64,
             Field::Shadows => self.tone.shadows as f64,
             Field::Dehaze => self.tone.dehaze as f64,
+            Field::Clarity => self.detail.clarity as f64,
+            Field::Sharpen => self.detail.sharpen as f64,
+            Field::SharpenRadius => self.detail.sharpen_radius as f64,
+            Field::SharpenMask => self.detail.sharpen_mask as f64,
+            Field::NoiseColor => self.detail.noise_color as f64,
+            Field::NoiseLuma => self.detail.noise_luma as f64,
         }
     }
 
@@ -279,6 +326,12 @@ impl Settings {
             Field::Highlights => self.tone.highlights = value as f32,
             Field::Shadows => self.tone.shadows = value as f32,
             Field::Dehaze => self.tone.dehaze = value as f32,
+            Field::Clarity => self.detail.clarity = value as f32,
+            Field::Sharpen => self.detail.sharpen = value as f32,
+            Field::SharpenRadius => self.detail.sharpen_radius = value as f32,
+            Field::SharpenMask => self.detail.sharpen_mask = value as f32,
+            Field::NoiseColor => self.detail.noise_color = value as f32,
+            Field::NoiseLuma => self.detail.noise_luma = value as f32,
         }
     }
 }
@@ -339,6 +392,12 @@ impl Settings {
             Field::Highlights => self.tone.highlights = defaults.tone.highlights,
             Field::Shadows => self.tone.shadows = defaults.tone.shadows,
             Field::Dehaze => self.tone.dehaze = defaults.tone.dehaze,
+            Field::Clarity => self.detail.clarity = defaults.detail.clarity,
+            Field::Sharpen => self.detail.sharpen = defaults.detail.sharpen,
+            Field::SharpenRadius => self.detail.sharpen_radius = defaults.detail.sharpen_radius,
+            Field::SharpenMask => self.detail.sharpen_mask = defaults.detail.sharpen_mask,
+            Field::NoiseColor => self.detail.noise_color = defaults.detail.noise_color,
+            Field::NoiseLuma => self.detail.noise_luma = defaults.detail.noise_luma,
         }
     }
 }

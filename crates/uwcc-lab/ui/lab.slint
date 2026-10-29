@@ -501,6 +501,9 @@ export component LabWindow inherits Window {
                 "Dunst entfernen: nimmt den Schleier aus Schwebeteilchen heraus; die Wasserfarbe wird aus dem ganzen Bild geschätzt. Das Bild wird dabei oft dunkler – mit Belichtung oder Tiefen ausgleichen.",
                 "Belichtung: ±2 Blenden. Kontrast: S-Kurve, Schwarz und Weiß bleiben.",
                 "Lichter: helle Bereiche dunkler (−) oder heller (+). Tiefen: dunkle Bereiche heller (+) oder dunkler (−). Wirkt nach der Helligkeit der Umgebung, Details bleiben erhalten.",
+                "Details – Klarheit: Strukturen (Korallen, Schuppen) kräftiger (+) oder weicher (−), am stärksten in den Mitteltönen.",
+                "Schärfen mit Radius (Pixel des Originals) und Maskieren: je höher Maskieren, desto mehr bleiben glatte Flächen wie Wasser ungeschärft.",
+                "Rauschen: Farbe nimmt bunte Flecken (entstehen beim Anheben von Rot), Helligkeit glättet Körnung. Schärfen und Rauschen in der 100-%-Ansicht beurteilen.",
                 "Doppelklick auf einen Regler setzt nur diesen zurück; „Zurücksetzen“ setzt alle zurück.",
                 "Rückgängig: Strg+Z oder Pfeil nach links neben „Zurücksetzen“; Wiederholen: Strg+Y (oder Strg+Umschalt+Z) bzw. Pfeil nach rechts. Jedes Bild hat seinen eigenen Verlauf; ein Zug an einem Regler ist ein Schritt.",
             ],
@@ -553,6 +556,12 @@ export component LabWindow inherits Window {
     in-out property <float> v-highlights;
     in-out property <float> v-shadows;
     in-out property <float> v-dehaze;
+    in-out property <float> v-clarity;
+    in-out property <float> v-sharpen;
+    in-out property <float> v-sharpen-radius: 1;
+    in-out property <float> v-sharpen-mask;
+    in-out property <float> v-noise-color;
+    in-out property <float> v-noise-luma;
     // Reglergruppe unter dem Umschalter: 0 Farbe, 1 Ton, 2 Details.
     in-out property <int> panel-tab;
     in-out property <bool> picking;
@@ -1195,12 +1204,86 @@ export component LabWindow inherits Window {
                                     }
                                 }
 
-                                // Klarheit, Schärfen und Rauschreduzierung kommen mit Phase 10.
-                                if root.panel-tab == 2: Text {
-                                    text: "Klarheit, Schärfen und Rauschreduzierung folgen in einer der nächsten Versionen.";
-                                    wrap: word-wrap;
-                                    color: #8a8f98;
-                                    font-size: 12px;
+                                if root.panel-tab == 2: VerticalLayout {
+                                    spacing: 8px;
+                                    SliderRow {
+                                        label: "Klarheit";
+                                        text: (root.v-clarity > 0.5 ? "+" : "") + round(root.v-clarity);
+                                        minimum: -100;
+                                        maximum: 100;
+                                        value <=> root.v-clarity;
+                                        enabled: root.controls-enabled;
+                                        field: "clarity";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    Text {
+                                        text: "Schärfen und Rauschen in der 100-%-Ansicht beurteilen (Doppelklick oder Z).";
+                                        wrap: word-wrap;
+                                        color: #8a8f98;
+                                        font-size: 11px;
+                                    }
+                                    SliderRow {
+                                        label: "Schärfen";
+                                        text: round(root.v-sharpen);
+                                        minimum: 0;
+                                        maximum: 100;
+                                        value <=> root.v-sharpen;
+                                        enabled: root.controls-enabled;
+                                        field: "sharpen";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Radius";
+                                        text: round(root.v-sharpen-radius * 10) / 10 + " px";
+                                        minimum: 0.5;
+                                        maximum: 3;
+                                        value <=> root.v-sharpen-radius;
+                                        enabled: root.controls-enabled;
+                                        field: "sharpen-radius";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Maskieren";
+                                        text: round(root.v-sharpen-mask);
+                                        minimum: 0;
+                                        maximum: 100;
+                                        value <=> root.v-sharpen-mask;
+                                        enabled: root.controls-enabled;
+                                        field: "sharpen-mask";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Rauschen: Farbe";
+                                        text: round(root.v-noise-color);
+                                        minimum: 0;
+                                        maximum: 100;
+                                        value <=> root.v-noise-color;
+                                        enabled: root.controls-enabled;
+                                        field: "noise-color";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Rauschen: Helligkeit";
+                                        text: round(root.v-noise-luma);
+                                        minimum: 0;
+                                        maximum: 100;
+                                        value <=> root.v-noise-luma;
+                                        enabled: root.controls-enabled;
+                                        field: "noise-luma";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
                                 }
                             }
                         }
