@@ -108,8 +108,9 @@ Jede Phase endet mit grünen Tests, Messung gegen `uw-fotos` und eigenem Commit.
 - [x] 8.3 Histogramm (RGB) + Beschnitt-Warnung (Dreiecke, Taste J, farbige Markierung im Bild) (`a78cc83`)
 - [x] 8.4 100-%-Ansicht: Doppelklick/Taste Z, Verschieben per Ziehen; Ausschnitt in voller Auflösung rechnen (`11158ce`)
 - [x] 8.4b Stufenloser Zoom bis 400 %: Mausrad und Pinch (Windows meldet ihn als Strg+Rad) zoomen um den
-  Mauszeiger, zwei Finger auf dem Touchpad verschieben (Wunsch während Phase 8)
-- [x] 8.5 Rückgängig/Wiederholen je Bild (Strg+Z/Strg+Y)
+  Mauszeiger, zwei Finger auf dem Touchpad verschieben (Wunsch während Phase 8) (`d110575`, Touchbildschirm
+  `1aa1ac1`)
+- [x] 8.5 Rückgängig/Wiederholen je Bild (Strg+Z/Strg+Y) (`362505d`)
 
 Umgesetzt – Abweichungen und Details:
 
@@ -154,7 +155,7 @@ Umgesetzt – Abweichungen und Details:
 - [x] 9.3 Dehaze Unterwasser (UDCP aus Grün/Blau, Hintergrundlicht aus dem ganzen Bild, Regler 0–100)
 - [x] 9.4 Abgleich Vorschau ↔ Export (gleiche Wirkung trotz unterschiedlicher Auflösung, Test)
 
-Umgesetzt – Details:
+Alles in `2592afc`. Umgesetzt – Details:
 
 - **Pipeline:** `uwcc_core::PixelOps` teilt die Schritte je Pixel (Farbmatrix · Weißabgleich/Dynamik/Belichtung
   · Kontrast/Stärke); `uwcc_filters::render` setzt Dehaze nach der Farbmatrix und Lichter/Tiefen nach der
@@ -174,12 +175,33 @@ Umgesetzt – Details:
 - **9.4:** Tests: Vorschau (verkleinert gerechnet) ≈ Export (voll gerechnet, dann verkleinert), mittlere
   Abweichung < 4 von 255; Ausschnitt mit Rand = ganzes Bild (±1). Sichtprüfung mit `tone_samples`.
 
+### Zwischenschritt – Oberfläche aufgeräumt (Wünsche nach Phase 9)
+
+Mit Ton und Dehaze wurde die Reglerleiste länger als das Fenster; deshalb vor Phase 10:
+
+- [x] Umschalter **Farbe | Ton | Details** unter der Stärke; darunter nur die Regler der gewählten Gruppe.
+  „Details“ zeigt bis Phase 10 einen Hinweis. Der Umschalter ist allgemein (`Segmented` mit beliebig vielen
+  Teilen) und ersetzt auch „Original | Korrigiert“ in der Leiste (`13bd1b5`).
+- [x] **JPG-Qualität** aus der Reglerleiste in ein Menü am Pfeil neben „Aktuelles Bild exportieren“
+  („Export-Einstellungen“, schließt nur bei Klick daneben, damit der Regler sich ziehen lässt) (`2bb9f89`).
+- [x] **Original** und **Split-Ansicht** aus der Reglerleiste in die Leiste unter dem Bild, links vor dem
+  Ordnerpfad (`2bb9f89`); als flache 24-px-Knöpfe (`SmallButton`), damit sie in die Leiste passen (`d30c027`).
+- [x] **Bildinformationen** in einem Fenster links neben der Reglerleiste (Klick auf den Dateinamen); in der
+  Leiste bleibt die Kurzinfo (`4e1f2a7`).
+- [x] **Feste Reglerleiste:** fest stehen Histogramm, Dateiname mit Kurzinfo, Auto/Zurücksetzen/Rückgängig,
+  Stärke und der Umschalter; nur die Regler der Gruppe scrollen. „Mehrere Bilder“ und Export bleiben unten
+  fest (`4e1f2a7`).
+- [x] **Eine Markierungsfarbe:** alle Hervorhebungen (Umschalter, Knöpfe, aktuelles Bild in der Leiste,
+  Split-Griff, Menüs) nutzen `Palette.accent-background` wie Regler, Checkbox und Hauptknopf; halbtransparente
+  Flächen werden daraus abgeleitet (`25c7241`).
+
 ### Phase 10 – Details
 
 - [ ] 10.1 Klarheit (großer Radius, nur Luminanz)
 - [ ] 10.2 Farbrauschen reduzieren (Chroma-Glättung kantenerhaltend)
 - [ ] 10.3 Luminanzrauschen, einfache Stufe
 - [ ] 10.4 Schärfen: Stärke, Radius, Schwelle (Maske ab Schwelle, damit Wasser glatt bleibt)
+- [ ] 10.5 Regler in die Gruppe „Details“ des Umschalters (ersetzt den Hinweis)
 
 ### Phase 11 – Zuschneiden und Ausrichten
 
@@ -217,3 +239,8 @@ Zurückgestellt (Entscheidung): Bewertung/Auswahl der Guten (Markieren, Sterne) 
 | Export-Profil „Web“ | nein, nur volle Größe |
 | RAW (z. B. ORF) | nein, es bleibt bei JPG |
 | Reihenfolge | Phase 8 Grundlagen, dann Ton + Dehaze (9), Details (10), Zuschneiden (11), Viele Bilder (12) |
+| Reglerleiste | Gruppen Farbe / Ton / Details per Umschalter; nur die Regler scrollen, der Rest steht fest |
+| Ansicht-Knöpfe | Original und Split-Ansicht unter dem Bild, nicht in der Reglerleiste |
+| JPG-Qualität | im Menü am Export-Knopf, nicht in der Reglerleiste |
+| Markierungsfarbe | eine für alles: die Akzentfarbe der Slint-Palette |
+| Versionsverwaltung | GitHub [Danccce/UnderwaterPhotoLab](https://github.com/Danccce/UnderwaterPhotoLab), Commits mit der noreply-Adresse |
