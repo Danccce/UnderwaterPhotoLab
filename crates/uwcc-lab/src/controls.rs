@@ -70,7 +70,7 @@ pub fn heal_click(app: &LabWindow, ox: f32, oy: f32) {
     let mut full = false;
     update(app, None, |s, _| full = !s.spots.push(spot));
     if full {
-        app.set_status(format!("Höchstens {MAX_SPOTS} Partikel je Bild.").into());
+        app.invoke_notify(format!("Höchstens {MAX_SPOTS} Partikel je Bild.").into());
     }
 }
 
@@ -102,14 +102,14 @@ pub fn pick(app: &LabWindow, fx: f32, fy: f32) {
         Some(average(img, (fx * img.width() as f32) as u32, (fy * img.height() as f32) as u32))
     });
     let Some((r, g, b)) = sample else {
-        app.set_status("Pipette: bitte auf eine Stelle im Bild klicken.".into());
+        app.invoke_notify("Pipette: bitte auf eine Stelle im Bild klicken.".into());
         return;
     };
     update(app, None, |s, auto| {
         (s.temperature, s.tint) = s.white_balance_from_sample(auto, r, g, b);
     });
     let s = app.get_v_temperature();
-    app.set_status(format!("Pipette: Temperatur {s:+.0}, Grün ↔ Magenta {:+.0}", app.get_v_tint()).into());
+    app.invoke_notify(format!("Pipette: Temperatur {s:+.0}, Grün ↔ Magenta {:+.0}", app.get_v_tint()).into());
 }
 
 /// Mittelwert eines 5 × 5-Feldes um `(x, y)`, als 0–1.
@@ -199,7 +199,6 @@ pub fn refresh(app: &LabWindow) {
             Field::Temperature => app.set_v_temperature(v),
             Field::Tint => app.set_v_tint(v),
             Field::Vibrance => app.set_v_vibrance(v),
-            Field::RedLimit => app.set_v_red_limit(v),
             Field::HueShift => app.set_v_hue(v),
             Field::Exposure => app.set_v_exposure(v),
             Field::Contrast => app.set_v_contrast(v),
@@ -208,23 +207,20 @@ pub fn refresh(app: &LabWindow) {
             Field::Dehaze => app.set_v_dehaze(v),
             Field::Clarity => app.set_v_clarity(v),
             Field::Sharpen => app.set_v_sharpen(v),
-            Field::SharpenRadius => app.set_v_sharpen_radius(v),
-            Field::SharpenMask => app.set_v_sharpen_mask(v),
-            Field::NoiseColor => app.set_v_noise_color(v),
-            Field::NoiseLuma => app.set_v_noise_luma(v),
+            Field::Noise => app.set_v_noise(v),
             Field::Straighten => app.set_v_straighten(v),
             Field::Vignette => app.set_v_vignette(v),
             Field::WaterHue => app.set_v_water_hue(v),
             Field::WaterSaturation => app.set_v_water_saturation(v),
-            Field::WaterLuminance => app.set_v_water_luminance(v),
-            Field::CyanHue => app.set_v_cyan_hue(v),
-            Field::CyanSaturation => app.set_v_cyan_saturation(v),
-            Field::CyanLuminance => app.set_v_cyan_luminance(v),
-            Field::WarmHue => app.set_v_warm_hue(v),
             Field::WarmSaturation => app.set_v_warm_saturation(v),
-            Field::WarmLuminance => app.set_v_warm_luminance(v),
-            // Die Levels je Kanal stellt nur die Auto-Analyse ein; im Fenster gibt es dafür keine Regler.
-            Field::RedLow | Field::RedHigh | Field::GreenLow | Field::GreenHigh | Field::BlueLow | Field::BlueHigh => {}
+            // Keine Regler: die Levels je Kanal stellt die Auto-Analyse ein, die Rot-Obergrenze bleibt fest.
+            Field::RedLimit
+            | Field::RedLow
+            | Field::RedHigh
+            | Field::GreenLow
+            | Field::GreenHigh
+            | Field::BlueLow
+            | Field::BlueHigh => {}
         }
     }
 

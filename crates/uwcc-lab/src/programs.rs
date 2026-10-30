@@ -251,16 +251,16 @@ fn launch_now(app: &LabWindow, targets: Vec<PathBuf>) {
         .filter(|p| p.is_file())
         .collect();
     if files.is_empty() {
-        app.set_status("Keine exportierte Datei zum Öffnen gefunden.".into());
+        app.invoke_notify("Keine exportierte Datei zum Öffnen gefunden.".into());
         return;
     }
     let n = files.len();
     match launch(&program, &files, &folder) {
-        Ok(()) => app.set_status(
+        Ok(()) => app.invoke_notify(
             if n == 1 { format!("In {} geöffnet.", program.name) } else { format!("{n} Bilder an {} übergeben.", program.name) }
                 .into(),
         ),
-        Err(e) => app.set_status(format!("{} ließ sich nicht starten: {e}", program.name).into()),
+        Err(e) => app.invoke_notify(format!("{} ließ sich nicht starten: {e}", program.name).into()),
     }
 }
 

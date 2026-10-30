@@ -14,7 +14,7 @@ pub mod params;
 pub use adjust::{
     luminance, process_rgba8, unit_rgb, ColorRange, Crop, Delta, Detail, Effects, Field, Geometry, Groups, LevelsDelta,
     PixelOps, Settings, Spot, Spots, Tone, MAX_SPOTS,
-    DEFAULT_SHARPEN_RADIUS,
+    DEFAULT_SHARPEN_MASK, DEFAULT_SHARPEN_RADIUS,
 };
 
 use core::f64::consts::PI;

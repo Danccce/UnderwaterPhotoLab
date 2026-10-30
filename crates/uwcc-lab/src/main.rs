@@ -415,7 +415,7 @@ fn update_config(app: &LabWindow, f: impl FnOnce(&mut config::Config)) {
         st.config.clone()
     });
     if let Err(e) = config::save(&cfg) {
-        app.set_status(format!("Einstellungen nicht gespeichert: {e}").into());
+        app.invoke_notify(format!("Einstellungen nicht gespeichert: {e}").into());
     }
     store::refresh_marks(app);
 }
@@ -431,13 +431,13 @@ fn open(app: &LabWindow, path: &Path) {
         }
     };
     if with_state(|st| st.export_cancel.is_some()) {
-        app.set_status("Bitte warten, bis der Export fertig ist.".into());
+        app.invoke_notify("Bitte warten, bis der Export fertig ist.".into());
         return;
     }
     let files = match uwcc_photo::scan_folder(&dir) {
         Ok(files) => files,
         Err(e) => {
-            app.set_status(e.into());
+            app.invoke_notify(e.into());
             return;
         }
     };
@@ -467,7 +467,7 @@ fn open(app: &LabWindow, path: &Path) {
     info::clear(app);
     app.set_current(-1);
     if files.is_empty() {
-        app.set_status("Keine Bilder (JPG, PNG, TIFF) in diesem Ordner.".into());
+        app.invoke_notify("Keine Bilder (JPG, PNG, TIFF) in diesem Ordner.".into());
     }
 
     let selected = wanted.and_then(|w| files.iter().position(|f| *f == w)).unwrap_or(0);

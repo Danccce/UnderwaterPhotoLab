@@ -49,6 +49,11 @@ pub struct Tone {
 
 /// Standard für [`Detail::sharpen_radius`].
 pub const DEFAULT_SHARPEN_RADIUS: f32 = 1.0;
+/// Standard für [`Detail::sharpen_mask`]: freies Wasser bleibt ruhig, Strukturen werden geschärft.
+pub const DEFAULT_SHARPEN_MASK: f32 = 30.0;
+/// Der eine Regler „Rauschen entfernen“ setzt das Helligkeitsrauschen auf diesen Anteil des
+/// Farbrauschens; mehr wirkt schnell wachsartig.
+const NOISE_LUMA_SHARE: f32 = 0.3;
 
 /// Details; 0 = aus.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -73,10 +78,27 @@ impl Default for Detail {
             clarity: 0.0,
             sharpen: 0.0,
             sharpen_radius: DEFAULT_SHARPEN_RADIUS,
-            sharpen_mask: 0.0,
+            sharpen_mask: DEFAULT_SHARPEN_MASK,
             noise_color: 0.0,
             noise_luma: 0.0,
         }
+    }
+}
+
+impl Detail {
+    /// Schärfen mit festem Radius und Maskieren (Regler „Schärfen“).
+    pub fn with_sharpen(self, amount: f32) -> Self {
+        Self {
+            sharpen: amount,
+            sharpen_radius: DEFAULT_SHARPEN_RADIUS,
+            sharpen_mask: DEFAULT_SHARPEN_MASK,
+            ..self
+        }
+    }
+
+    /// Farb- und Helligkeitsrauschen zusammen (Regler „Rauschen entfernen“).
+    pub fn with_noise(self, amount: f32) -> Self {
+        Self { noise_color: amount, noise_luma: amount * NOISE_LUMA_SHARE, ..self }
     }
 }
 
@@ -339,48 +361,43 @@ pub enum Field {
     Shadows,
     Dehaze,
     Clarity,
+    /// Schärfen mit festem Radius und Maskieren.
     Sharpen,
-    SharpenRadius,
-    SharpenMask,
-    NoiseColor,
-    NoiseLuma,
+    /// Farb- und Helligkeitsrauschen zusammen.
+    Noise,
     Straighten,
     Vignette,
+    /// Farbton von Wasserblau und Cyan zusammen.
     WaterHue,
+    /// Sättigung von Wasserblau und Cyan zusammen.
     WaterSaturation,
-    WaterLuminance,
-    CyanHue,
-    CyanSaturation,
-    CyanLuminance,
-    WarmHue,
+    /// Sättigung von Orange/Gelb (Fische, Korallen).
     WarmSaturation,
-    WarmLuminance,
 }
 
 /// Wert eines Effekt-Feldes; `None` für alle anderen Felder.
 fn effects_value(e: &Effects, field: Field) -> Option<f32> {
-    let mut copy = *e;
-    effects_slot(&mut copy, field).map(|v| *v)
-}
-
-fn effects_slot(e: &mut Effects, field: Field) -> Option<&mut f32> {
     Some(match field {
-        Field::Vignette => &mut e.vignette,
-        Field::WaterHue => &mut e.water.hue,
-        Field::WaterSaturation => &mut e.water.saturation,
-        Field::WaterLuminance => &mut e.water.luminance,
-        Field::CyanHue => &mut e.cyan.hue,
-        Field::CyanSaturation => &mut e.cyan.saturation,
-        Field::CyanLuminance => &mut e.cyan.luminance,
-        Field::WarmHue => &mut e.warm.hue,
-        Field::WarmSaturation => &mut e.warm.saturation,
-        Field::WarmLuminance => &mut e.warm.luminance,
+        Field::Vignette => e.vignette,
+        Field::WaterHue => e.water.hue,
+        Field::WaterSaturation => e.water.saturation,
+        Field::WarmSaturation => e.warm.saturation,
         _ => return None,
     })
 }
 
+fn set_effects(e: &mut Effects, field: Field, value: f32) {
+    match field {
+        Field::Vignette => e.vignette = value,
+        Field::WaterHue => (e.water.hue, e.cyan.hue) = (value, value),
+        Field::WaterSaturation => (e.water.saturation, e.cyan.saturation) = (value, value),
+        Field::WarmSaturation => e.warm.saturation = value,
+        _ => {}
+    }
+}
+
 impl Field {
-    pub const ALL: [Field; 34] = [
+    pub const ALL: [Field; 25] = [
         Field::Strength,
         Field::Temperature,
         Field::Tint,
@@ -400,21 +417,12 @@ impl Field {
         Field::Dehaze,
         Field::Clarity,
         Field::Sharpen,
-        Field::SharpenRadius,
-        Field::SharpenMask,
-        Field::NoiseColor,
-        Field::NoiseLuma,
+        Field::Noise,
         Field::Straighten,
         Field::Vignette,
         Field::WaterHue,
         Field::WaterSaturation,
-        Field::WaterLuminance,
-        Field::CyanHue,
-        Field::CyanSaturation,
-        Field::CyanLuminance,
-        Field::WarmHue,
         Field::WarmSaturation,
-        Field::WarmLuminance,
     ];
 
     pub fn name(self) -> &'static str {
@@ -438,21 +446,12 @@ impl Field {
             Field::Dehaze => "dehaze",
             Field::Clarity => "clarity",
             Field::Sharpen => "sharpen",
-            Field::SharpenRadius => "sharpen-radius",
-            Field::SharpenMask => "sharpen-mask",
-            Field::NoiseColor => "noise-color",
-            Field::NoiseLuma => "noise-luma",
+            Field::Noise => "noise",
             Field::Straighten => "straighten",
             Field::Vignette => "vignette",
             Field::WaterHue => "water-hue",
             Field::WaterSaturation => "water-saturation",
-            Field::WaterLuminance => "water-luminance",
-            Field::CyanHue => "cyan-hue",
-            Field::CyanSaturation => "cyan-saturation",
-            Field::CyanLuminance => "cyan-luminance",
-            Field::WarmHue => "warm-hue",
             Field::WarmSaturation => "warm-saturation",
-            Field::WarmLuminance => "warm-luminance",
         }
     }
 
@@ -485,10 +484,7 @@ impl Settings {
             Field::Dehaze => self.tone.dehaze as f64,
             Field::Clarity => self.detail.clarity as f64,
             Field::Sharpen => self.detail.sharpen as f64,
-            Field::SharpenRadius => self.detail.sharpen_radius as f64,
-            Field::SharpenMask => self.detail.sharpen_mask as f64,
-            Field::NoiseColor => self.detail.noise_color as f64,
-            Field::NoiseLuma => self.detail.noise_luma as f64,
+            Field::Noise => self.detail.noise_color as f64,
             Field::Straighten => self.geometry.straighten as f64,
             _ => effects_value(&self.effects, field).unwrap_or(0.0) as f64,
         }
@@ -519,17 +515,10 @@ impl Settings {
             Field::Shadows => self.tone.shadows = value as f32,
             Field::Dehaze => self.tone.dehaze = value as f32,
             Field::Clarity => self.detail.clarity = value as f32,
-            Field::Sharpen => self.detail.sharpen = value as f32,
-            Field::SharpenRadius => self.detail.sharpen_radius = value as f32,
-            Field::SharpenMask => self.detail.sharpen_mask = value as f32,
-            Field::NoiseColor => self.detail.noise_color = value as f32,
-            Field::NoiseLuma => self.detail.noise_luma = value as f32,
+            Field::Sharpen => self.detail = self.detail.with_sharpen(value as f32),
+            Field::Noise => self.detail = self.detail.with_noise(value as f32),
             Field::Straighten => self.geometry.straighten = (value as f32).clamp(-45.0, 45.0),
-            _ => {
-                if let Some(v) = effects_slot(&mut self.effects, field) {
-                    *v = (value as f32).clamp(-100.0, 100.0);
-                }
-            }
+            _ => set_effects(&mut self.effects, field, (value as f32).clamp(-100.0, 100.0)),
         }
     }
 }
@@ -617,17 +606,10 @@ impl Settings {
             Field::Shadows => self.tone.shadows = defaults.tone.shadows,
             Field::Dehaze => self.tone.dehaze = defaults.tone.dehaze,
             Field::Clarity => self.detail.clarity = defaults.detail.clarity,
-            Field::Sharpen => self.detail.sharpen = defaults.detail.sharpen,
-            Field::SharpenRadius => self.detail.sharpen_radius = defaults.detail.sharpen_radius,
-            Field::SharpenMask => self.detail.sharpen_mask = defaults.detail.sharpen_mask,
-            Field::NoiseColor => self.detail.noise_color = defaults.detail.noise_color,
-            Field::NoiseLuma => self.detail.noise_luma = defaults.detail.noise_luma,
+            Field::Sharpen => self.detail = self.detail.with_sharpen(defaults.detail.sharpen),
+            Field::Noise => self.detail = self.detail.with_noise(defaults.detail.noise_color),
             Field::Straighten => self.geometry.straighten = defaults.geometry.straighten,
-            _ => {
-                if let Some(v) = effects_slot(&mut self.effects, field) {
-                    *v = 0.0;
-                }
-            }
+            _ => set_effects(&mut self.effects, field, 0.0),
         }
     }
 }
@@ -1059,6 +1041,27 @@ mod tests {
         let [r, _, b] = ops.color([0.8, 0.5, 0.3]);
         assert!(r - b > 0.8 - 0.3, "Orange kräftiger");
         assert_eq!(Settings::default().effective(Field::WarmSaturation, &AUTO), 0.0);
+    }
+
+    #[test]
+    fn combined_fields_set_and_reset_their_parts() {
+        let mut s = Settings::default();
+        s.detail.sharpen_radius = 2.5;
+        s.detail.sharpen_mask = 0.0;
+        s.set_effective(Field::Sharpen, 40.0, &AUTO);
+        assert_eq!(s.detail, Detail { sharpen: 40.0, ..Detail::default() }, "Radius und Maskieren fest");
+        s.set_effective(Field::Noise, 50.0, &AUTO);
+        assert_eq!(s.detail.noise_color, 50.0);
+        assert!((s.detail.noise_luma - 15.0).abs() < 1e-4);
+        assert_eq!(s.effective(Field::Noise, &AUTO), 50.0);
+        s.set_effective(Field::WaterHue, 20.0, &AUTO);
+        s.set_effective(Field::WaterSaturation, -30.0, &AUTO);
+        assert_eq!((s.effects.water.hue, s.effects.cyan.hue), (20.0, 20.0));
+        assert_eq!((s.effects.water.saturation, s.effects.cyan.saturation), (-30.0, -30.0));
+        for f in [Field::Sharpen, Field::Noise, Field::WaterHue, Field::WaterSaturation] {
+            s.reset_field(f, &AUTO);
+        }
+        assert_eq!(s, Settings::default());
     }
 
     #[test]

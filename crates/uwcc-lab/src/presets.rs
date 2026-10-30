@@ -38,7 +38,7 @@ pub fn builtin() -> Vec<Preset> {
                 tint: 25.0,
                 vibrance: 10.0,
                 tone: Tone { contrast: 10.0, dehaze: 35.0, ..Tone::default() },
-                detail: Detail { clarity: 10.0, noise_color: 20.0, ..Detail::default() },
+                detail: Detail { clarity: 10.0, ..Detail::default() }.with_noise(20.0),
                 ..Settings::default()
             },
         ),
@@ -48,7 +48,7 @@ pub fn builtin() -> Vec<Preset> {
                 strength: 0.5,
                 vibrance: 10.0,
                 tone: Tone { shadows: 10.0, ..Tone::default() },
-                detail: Detail { clarity: 10.0, noise_color: 20.0, ..Detail::default() },
+                detail: Detail { clarity: 10.0, ..Detail::default() }.with_noise(20.0),
                 ..Settings::default()
             },
         ),
@@ -121,7 +121,7 @@ pub fn apply(app: &LabWindow, index: usize) {
     let groups = Groups { color: true, tone: true, detail: true, geometry: false };
     let n = selection::apply(app, &targets, |s| s.with_groups(&preset.settings, groups));
     let what = if n == 1 { "das Bild".to_owned() } else { format!("{n} Bilder") };
-    app.set_status(format!("Preset „{}“ auf {what} angewendet.", preset.name).into());
+    app.invoke_notify(format!("Preset „{}“ auf {what} angewendet.", preset.name).into());
 }
 
 /// Die Einstellungen des aktuellen Bildes (ohne Drehen und Zuschnitt) als eigenes Preset; ein
@@ -141,8 +141,8 @@ pub fn save_current(app: &LabWindow, name: &str) {
         Some(save_user(&st.presets))
     });
     match result {
-        Some(Ok(())) => app.set_status(format!("Preset „{name}“ gespeichert.").into()),
-        Some(Err(e)) => app.set_status(format!("Preset nicht gespeichert: {e}").into()),
+        Some(Ok(())) => app.invoke_notify(format!("Preset „{name}“ gespeichert.").into()),
+        Some(Err(e)) => app.invoke_notify(format!("Preset nicht gespeichert: {e}").into()),
         None => return,
     }
     show(app);
@@ -157,7 +157,7 @@ pub fn delete(app: &LabWindow, index: usize) {
         Some((removed.name, save_user(&st.presets)))
     });
     if let Some((name, saved)) = result {
-        app.set_status(match saved {
+        app.invoke_notify(match saved {
             Ok(()) => format!("Preset „{name}“ gelöscht.").into(),
             Err(e) => format!("Preset nicht gelöscht: {e}").into(),
         });

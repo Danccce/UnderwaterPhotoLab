@@ -31,13 +31,16 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 - **Temperatur** und **Grün ↔ Magenta:** Reststich ausgleichen.
 - **Pipette:** Knopf drücken, dann eine eigentlich neutrale Stelle anklicken (Sand, Flosse, Graukarte).
 - **Dynamik:** schwache Farben kräftiger, kräftige bleiben.
-- **Rot-Obergrenze:** begrenzt, wie stark der Rotkanal angehoben wird (weniger Rauschen).
 
 Die Regler sind in Gruppen geteilt: der Umschalter **Farbe | Ton | Details** unter der Stärke zeigt die jeweilige Gruppe. Die Einstellungen der anderen Gruppen bleiben dabei wirksam. Die Regler oben gehören zu „Farbe“.
 
 ### Farbmischer (unten im Reiter „Farbe“)
 
-Drei Farbbereiche, umschaltbar: **Wasserblau**, **Cyan** und **Orange/Gelb** (Fische, Korallen, Haut). Je Bereich **Farbton** (±30°), **Sättigung** und **Helligkeit**. Wirkt weich um die Mitte des Bereichs und kaum auf fast graue Stellen – z. B. Wasser etwas dunkler und blasser, damit Orange und Gelb hervortreten.
+- **Wasserfarbe:** dreht den Farbton von Blau und Cyan (±30°) – z. B. grünstichiges Wasser blauer.
+- **Wasser-Sättigung:** Wasser kräftiger (+) oder blasser (−).
+- **Fische/Korallen-Sättigung:** Orange und Gelb (Fische, Korallen, Haut) kräftiger oder blasser.
+
+Wirkt weich um die Mitte der Farbbereiche und kaum auf fast graue Stellen – z. B. Wasser etwas blasser, damit Orange und Gelb hervortreten.
 
 ### Ton (Umschalter „Ton“)
 
@@ -52,8 +55,8 @@ Drei Farbbereiche, umschaltbar: **Wasserblau**, **Cyan** und **Orange/Gelb** (Fi
 Schärfen und Rauschreduzierung wirken auf einzelne Pixel; die verkleinerte Ansicht zeigt sie nur ungefähr. Zum genauen Beurteilen in die **100-%-Ansicht** gehen (Doppelklick ins Bild oder Taste **Z**). Der zuletzt gewählte Reiter (Farbe, Ton, Details) bleibt beim nächsten Start erhalten.
 
 - **Klarheit:** Strukturen wie Korallen und Schuppen kräftiger (+) oder weicher (−); wirkt am stärksten in den Mitteltönen, ohne Lichthöfe an Kanten.
-- **Schärfen:** Stärke des Schärfens. **Radius:** Größe der geschärften Details in Pixeln des Originals (0,5–3; Standard 1). **Maskieren:** je höher, desto mehr bleiben glatte Flächen wie freies Wasser ungeschärft – nur Strukturen werden geschärft.
-- **Rauschen: Farbe:** nimmt bunte Flecken heraus, die beim Anheben von Rot in dunklen Bereichen entstehen. **Rauschen: Helligkeit:** glättet Körnung (hohe ISO); zu viel wirkt wachsartig.
+- **Schärfen:** schärft feine Strukturen (Radius 1 Pixel des Originals); glatte Flächen wie freies Wasser bleiben ungeschärft.
+- **Rauschen entfernen:** nimmt vor allem die bunten Flecken heraus, die beim Anheben von Rot in dunklen Bereichen entstehen, und glättet die Körnung (hohe ISO) leicht mit.
 - **Doppelklick auf einen Regler** setzt nur diesen zurück; „Zurücksetzen“ setzt alle zurück.
 - **Rückgängig / Wiederholen:** **Strg+Z** bzw. **Strg+Y** (oder Strg+Umschalt+Z), oder die Pfeile neben „Zurücksetzen“. Jedes Bild hat seinen eigenen Verlauf (bis 100 Schritte, solange das Programm läuft); ein Zug an einem Regler zählt als ein Schritt. Auch eine Übernahme auf mehrere Bilder lässt sich je Bild zurücknehmen.
 

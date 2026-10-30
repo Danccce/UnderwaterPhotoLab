@@ -323,6 +323,14 @@ Größe 4–120 px (Bildschirm), „Alle entfernen“; Strg+Z nimmt zurück.
   korallenorange für das wiederhergestellte Rot, Luftblasen) in 16–256 px und packt `icon.ico`; Fenster über
   Slint (`icon`), .exe über `app.rc` und `embed-resource` (windres der MinGW-Toolchain).
 
+Nachgeschärft – weniger Regler (27 → 18): Rot-Obergrenze ohne Regler (bleibt beim gespeicherten Wert,
+Standard 4). Schärfen ein Regler mit festem Radius 1 px und Maskieren 30 (`Detail::with_sharpen`;
+`DEFAULT_SHARPEN_MASK`, auch für `.uwcc.json` ohne `sharpenMask`). „Rauschen entfernen“ statt zwei Reglern:
+Farbe = Wert, Helligkeit = 0,3 × Wert (`Detail::with_noise`). Farbmischer ohne Umschalter: „Wasserfarbe“ und
+„Wasser-Sättigung“ setzen Wasserblau und Cyan gemeinsam, dazu „Fische/Korallen-Sättigung“ (Orange/Gelb).
+Ältere Bilder behalten Werte der entfernten Regler bis „Zurücksetzen“. Meldungen unten im Bild über
+`notify()`; sie verschwinden nach 5 s, auch eine gleichlautende erscheint erneut.
+
 ## Nicht in v2
 
 - Lokale Masken, Pinsel, Ebenen, Montagen, Text
@@ -338,6 +346,7 @@ Größe 4–120 px (Bildschirm), „Alle entfernen“; Strg+Z nimmt zurück.
 | RAW (z. B. ORF) | nein, es bleibt bei JPG |
 | Reihenfolge | Phase 8 Grundlagen, dann Ton + Dehaze (9), Details (10), Zuschneiden (11), Viele Bilder (12) |
 | Reglerleiste | Gruppen Farbe / Ton / Details per Umschalter; nur die Regler scrollen, der Rest steht fest |
+| Anzahl Regler | so wenige wie möglich: keine Rot-Obergrenze, Schärfen und Rauschen je ein Regler, Farbmischer drei Regler |
 | Ansicht-Knöpfe | Original und Split-Ansicht unter dem Bild, nicht in der Reglerleiste |
 | JPG-Qualität | im Menü am Export-Knopf, nicht in der Reglerleiste |
 | Markierungsfarbe | eine für alles: die Akzentfarbe der Slint-Palette |

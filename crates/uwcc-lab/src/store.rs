@@ -74,7 +74,7 @@ pub fn save_now(app: &LabWindow) {
         Some(sidecar::save(&dir, &sc))
     });
     if let Some(Err(e)) = result {
-        app.set_status(format!("Einstellungen nicht gespeichert: {e}").into());
+        app.invoke_notify(format!("Einstellungen nicht gespeichert: {e}").into());
     }
 }
 

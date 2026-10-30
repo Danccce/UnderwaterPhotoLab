@@ -103,7 +103,7 @@ fn finish(app: &LabWindow, finished: usize, total: usize) {
     if let Some(first) = errors.first() {
         msg.push_str(&format!("\n{} Fehler, z. B.: {first}", errors.len()));
     }
-    app.set_status(msg.into());
+    app.invoke_notify(msg.into());
     store::refresh_marks(app);
     store::save_now(app);
     crate::programs::after_export(app, finished == total && errors.is_empty());

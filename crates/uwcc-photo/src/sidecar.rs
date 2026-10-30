@@ -6,7 +6,7 @@
 //!     "settings": {"auto": true, "strength": 1, "temperature": 0, "tint": 0, "vibrance": 0,
 //!                  "redLimit": 4, "delta": {"hueShift": 0, "red": [0, 0], "green": [0, 0], "blue": [0, 0]},
 //!                  "tone": {"exposure": 0, "contrast": 0, "highlights": 0, "shadows": 0, "dehaze": 0},
-//!                  "detail": {"clarity": 0, "sharpen": 0, "sharpenRadius": 1, "sharpenMask": 0,
+//!                  "detail": {"clarity": 0, "sharpen": 0, "sharpenRadius": 1, "sharpenMask": 30,
 //!                             "noiseColor": 0, "noiseLuma": 0},
 //!                  "geometry": {"quarterTurns": 0, "flipHorizontal": false, "straighten": 0,
 //!                               "crop": {"x": 0, "y": 0, "width": 1, "height": 1}}},
@@ -23,7 +23,8 @@ use std::{
 
 use serde_json::{json, Map, Value};
 use uwcc_core::{
-    ColorRange, Crop, Delta, Detail, Effects, Geometry, LevelsDelta, Settings, Spot, Spots, Tone, DEFAULT_SHARPEN_RADIUS,
+    ColorRange, Crop, Delta, Detail, Effects, Geometry, LevelsDelta, Settings, Spot, Spots, Tone, DEFAULT_SHARPEN_MASK,
+    DEFAULT_SHARPEN_RADIUS,
 };
 
 use crate::{ExportTarget, SUBFOLDER};
@@ -250,7 +251,11 @@ pub fn settings_from_json(v: &Value) -> Settings {
 
 /// Zahl aus einer Gruppe als `f32`, sonst 0 (neutral).
 fn group_f32(group: Option<&Value>, key: &str) -> f32 {
-    group.and_then(|g| g.get(key)).and_then(Value::as_f64).unwrap_or(0.0) as f32
+    group_f32_or(group, key, 0.0)
+}
+
+fn group_f32_or(group: Option<&Value>, key: &str, missing: f32) -> f32 {
+    group.and_then(|g| g.get(key)).and_then(Value::as_f64).map_or(missing, |v| v as f32)
 }
 
 fn tone_from_json(g: Option<&Value>) -> Tone {
@@ -267,11 +272,8 @@ fn detail_from_json(g: Option<&Value>) -> Detail {
     Detail {
         clarity: group_f32(g, "clarity"),
         sharpen: group_f32(g, "sharpen"),
-        sharpen_radius: g
-            .and_then(|g| g.get("sharpenRadius"))
-            .and_then(Value::as_f64)
-            .map_or(DEFAULT_SHARPEN_RADIUS, |r| r as f32),
-        sharpen_mask: group_f32(g, "sharpenMask"),
+        sharpen_radius: group_f32_or(g, "sharpenRadius", DEFAULT_SHARPEN_RADIUS),
+        sharpen_mask: group_f32_or(g, "sharpenMask", DEFAULT_SHARPEN_MASK),
         noise_color: group_f32(g, "noiseColor"),
         noise_luma: group_f32(g, "noiseLuma"),
     }

@@ -99,7 +99,7 @@ pub fn transfer(app: &LabWindow, mode: Transfer) {
         Transfer::Fixed => "gleiche Werte",
         Transfer::Relative => "Auto + Abweichung",
     };
-    app.set_status(format!("Einstellungen auf {count} Bilder übernommen ({how}).").into());
+    app.invoke_notify(format!("Einstellungen auf {count} Bilder übernommen ({how}).").into());
 }
 
 /// Setzt für `targets` die Einstellungen `f(bisherige)`. Der vorige Stand kommt in den Verlauf
@@ -153,7 +153,7 @@ pub fn undo(app: &LabWindow) {
     });
     app.set_can_undo_transfer(false);
     if let Some((n, current_changed)) = restored {
-        app.set_status(format!("Übernahme rückgängig gemacht ({n} Bilder).").into());
+        app.invoke_notify(format!("Übernahme rückgängig gemacht ({n} Bilder).").into());
         store::refresh_marks(app);
         store::save_soon(app);
         if current_changed {
