@@ -11,6 +11,7 @@ mod histogram;
 mod history;
 mod info;
 mod preview;
+mod presets;
 mod programs;
 mod selection;
 mod store;
@@ -69,6 +70,8 @@ struct State {
     undo: Option<Vec<(PathBuf, Option<uwcc_core::Settings>)>>,
     /// Rückgängig/Wiederholen je Bild.
     history: HashMap<PathBuf, history::History>,
+    /// Eigene Presets (die mitgelieferten kommen aus `presets::builtin`).
+    presets: Vec<presets::Preset>,
 }
 
 thread_local! {
@@ -103,6 +106,8 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
     app.set_strip_corrected(cfg.strip_corrected);
     app.set_panel_tab(cfg.panel_tab);
+    with_state(|st| st.presets = presets::load_user());
+    presets::show(&app);
     app.set_transfer_color(cfg.transfer_groups.color);
     app.set_transfer_tone(cfg.transfer_groups.tone);
     app.set_transfer_detail(cfg.transfer_groups.detail);
@@ -329,6 +334,24 @@ fn main() -> Result<(), slint::PlatformError> {
     app.on_cropping_changed(move || {
         if let Some(app) = weak.upgrade() {
             histogram::show_corrected(&app);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_apply_preset(move |index| {
+        if let Some(app) = weak.upgrade() {
+            presets::apply(&app, index as usize);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_save_preset(move |name| {
+        if let Some(app) = weak.upgrade() {
+            presets::save_current(&app, &name);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_delete_preset(move |index| {
+        if let Some(app) = weak.upgrade() {
+            presets::delete(&app, index as usize);
         }
     });
     let weak = app.as_weak();

@@ -51,6 +51,13 @@ Schärfen und Rauschreduzierung wirken auf einzelne Pixel; die verkleinerte Ansi
 - **Doppelklick auf einen Regler** setzt nur diesen zurück; „Zurücksetzen“ setzt alle zurück.
 - **Rückgängig / Wiederholen:** **Strg+Z** bzw. **Strg+Y** (oder Strg+Umschalt+Z), oder die Pfeile neben „Zurücksetzen“. Jedes Bild hat seinen eigenen Verlauf (bis 100 Schritte, solange das Programm läuft); ein Zug an einem Regler zählt als ein Schritt. Auch eine Übernahme auf mehrere Bilder lässt sich je Bild zurücknehmen.
 
+## Presets
+
+- **Preset anwenden …** (unter „Auto / Zurücksetzen“) öffnet die Liste: mitgeliefert sind **Blauwasser**, **Grünwasser (See)** und **Mit Blitz** – Ausgangspunkte zum Nachstellen. Ein Klick wendet das Preset auf das aktuelle Bild an, bei mehreren ausgewählten Bildern auf alle (der Knopf zeigt dann die Anzahl).
+- Ein Preset enthält Farbe, Ton und Details; bei eingeschaltetem Auto als Abweichung von der Analyse jedes Bildes. Drehen und Zuschnitt der Bilder bleiben.
+- **Speichern …** legt die Einstellungen des aktuellen Bildes unter einem Namen ab (gleicher Name ersetzt); eigene Presets lassen sich in der Liste mit **Löschen** entfernen. Gespeichert in `%APPDATA%\UnderwaterPhotoLab\presets.json`.
+- Anwenden lässt sich mit Strg+Z (je Bild) oder „Letzte Übernahme rückgängig“ (alle auf einmal) zurücknehmen.
+
 ## Zuschneiden und Ausrichten
 
 **Zuschneiden** unter dem Bild oder Taste **C** zeigt das ganze Bild mit dem Zuschnittrahmen und einer Werkzeugleiste. **Fertig**, **C**, **Enter** oder **Esc** beenden den Modus; der Zuschnitt bleibt (Strg+Z nimmt ihn zurück).

@@ -1,4 +1,4 @@
-import { Button, CheckBox, ComboBox, Palette, ScrollView } from "std-widgets.slint";
+import { Button, CheckBox, ComboBox, LineEdit, Palette, ScrollView } from "std-widgets.slint";
 
 export struct Thumb {
     image: image,
@@ -22,6 +22,11 @@ export struct ProgramItem {
     name: string,
     found: bool,
     chosen: bool,
+}
+
+export struct PresetItem {
+    name: string,
+    builtin: bool,
 }
 
 export struct InfoRow {
@@ -545,6 +550,13 @@ export component LabWindow inherits Window {
 
     in property <int> selected-count;
     in property <bool> can-undo-transfer;
+    // Presets: mitgelieferte zuerst; Anwenden gilt für die Auswahl bzw. das aktuelle Bild.
+    in property <[PresetItem]> presets;
+    callback apply-preset(int);
+    callback save-preset(string);
+    callback delete-preset(int);
+    property <bool> naming-preset;
+
     // Gruppen, die beim Übernehmen auf mehrere Bilder mitkommen; in config.json gemerkt.
     in-out property <bool> transfer-color: true;
     in-out property <bool> transfer-tone: true;
@@ -605,6 +617,14 @@ export component LabWindow inherits Window {
                 "Rauschen: Farbe nimmt bunte Flecken (entstehen beim Anheben von Rot), Helligkeit glättet Körnung. Schärfen und Rauschen in der 100-%-Ansicht beurteilen.",
                 "Doppelklick auf einen Regler setzt nur diesen zurück; „Zurücksetzen“ setzt alle zurück.",
                 "Rückgängig: Strg+Z oder Pfeil nach links neben „Zurücksetzen“; Wiederholen: Strg+Y (oder Strg+Umschalt+Z) bzw. Pfeil nach rechts. Jedes Bild hat seinen eigenen Verlauf; ein Zug an einem Regler ist ein Schritt.",
+            ],
+        },
+        {
+            title: "Presets",
+            lines: [
+                "„Preset anwenden …“: Blauwasser, Grünwasser (See), Mit Blitz oder eigene; gilt für das aktuelle Bild bzw. alle ausgewählten.",
+                "Ein Preset enthält Farbe, Ton und Details (bei Auto relativ zur Analyse jedes Bildes); Drehen und Zuschnitt bleiben.",
+                "„Speichern …“ legt die Einstellungen des aktuellen Bildes unter einem Namen ab; eigene Presets lassen sich in der Liste löschen.",
             ],
         },
         {
@@ -1506,6 +1526,107 @@ export component LabWindow inherits Window {
                                 }
                             }
                         }
+                        // Presets: Menü zum Anwenden, daneben Speichern unter einem Namen.
+                        HorizontalLayout {
+                            spacing: 6px;
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: preset-button.preferred-height;
+                                preset-button := Button {
+                                    width: parent.width;
+                                    text: root.selected-count > 1 ? "Preset auf " + root.selected-count + " Bilder …" : "Preset anwenden …";
+                                    enabled: root.controls-enabled;
+                                    clicked => {
+                                        preset-menu.show();
+                                    }
+                                }
+                                preset-menu := PopupWindow {
+                                    x: 0;
+                                    y: parent.height + 4px;
+                                    width: 272px;
+                                    Rectangle {
+                                        background: #2b2d31;
+                                        border-radius: 6px;
+                                        border-width: 1px;
+                                        border-color: #00000080;
+                                        VerticalLayout {
+                                            padding: 6px;
+                                            for preset[i] in root.presets: Rectangle {
+                                                height: 30px;
+                                                border-radius: 4px;
+                                                background: preset-touch.has-hover ? Palette.accent-background.transparentize(0.8) : transparent;
+                                                preset-touch := TouchArea {
+                                                    clicked => {
+                                                        root.apply-preset(i);
+                                                        keys.focus();
+                                                    }
+                                                }
+                                                HorizontalLayout {
+                                                    padding-left: 8px;
+                                                    padding-right: 8px;
+                                                    spacing: 6px;
+                                                    Text {
+                                                        horizontal-stretch: 1;
+                                                        text: preset.name;
+                                                        vertical-alignment: center;
+                                                        overflow: elide;
+                                                    }
+                                                    if preset.builtin: Text {
+                                                        text: "mitgeliefert";
+                                                        vertical-alignment: center;
+                                                        color: #8a8f98;
+                                                        font-size: 11px;
+                                                    }
+                                                    if !preset.builtin: Text {
+                                                        text: "Löschen";
+                                                        vertical-alignment: center;
+                                                        color: delete-touch.has-hover ? #e5484d : #8a8f98;
+                                                        font-size: 11px;
+                                                        delete-touch := TouchArea {
+                                                            clicked => {
+                                                                root.delete-preset(i);
+                                                                keys.focus();
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Button {
+                                text: "Speichern …";
+                                enabled: root.controls-enabled;
+                                clicked => {
+                                    root.naming-preset = !root.naming-preset;
+                                }
+                            }
+                        }
+                        if root.naming-preset: HorizontalLayout {
+                            spacing: 6px;
+                            preset-name := LineEdit {
+                                horizontal-stretch: 1;
+                                placeholder-text: "Name des Presets";
+                                init => {
+                                    self.focus();
+                                }
+                                accepted(text) => {
+                                    root.save-preset(text);
+                                    root.naming-preset = false;
+                                    keys.focus();
+                                }
+                            }
+                            Button {
+                                text: "OK";
+                                clicked => {
+                                    root.save-preset(preset-name.text);
+                                    root.naming-preset = false;
+                                    keys.focus();
+                                }
+                            }
+                        }
+
                         SliderRow {
                             label: "Stärke";
                             text: round(root.v-strength) + " %";
