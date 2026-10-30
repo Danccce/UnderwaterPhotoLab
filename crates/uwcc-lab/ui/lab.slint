@@ -1538,11 +1538,14 @@ export component LabWindow inherits Window {
                         // Presets: Menü zum Anwenden, daneben Speichern unter einem Namen.
                         HorizontalLayout {
                             spacing: 6px;
+                            // Rahmen nur für das Menü; der Knopf füllt ihn, die Höhe gibt die Zeile vor
+                            // (wie bei „Speichern …“ daneben).
                             Rectangle {
                                 horizontal-stretch: 1;
-                                height: preset-button.preferred-height;
+                                min-height: preset-button.min-height;
                                 preset-button := Button {
                                     width: parent.width;
+                                    height: parent.height;
                                     text: root.selected-count > 1 ? "Preset auf " + root.selected-count + " Bilder …" : "Preset anwenden …";
                                     enabled: root.controls-enabled;
                                     clicked => {
