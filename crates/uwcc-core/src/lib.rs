@@ -12,7 +12,8 @@ pub mod adjust;
 pub mod params;
 
 pub use adjust::{
-    luminance, process_rgba8, unit_rgb, Crop, Delta, Detail, Field, Geometry, Groups, LevelsDelta, PixelOps, Settings, Tone,
+    luminance, process_rgba8, unit_rgb, ColorRange, Crop, Delta, Detail, Effects, Field, Geometry, Groups, LevelsDelta,
+    PixelOps, Settings, Tone,
     DEFAULT_SHARPEN_RADIUS,
 };
 

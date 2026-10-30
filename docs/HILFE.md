@@ -35,12 +35,17 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 
 Die Regler sind in Gruppen geteilt: der Umschalter **Farbe | Ton | Details** unter der Stärke zeigt die jeweilige Gruppe. Die Einstellungen der anderen Gruppen bleiben dabei wirksam. Die Regler oben gehören zu „Farbe“.
 
+### Farbmischer (unten im Reiter „Farbe“)
+
+Drei Farbbereiche, umschaltbar: **Wasserblau**, **Cyan** und **Orange/Gelb** (Fische, Korallen, Haut). Je Bereich **Farbton** (±30°), **Sättigung** und **Helligkeit**. Wirkt weich um die Mitte des Bereichs und kaum auf fast graue Stellen – z. B. Wasser etwas dunkler und blasser, damit Orange und Gelb hervortreten.
+
 ### Ton (Umschalter „Ton“)
 
 - **Dunst entfernen:** nimmt den Schleier aus Schwebeteilchen heraus (Unterwasser-Verfahren aus Grün und Blau; die Wasserfarbe wird aus dem ganzen Bild geschätzt). Das Bild wird dabei oft dunkler – mit Belichtung oder Tiefen ausgleichen.
 - **Belichtung:** ±2 Blenden.
 - **Kontrast:** S-Kurve; Schwarz, Weiß und die Mitte bleiben.
 - **Lichter:** helle Bereiche dunkler (−) oder heller (+). **Tiefen:** dunkle Bereiche heller (+) oder dunkler (−). Beide wirken nach der Helligkeit der Umgebung; Details und Kanten bleiben erhalten.
+- **Vignette:** Ecken dunkler (−, lenkt den Blick zur Mitte) oder heller (+, gleicht den Lichtabfall von Blitz oder Domeport aus); bezogen auf das zugeschnittene Bild.
 
 ### Details (Umschalter „Details“)
 

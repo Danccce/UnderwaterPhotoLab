@@ -121,6 +121,8 @@ pub struct Context {
     pub origin: (u32, u32),
     /// Pixel dieser Auflösung je Pixel des Originals (1 = volle Auflösung).
     pub scale: f32,
+    /// Größe des ganzen Bildes (nach Geometrie) in dieser Auflösung; Bezug der Vignette.
+    pub whole: (u32, u32),
 }
 
 impl Context {
@@ -129,7 +131,7 @@ impl Context {
     pub fn new(auto: Correction, reference: Arc<Reference>, width: u32, height: u32) -> Self {
         let long_edge = width.max(height);
         let scale = long_edge as f32 / reference.full_long_edge.max(1) as f32;
-        Self { auto, reference, long_edge, origin: (0, 0), scale }
+        Self { auto, reference, long_edge, origin: (0, 0), scale, whole: (width, height) }
     }
 
     /// Dasselbe mit ausdrücklichem Maßstab (zugeschnittene Bilder: die lange Kante sagt dann nichts
@@ -247,6 +249,8 @@ struct Neighborhood {
     sharpen_mask: f32,
     noise_color: f32,
     noise_luma: f32,
+    /// −1 … 1; hängt von der Lage im ganzen Bild ab, daher nicht im Weg je Pixel.
+    vignette: f32,
 }
 
 impl Neighborhood {
@@ -263,6 +267,7 @@ impl Neighborhood {
             sharpen_mask: unit(d.sharpen_mask),
             noise_color: unit(d.noise_color),
             noise_luma: unit(d.noise_luma),
+            vignette: settings.effects.vignette.clamp(-100.0, 100.0) / 100.0,
         }
     }
 
@@ -275,7 +280,7 @@ impl Neighborhood {
     }
 
     fn any(&self) -> bool {
-        self.dehaze > 0.0 || self.tone() || self.detail()
+        self.dehaze > 0.0 || self.tone() || self.detail() || self.vignette != 0.0
     }
 }
 
@@ -388,10 +393,22 @@ pub fn render(rgba: &mut [u8], width: u32, height: u32, settings: &Settings, ctx
                 (Some(t), Some(r)) => t.apply(v, r, x),
                 _ => v,
             };
+            let v = if n.vignette != 0.0 { v.map(|c| c * vignette(n.vignette, x, y, ctx)) } else { v };
             let out = ops.finish(v, unit_rgb(p));
             p[..3].copy_from_slice(&out);
         }
     });
+}
+
+/// Vignette ±1 Blende in den Ecken, weich ab etwa einem Drittel vom Mittelpunkt; bezogen auf das
+/// ganze Bild (Ausschnitte über `ctx.origin`), elliptisch nach seinem Seitenverhältnis.
+fn vignette(amount: f32, x: usize, y: usize, ctx: &Context) -> f32 {
+    let (ww, wh) = (ctx.whole.0.max(1) as f32, ctx.whole.1.max(1) as f32);
+    let dx = ((x as f32 + ctx.origin.0 as f32 + 0.5) / ww - 0.5) * 2.0;
+    let dy = ((y as f32 + ctx.origin.1 as f32 + 0.5) / wh - 0.5) * 2.0;
+    let r = ((dx * dx + dy * dy) / 2.0).sqrt();
+    let t = ((r - 0.35) / 0.65).clamp(0.0, 1.0);
+    (amount * t * t * (3.0 - 2.0 * t)).exp2()
 }
 
 /// `f(y, Zeile)` für Zeilen aus je `stride` Elementen, auf alle Kerne verteilt.
@@ -638,6 +655,28 @@ mod tests {
         assert!(spread(&out, w, area, 2) < spread(&px, w, area, 2) * 0.5, "Blau ruhiger");
         let mean_lum = |img: &[u8]| img.chunks_exact(4).map(|p| luminance(p[0] as f32, p[1] as f32, p[2] as f32)).sum::<f32>() / (w * h) as f32;
         assert!((mean_lum(&out) - mean_lum(&px)).abs() < 1.5, "Helligkeit bleibt");
+    }
+
+    #[test]
+    fn vignette_darkens_corners_and_a_crop_sees_the_whole_image() {
+        let (w, h) = (200u32, 100u32);
+        let px: Vec<u8> = (0..w * h).flat_map(|_| [128, 128, 128, 255]).collect();
+        let s = Settings {
+            auto: false,
+            effects: uwcc_core::Effects { vignette: -100.0, ..Default::default() },
+            ..Settings::default()
+        };
+        let c = ctx(&px, w, h);
+        let mut out = px.clone();
+        render(&mut out, w, h, &s, &c);
+        let at = |img: &[u8], x: u32, y: u32| img[((y * w + x) * 4) as usize];
+        assert_eq!(at(&out, 100, 50), 128, "Mitte unverändert");
+        assert!(at(&out, 1, 1) < 80, "Ecke deutlich dunkler: {}", at(&out, 1, 1));
+
+        // Rechte untere Ecke als Ausschnitt: dieselben Werte wie im ganzen Bild.
+        let mut crop: Vec<u8> = (50..100).flat_map(|y| px[((y * w + 150) * 4) as usize..((y * w + 200) * 4) as usize].to_vec()).collect();
+        render(&mut crop, 50, 50, &s, &Context { origin: (150, 50), ..c.clone() });
+        assert_eq!(crop[((49 * 50 + 49) * 4) as usize], at(&out, 199, 99));
     }
 
     #[test]

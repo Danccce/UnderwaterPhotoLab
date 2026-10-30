@@ -459,7 +459,14 @@ mod tests {
             Tone { dehaze: 60.0, ..Tone::default() },
             Tone { dehaze: 60.0, shadows: 40.0, highlights: -40.0, ..Tone::default() },
         ];
-        let mut sheet = RgbaImage::new(cw * variants.len() as u32, ch * picks.len() as u32);
+        // Vierte Spalte: Farbmischer (Orange kräftiger, Wasser dunkler) und Vignette.
+        let effects = uwcc_core::Effects {
+            vignette: -50.0,
+            water: uwcc_core::ColorRange { luminance: -40.0, ..Default::default() },
+            warm: uwcc_core::ColorRange { saturation: 60.0, ..Default::default() },
+            ..Default::default()
+        };
+        let mut sheet = RgbaImage::new(cw * (variants.len() as u32 + 1), ch * picks.len() as u32);
         for (row, path) in picks.iter().enumerate() {
             let photo = Photo::open(path).unwrap();
             let auto = photo.analyze();
@@ -472,6 +479,10 @@ mod tests {
                 uwcc_filters::render(&mut img, w, h, &s, &uwcc_filters::Context::new(auto, reference.clone(), w, h));
                 imageops::overlay(&mut sheet, &img, (col as u32 * cw) as i64, (row as u32 * ch) as i64);
             }
+            let mut img = small.clone();
+            let s = Settings { effects, ..Settings::default() };
+            uwcc_filters::render(&mut img, w, h, &s, &uwcc_filters::Context::new(auto, reference.clone(), w, h));
+            imageops::overlay(&mut sheet, &img, (variants.len() as u32 * cw) as i64, (row as u32 * ch) as i64);
         }
         let out = std::env::temp_dir().join("tone-samples.jpg");
         DynamicImage::ImageRgba8(sheet).into_rgb8().save(&out).unwrap();

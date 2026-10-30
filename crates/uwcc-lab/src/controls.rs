@@ -164,6 +164,16 @@ pub fn refresh(app: &LabWindow) {
             Field::NoiseColor => app.set_v_noise_color(v),
             Field::NoiseLuma => app.set_v_noise_luma(v),
             Field::Straighten => app.set_v_straighten(v),
+            Field::Vignette => app.set_v_vignette(v),
+            Field::WaterHue => app.set_v_water_hue(v),
+            Field::WaterSaturation => app.set_v_water_saturation(v),
+            Field::WaterLuminance => app.set_v_water_luminance(v),
+            Field::CyanHue => app.set_v_cyan_hue(v),
+            Field::CyanSaturation => app.set_v_cyan_saturation(v),
+            Field::CyanLuminance => app.set_v_cyan_luminance(v),
+            Field::WarmHue => app.set_v_warm_hue(v),
+            Field::WarmSaturation => app.set_v_warm_saturation(v),
+            Field::WarmLuminance => app.set_v_warm_luminance(v),
             // Die Levels je Kanal stellt nur die Auto-Analyse ein; im Fenster gibt es dafür keine Regler.
             Field::RedLow | Field::RedHigh | Field::GreenLow | Field::GreenHigh | Field::BlueLow | Field::BlueHigh => {}
         }

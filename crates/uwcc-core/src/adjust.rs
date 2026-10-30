@@ -80,6 +80,34 @@ impl Default for Detail {
     }
 }
 
+/// Ein Bereich des Farbmischers; je −100 … +100, 0 = unverändert.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ColorRange {
+    /// Farbton verschieben (±100 = ±30°).
+    pub hue: f32,
+    pub saturation: f32,
+    pub luminance: f32,
+}
+
+/// Effekte: Vignette und vereinfachter Farbmischer.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Effects {
+    /// −100 (Ecken dunkler) … +100 (Ecken heller, z. B. gegen Blitz-Abfall).
+    pub vignette: f32,
+    /// Wasserblau (um 215°).
+    pub water: ColorRange,
+    /// Cyan/Türkis (um 180°).
+    pub cyan: ColorRange,
+    /// Orange/Gelb (um 35°): Fische, Korallen, Haut.
+    pub warm: ColorRange,
+}
+
+/// Mitte und halbe Breite (Grad) der Farbmischer-Bereiche: Wasserblau, Cyan, Orange/Gelb.
+const MIXER_RANGES: [(f32, f32); 3] = [(215.0, 35.0), (180.0, 25.0), (35.0, 35.0)];
+/// Farbmischer: ±100 Farbton = ±30°, ±100 Helligkeit = ±0,7 Blenden.
+const MIXER_HUE: f32 = 30.0;
+const MIXER_STOPS: f32 = 0.7;
+
 /// Ausschnitt in normalisierten Koordinaten (0–1) des gedrehten und geradegerichteten Bildes.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Crop {
@@ -103,8 +131,9 @@ pub struct Geometry {
 /// Gruppen von Einstellungen, die sich einzeln auf andere Bilder übertragen lassen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Groups {
-    /// Auto, Abweichung, Stärke, Weißabgleich, Dynamik, Rot-Obergrenze.
+    /// Auto, Abweichung, Stärke, Weißabgleich, Dynamik, Rot-Obergrenze, Farbmischer.
     pub color: bool,
+    /// Ton und Vignette.
     pub tone: bool,
     pub detail: bool,
     /// Drehen, Spiegeln, Geraderichten, Zuschnitt; gehört meist zum einzelnen Bild.
@@ -162,6 +191,7 @@ pub struct Settings {
     pub tone: Tone,
     pub detail: Detail,
     pub geometry: Geometry,
+    pub effects: Effects,
 }
 
 impl Default for Settings {
@@ -177,6 +207,7 @@ impl Default for Settings {
             tone: Tone::default(),
             detail: Detail::default(),
             geometry: Geometry::default(),
+            effects: Effects::default(),
         }
     }
 }
@@ -253,10 +284,42 @@ pub enum Field {
     NoiseColor,
     NoiseLuma,
     Straighten,
+    Vignette,
+    WaterHue,
+    WaterSaturation,
+    WaterLuminance,
+    CyanHue,
+    CyanSaturation,
+    CyanLuminance,
+    WarmHue,
+    WarmSaturation,
+    WarmLuminance,
+}
+
+/// Wert eines Effekt-Feldes; `None` für alle anderen Felder.
+fn effects_value(e: &Effects, field: Field) -> Option<f32> {
+    let mut copy = *e;
+    effects_slot(&mut copy, field).map(|v| *v)
+}
+
+fn effects_slot(e: &mut Effects, field: Field) -> Option<&mut f32> {
+    Some(match field {
+        Field::Vignette => &mut e.vignette,
+        Field::WaterHue => &mut e.water.hue,
+        Field::WaterSaturation => &mut e.water.saturation,
+        Field::WaterLuminance => &mut e.water.luminance,
+        Field::CyanHue => &mut e.cyan.hue,
+        Field::CyanSaturation => &mut e.cyan.saturation,
+        Field::CyanLuminance => &mut e.cyan.luminance,
+        Field::WarmHue => &mut e.warm.hue,
+        Field::WarmSaturation => &mut e.warm.saturation,
+        Field::WarmLuminance => &mut e.warm.luminance,
+        _ => return None,
+    })
 }
 
 impl Field {
-    pub const ALL: [Field; 24] = [
+    pub const ALL: [Field; 34] = [
         Field::Strength,
         Field::Temperature,
         Field::Tint,
@@ -281,6 +344,16 @@ impl Field {
         Field::NoiseColor,
         Field::NoiseLuma,
         Field::Straighten,
+        Field::Vignette,
+        Field::WaterHue,
+        Field::WaterSaturation,
+        Field::WaterLuminance,
+        Field::CyanHue,
+        Field::CyanSaturation,
+        Field::CyanLuminance,
+        Field::WarmHue,
+        Field::WarmSaturation,
+        Field::WarmLuminance,
     ];
 
     pub fn name(self) -> &'static str {
@@ -309,6 +382,16 @@ impl Field {
             Field::NoiseColor => "noise-color",
             Field::NoiseLuma => "noise-luma",
             Field::Straighten => "straighten",
+            Field::Vignette => "vignette",
+            Field::WaterHue => "water-hue",
+            Field::WaterSaturation => "water-saturation",
+            Field::WaterLuminance => "water-luminance",
+            Field::CyanHue => "cyan-hue",
+            Field::CyanSaturation => "cyan-saturation",
+            Field::CyanLuminance => "cyan-luminance",
+            Field::WarmHue => "warm-hue",
+            Field::WarmSaturation => "warm-saturation",
+            Field::WarmLuminance => "warm-luminance",
         }
     }
 
@@ -346,6 +429,7 @@ impl Settings {
             Field::NoiseColor => self.detail.noise_color as f64,
             Field::NoiseLuma => self.detail.noise_luma as f64,
             Field::Straighten => self.geometry.straighten as f64,
+            _ => effects_value(&self.effects, field).unwrap_or(0.0) as f64,
         }
     }
 
@@ -380,6 +464,11 @@ impl Settings {
             Field::NoiseColor => self.detail.noise_color = value as f32,
             Field::NoiseLuma => self.detail.noise_luma = value as f32,
             Field::Straighten => self.geometry.straighten = (value as f32).clamp(-45.0, 45.0),
+            _ => {
+                if let Some(v) = effects_slot(&mut self.effects, field) {
+                    *v = (value as f32).clamp(-100.0, 100.0);
+                }
+            }
         }
     }
 }
@@ -396,9 +485,11 @@ impl Settings {
             s.tint = source.tint;
             s.vibrance = source.vibrance;
             s.red_limit = source.red_limit;
+            s.effects = Effects { vignette: s.effects.vignette, ..source.effects };
         }
         if groups.tone {
             s.tone = source.tone;
+            s.effects.vignette = source.effects.vignette;
         }
         if groups.detail {
             s.detail = source.detail;
@@ -471,6 +562,11 @@ impl Settings {
             Field::NoiseColor => self.detail.noise_color = defaults.detail.noise_color,
             Field::NoiseLuma => self.detail.noise_luma = defaults.detail.noise_luma,
             Field::Straighten => self.geometry.straighten = defaults.geometry.straighten,
+            _ => {
+                if let Some(v) = effects_slot(&mut self.effects, field) {
+                    *v = 0.0;
+                }
+            }
         }
     }
 }
@@ -511,6 +607,66 @@ pub struct PixelOps {
     exposure: f32,
     contrast: f32,
     strength: f32,
+    /// Farbmischer je Bereich: Farbton (Grad), Sättigung (−1 … 1), Helligkeit (Blenden);
+    /// `None`, wenn alles 0 ist.
+    mixer: Option<[(f32, f32, f32); 3]>,
+}
+
+/// RGB (0–1) → Farbton (Grad), Sättigung, Wert.
+fn to_hsv(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let max = r.max(g).max(b);
+    let d = max - r.min(g).min(b);
+    if d <= 1e-6 || max <= 1e-6 {
+        return (0.0, 0.0, max);
+    }
+    let h = if max == r {
+        60.0 * libm::fmodf((g - b) / d + 6.0, 6.0)
+    } else if max == g {
+        60.0 * ((b - r) / d + 2.0)
+    } else {
+        60.0 * ((r - g) / d + 4.0)
+    };
+    (h, d / max, max)
+}
+
+fn from_hsv(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
+    let h = libm::fmodf(libm::fmodf(h, 360.0) + 360.0, 360.0) / 60.0;
+    let c = v * s;
+    let x = c * (1.0 - libm::fabsf(libm::fmodf(h, 2.0) - 1.0));
+    let (r, g, b) = match h as u32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = v - c;
+    (r + m, g + m, b + m)
+}
+
+/// Farbmischer: jeder Bereich wirkt mit weichem Übergang (Kosinus) um seine Mitte und auf kräftige
+/// Farben stärker als auf fast graue.
+fn mix(r: f32, g: f32, b: f32, mixer: &[(f32, f32, f32); 3]) -> (f32, f32, f32) {
+    let (h, s, v) = to_hsv(r, g, b);
+    let colourful = ((s - 0.05) / 0.2).clamp(0.0, 1.0);
+    if colourful == 0.0 {
+        return (r, g, b);
+    }
+    let (mut dh, mut ds, mut dl) = (0.0, 0.0, 0.0);
+    for ((centre, half), (hue, sat, stops)) in MIXER_RANGES.iter().zip(mixer) {
+        let dist = libm::fabsf(libm::fmodf(h - centre + 540.0, 360.0) - 180.0);
+        if dist < *half {
+            let w = 0.5 * (1.0 + libm::cosf(core::f32::consts::PI * dist / half)) * colourful;
+            dh += w * hue;
+            ds += w * sat;
+            dl += w * stops;
+        }
+    }
+    if dh == 0.0 && ds == 0.0 && dl == 0.0 {
+        return (r, g, b);
+    }
+    from_hsv(h + dh, (s * (1.0 + ds)).clamp(0.0, 1.0), v * libm::exp2f(dl))
 }
 
 impl PixelOps {
@@ -525,6 +681,15 @@ impl PixelOps {
             exposure: libm::exp2f(ev / GAMMA),
             contrast: tone.contrast.clamp(-100.0, 100.0) / 100.0 * CONTRAST_AMOUNT,
             strength: settings.strength.clamp(0.0, 1.0),
+            mixer: {
+                let e = &settings.effects;
+                let range = |c: &ColorRange| {
+                    let u = |v: f32| v.clamp(-100.0, 100.0) / 100.0;
+                    (u(c.hue) * MIXER_HUE, u(c.saturation), u(c.luminance) * MIXER_STOPS)
+                };
+                let m = [range(&e.water), range(&e.cyan), range(&e.warm)];
+                m.iter().any(|&(h, s, l)| h != 0.0 || s != 0.0 || l != 0.0).then_some(m)
+            },
         }
     }
 
@@ -542,6 +707,10 @@ impl PixelOps {
         if self.vibrance != 0.0 {
             let (vr, vg, vb) = vibrance(r, g, b, self.vibrance);
             (r, g, b) = (unit(vr), unit(vg), unit(vb));
+        }
+        if let Some(m) = &self.mixer {
+            let (mr, mg, mb) = mix(r, g, b, m);
+            (r, g, b) = (unit(mr), unit(mg), unit(mb));
         }
         [r * self.exposure, g * self.exposure, b * self.exposure]
     }
@@ -807,6 +976,28 @@ mod tests {
         for f in [Field::Exposure, Field::Contrast, Field::Highlights, Field::Shadows, Field::Dehaze] {
             assert_eq!(Settings::default().effective(f, &AUTO), 0.0, "{f:?}");
         }
+    }
+
+    #[test]
+    fn hsv_round_trip_and_mixer_acts_only_on_its_colours() {
+        for &(r, g, b) in &[(0.1, 0.5, 0.9), (0.9, 0.6, 0.1), (0.3, 0.3, 0.3), (0.0, 0.8, 0.7)] {
+            let (h, s, v) = to_hsv(r, g, b);
+            let (r2, g2, b2) = from_hsv(h, s, v);
+            assert!((r - r2).abs() < 1e-5 && (g - g2).abs() < 1e-5 && (b - b2).abs() < 1e-5, "{r} {g} {b}");
+        }
+        // Wasserblau dunkler und blasser, Orange unberührt, Grau unberührt.
+        let m = [(0.0, -0.5, -0.5), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)];
+        let water = (0.1, 0.4, 0.8);
+        let (wr, wg, wb) = mix(water.0, water.1, water.2, &m);
+        assert!(wb < water.2 && to_hsv(wr, wg, wb).1 < to_hsv(water.0, water.1, water.2).1);
+        assert_eq!(mix(0.9, 0.5, 0.1, &m), (0.9, 0.5, 0.1));
+        assert_eq!(mix(0.5, 0.5, 0.5, &m), (0.5, 0.5, 0.5));
+
+        let warm = Settings { effects: Effects { warm: ColorRange { saturation: 60.0, ..ColorRange::default() }, ..Effects::default() }, ..Settings::default() };
+        let ops = PixelOps::new(&warm, &AUTO);
+        let [r, _, b] = ops.color([0.8, 0.5, 0.3]);
+        assert!(r - b > 0.8 - 0.3, "Orange kräftiger");
+        assert_eq!(Settings::default().effective(Field::WarmSaturation, &AUTO), 0.0);
     }
 
     #[test]

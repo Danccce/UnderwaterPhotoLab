@@ -147,6 +147,57 @@ component SliderRow inherits VerticalLayout {
     }
 }
 
+// Die drei Regler eines Farbmischer-Bereichs; Feldnamen `<prefix>-hue/-saturation/-luminance`.
+component MixerRows inherits VerticalLayout {
+    in property <string> prefix;
+    in-out property <float> hue;
+    in-out property <float> saturation;
+    in-out property <float> luminance;
+    in property <bool> enabled;
+    callback edited(string, float);
+    callback reset(string);
+    callback released();
+    spacing: 8px;
+    vertical-stretch: 0;
+
+    SliderRow {
+        label: "Farbton";
+        text: (root.hue > 0.5 ? "+" : "") + round(root.hue * 0.3) + "°";
+        minimum: -100;
+        maximum: 100;
+        value <=> root.hue;
+        enabled: root.enabled;
+        field: root.prefix + "-hue";
+        edited(f, v) => { root.edited(f, v); }
+        reset(f) => { root.reset(f); }
+        released => { root.released(); }
+    }
+    SliderRow {
+        label: "Sättigung";
+        text: (root.saturation > 0.5 ? "+" : "") + round(root.saturation);
+        minimum: -100;
+        maximum: 100;
+        value <=> root.saturation;
+        enabled: root.enabled;
+        field: root.prefix + "-saturation";
+        edited(f, v) => { root.edited(f, v); }
+        reset(f) => { root.reset(f); }
+        released => { root.released(); }
+    }
+    SliderRow {
+        label: "Helligkeit";
+        text: (root.luminance > 0.5 ? "+" : "") + round(root.luminance);
+        minimum: -100;
+        maximum: 100;
+        value <=> root.luminance;
+        enabled: root.enabled;
+        field: root.prefix + "-luminance";
+        edited(f, v) => { root.edited(f, v); }
+        reset(f) => { root.reset(f); }
+        released => { root.released(); }
+    }
+}
+
 // Umschalter aus gleich breiten Teilen: der gewählte ist in der Markierungsfarbe hinterlegt.
 // Markierungsfarbe überall: Palette.accent-background, wie bei Reglern, Checkbox und Hauptknopf.
 component Segmented inherits Rectangle {
@@ -615,6 +666,7 @@ export component LabWindow inherits Window {
                 "Dunst entfernen: nimmt den Schleier aus Schwebeteilchen heraus; die Wasserfarbe wird aus dem ganzen Bild geschätzt. Das Bild wird dabei oft dunkler – mit Belichtung oder Tiefen ausgleichen.",
                 "Belichtung: ±2 Blenden. Kontrast: S-Kurve, Schwarz und Weiß bleiben.",
                 "Lichter: helle Bereiche dunkler (−) oder heller (+). Tiefen: dunkle Bereiche heller (+) oder dunkler (−). Wirkt nach der Helligkeit der Umgebung, Details bleiben erhalten.",
+                "Vignette (Ton): Ecken dunkler (−) oder heller (+, gegen Blitz-Abfall). Farbmischer (unten in Farbe): Wasserblau, Cyan, Orange/Gelb je mit Farbton, Sättigung, Helligkeit.",
                 "Details – Klarheit: Strukturen (Korallen, Schuppen) kräftiger (+) oder weicher (−), am stärksten in den Mitteltönen.",
                 "Schärfen mit Radius (Pixel des Originals) und Maskieren: je höher Maskieren, desto mehr bleiben glatte Flächen wie Wasser ungeschärft.",
                 "Rauschen: Farbe nimmt bunte Flecken (entstehen beim Anheben von Rot), Helligkeit glättet Körnung. Schärfen und Rauschen in der 100-%-Ansicht beurteilen.",
@@ -687,6 +739,18 @@ export component LabWindow inherits Window {
     in-out property <float> v-highlights;
     in-out property <float> v-shadows;
     in-out property <float> v-dehaze;
+    in-out property <float> v-vignette;
+    in-out property <float> v-water-hue;
+    in-out property <float> v-water-saturation;
+    in-out property <float> v-water-luminance;
+    in-out property <float> v-cyan-hue;
+    in-out property <float> v-cyan-saturation;
+    in-out property <float> v-cyan-luminance;
+    in-out property <float> v-warm-hue;
+    in-out property <float> v-warm-saturation;
+    in-out property <float> v-warm-luminance;
+    // Farbmischer: angezeigter Bereich (0 Wasserblau, 1 Cyan, 2 Orange/Gelb).
+    property <int> mixer-range;
     in-out property <float> v-clarity;
     in-out property <float> v-sharpen;
     in-out property <float> v-sharpen-radius: 1;
@@ -1773,6 +1837,50 @@ export component LabWindow inherits Window {
                                         reset(f) => { root.reset-field(f); keys.focus(); }
                                         released => { keys.focus(); }
                                     }
+                                    Rectangle {
+                                        height: 4px;
+                                    }
+                                    Heading {
+                                        text: "Farbmischer";
+                                    }
+                                    Segmented {
+                                        options: ["Wasserblau", "Cyan", "Orange/Gelb"];
+                                        selected: root.mixer-range;
+                                        changed(i) => {
+                                            root.mixer-range = i;
+                                            keys.focus();
+                                        }
+                                    }
+                                    if root.mixer-range == 0: MixerRows {
+                                        prefix: "water";
+                                        hue <=> root.v-water-hue;
+                                        saturation <=> root.v-water-saturation;
+                                        luminance <=> root.v-water-luminance;
+                                        enabled: root.controls-enabled;
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    if root.mixer-range == 1: MixerRows {
+                                        prefix: "cyan";
+                                        hue <=> root.v-cyan-hue;
+                                        saturation <=> root.v-cyan-saturation;
+                                        luminance <=> root.v-cyan-luminance;
+                                        enabled: root.controls-enabled;
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    if root.mixer-range == 2: MixerRows {
+                                        prefix: "warm";
+                                        hue <=> root.v-warm-hue;
+                                        saturation <=> root.v-warm-saturation;
+                                        luminance <=> root.v-warm-luminance;
+                                        enabled: root.controls-enabled;
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
                                 }
 
                                 if root.panel-tab == 1: VerticalLayout {
@@ -1833,6 +1941,18 @@ export component LabWindow inherits Window {
                                         value <=> root.v-shadows;
                                         enabled: root.controls-enabled;
                                         field: "shadows";
+                                        edited(f, v) => { root.edited(f, v); }
+                                        reset(f) => { root.reset-field(f); keys.focus(); }
+                                        released => { keys.focus(); }
+                                    }
+                                    SliderRow {
+                                        label: "Vignette";
+                                        text: (root.v-vignette > 0.5 ? "+" : "") + round(root.v-vignette);
+                                        minimum: -100;
+                                        maximum: 100;
+                                        value <=> root.v-vignette;
+                                        enabled: root.controls-enabled;
+                                        field: "vignette";
                                         edited(f, v) => { root.edited(f, v); }
                                         reset(f) => { root.reset-field(f); keys.focus(); }
                                         released => { keys.focus(); }

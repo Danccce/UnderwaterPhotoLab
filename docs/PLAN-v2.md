@@ -298,8 +298,17 @@ Zurückgestellt (Entscheidung): Bewertung/Auswahl der Guten (Markieren, Sterne) 
 
 ### Phase 13 – Feinschliff (optional)
 
-- [ ] 13.1 Vignette
-- [ ] 13.2 Farbmischer vereinfacht (Wasserblau, Cyan, Orange/Gelb: Farbton, Sättigung, Helligkeit)
+- [x] 13.1 Vignette
+- [x] 13.2 Farbmischer vereinfacht (Wasserblau, Cyan, Orange/Gelb: Farbton, Sättigung, Helligkeit)
+
+Umgesetzt – 13.1/13.2: neue Gruppe `effects` in `Settings` und `.uwcc.json` (Vignette, drei `ColorRange`).
+Vignette ±1 Blende in den Ecken, weich ab einem Drittel, elliptisch nach dem Seitenverhältnis des ganzen
+(zugeschnittenen) Bildes; Ausschnitte über `Context::origin`/`whole`, daher stimmt sie im Zoom. Farbmischer in
+`PixelOps::color` nach der Dynamik: HSV, Bereiche mit Kosinus-Übergang (Wasserblau 215° ±35°, Cyan 180° ±25°,
+Orange/Gelb 35° ±35°), schwach gesättigte Pixel kaum; Pixel außerhalb aller Bereiche bleiben exakt. Beim
+Übertragen gehört der Farbmischer zur Gruppe Farbe, die Vignette zu Ton. Oberfläche: Vignette im Reiter
+„Ton“, Farbmischer unten im Reiter „Farbe“ mit Umschalter der drei Bereiche. Außerdem: Die feste
+Statuszeile ist ersetzt durch eine kurze Meldung unten im Bild (5 s).
 - [ ] 13.3 Partikel entfernen: Klick-Werkzeug (Fleck aus der Umgebung füllen); später evtl. automatisch
 - [ ] 13.4 Programmsymbol (Fenster und .exe)
 

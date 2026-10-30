@@ -22,7 +22,9 @@ use std::{
 };
 
 use serde_json::{json, Map, Value};
-use uwcc_core::{Crop, Delta, Detail, Geometry, LevelsDelta, Settings, Tone, DEFAULT_SHARPEN_RADIUS};
+use uwcc_core::{
+    ColorRange, Crop, Delta, Detail, Effects, Geometry, LevelsDelta, Settings, Tone, DEFAULT_SHARPEN_RADIUS,
+};
 
 use crate::{ExportTarget, SUBFOLDER};
 
@@ -181,7 +183,25 @@ pub fn settings_to_json(s: &Settings) -> Value {
             "straighten": s.geometry.straighten,
             "crop": s.geometry.crop.map(|c| json!({"x": c.x, "y": c.y, "width": c.width, "height": c.height})),
         },
+        "effects": {
+            "vignette": s.effects.vignette,
+            "water": range_to_json(&s.effects.water),
+            "cyan": range_to_json(&s.effects.cyan),
+            "warm": range_to_json(&s.effects.warm),
+        },
     })
+}
+
+fn range_to_json(r: &ColorRange) -> Value {
+    json!({"hue": r.hue, "saturation": r.saturation, "luminance": r.luminance})
+}
+
+fn effects_from_json(g: Option<&Value>) -> Effects {
+    let range = |key: &str| {
+        let r = g.and_then(|g| g.get(key));
+        ColorRange { hue: group_f32(r, "hue"), saturation: group_f32(r, "saturation"), luminance: group_f32(r, "luminance") }
+    };
+    Effects { vignette: group_f32(g, "vignette"), water: range("water"), cyan: range("cyan"), warm: range("warm") }
 }
 
 /// Fehlende oder falsche Felder bekommen ihren Standardwert.
@@ -211,6 +231,7 @@ pub fn settings_from_json(v: &Value) -> Settings {
         tone: tone_from_json(v.get("tone")),
         detail: detail_from_json(v.get("detail")),
         geometry: geometry_from_json(v.get("geometry")),
+        effects: effects_from_json(v.get("effects")),
     }
 }
 
@@ -272,6 +293,12 @@ mod tests {
             sharpen_mask: 30.0,
             noise_color: 50.0,
             noise_luma: 10.0,
+        };
+        s.effects = Effects {
+            vignette: -25.0,
+            water: ColorRange { hue: 10.0, saturation: -20.0, luminance: -5.5 },
+            cyan: ColorRange::default(),
+            warm: ColorRange { hue: 0.0, saturation: 30.0, luminance: 12.0 },
         };
         s.geometry = Geometry {
             quarter_turns: 3,
