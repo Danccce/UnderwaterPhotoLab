@@ -327,6 +327,18 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
     let weak = app.as_weak();
+    app.on_heal_click(move |x, y| {
+        if let Some(app) = weak.upgrade() {
+            controls::heal_click(&app, x, y);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_clear_spots(move || {
+        if let Some(app) = weak.upgrade() {
+            controls::clear_spots(&app);
+        }
+    });
+    let weak = app.as_weak();
     app.on_reset_geometry(move || {
         if let Some(app) = weak.upgrade() {
             controls::reset_geometry(&app);
@@ -498,6 +510,7 @@ fn select(app: &LabWindow, index: i32) {
     app.set_can_undo(false);
     app.set_can_redo(false);
     app.set_cropping(false);
+    app.set_spot_marks(Default::default());
     zoom::new_image(app, None);
 
     let thumb = app.get_thumbs().row_data(index as usize).filter(|t| t.loaded && !t.failed);

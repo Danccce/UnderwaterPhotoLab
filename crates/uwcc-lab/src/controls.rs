@@ -3,9 +3,10 @@
 use std::{cell::RefCell, time::Duration};
 
 use slint::{ComponentHandle, Timer, TimerMode};
-use uwcc_core::{Crop, Field, Settings};
+use slint::{ModelRc, VecModel};
+use uwcc_core::{Crop, Field, Settings, Spot, MAX_SPOTS};
 
-use crate::{with_state, LabWindow};
+use crate::{with_state, LabWindow, SpotMark};
 
 thread_local! {
     // Fasst schnelle Regleränderungen zu einer Neuberechnung pro Frame zusammen.
@@ -42,6 +43,40 @@ pub fn crop(app: &LabWindow, x: f32, y: f32, w: f32, h: f32) {
     let full = x <= 0.0005 && y <= 0.0005 && w >= 0.9995 && h >= 0.9995;
     let c = Crop { x: x.clamp(0.0, 1.0), y: y.clamp(0.0, 1.0), width: w.clamp(0.0, 1.0), height: h.clamp(0.0, 1.0) };
     update(app, None, |s, _| s.geometry.crop = (!full).then_some(c));
+}
+
+/// Partikel-Werkzeug: Klick bei (`ox`, `oy`) im Ergebnis (Pixel der vollen Auflösung). Liegt dort
+/// schon ein Partikel, wird er entfernt, sonst einer mit der eingestellten Größe gesetzt.
+pub fn heal_click(app: &LabWindow, ox: f32, oy: f32) {
+    let Some((map, w, h, spots)) = with_state(|st| {
+        st.current.as_ref().map(|l| (l.mapping(), l.full.width() as f32, l.full.height() as f32, l.settings.spots))
+    }) else {
+        return;
+    };
+    let long = w.max(h);
+    let hit = spots.as_slice().iter().position(|s| {
+        let (sx, sy) = map.to_output(s.x * w, s.y * h);
+        (sx - ox).hypot(sy - oy) <= s.radius * long * map.zoom()
+    });
+    if let Some(i) = hit {
+        update(app, None, |s, _| s.spots.remove(i));
+        return;
+    }
+    let (sx, sy) = map.to_upright(ox, oy);
+    if !(0.0..w).contains(&sx) || !(0.0..h).contains(&sy) {
+        return;
+    }
+    let spot = Spot { x: sx / w, y: sy / h, radius: app.get_heal_size() / map.zoom() / long };
+    let mut full = false;
+    update(app, None, |s, _| full = !s.spots.push(spot));
+    if full {
+        app.set_status(format!("Höchstens {MAX_SPOTS} Partikel je Bild.").into());
+    }
+}
+
+/// Alle Partikel dieses Bildes entfernen.
+pub fn clear_spots(app: &LabWindow) {
+    update(app, None, |s, _| s.spots = Default::default());
 }
 
 /// Drehen, Spiegeln, Geraderichten und Zuschnitt zurücksetzen.
@@ -119,9 +154,21 @@ fn update(app: &LabWindow, field: Option<Field>, f: impl FnOnce(&mut Settings, &
 /// Schreibt die wirksamen Werte in die Regler, markiert das Bild in der Leiste und plant die
 /// Neuberechnung der Vorschau.
 pub fn refresh(app: &LabWindow) {
-    let Some((s, values, undo, redo, frame, output)) = with_state(|st| {
+    let Some((s, values, undo, redo, frame, output, marks)) = with_state(|st| {
         let l = st.current.as_ref()?;
         let h = st.history.get(&l.path);
+        let (map, w, hh) = (l.mapping(), l.full.width() as f32, l.full.height() as f32);
+        // Partikel als Kreise im Ergebnis (Pixel der vollen Auflösung).
+        let marks: Vec<SpotMark> = l
+            .settings
+            .spots
+            .as_slice()
+            .iter()
+            .map(|p| {
+                let (x, y) = map.to_output(p.x * w, p.y * hh);
+                SpotMark { x, y, r: p.radius * w.max(hh) * map.zoom() }
+            })
+            .collect();
         Some((
             l.settings,
             Field::ALL.map(|f| l.settings.effective(f, &l.auto) as f32),
@@ -129,10 +176,12 @@ pub fn refresh(app: &LabWindow) {
             h.is_some_and(|h| h.can_redo()),
             l.frame_size(),
             l.output_size(),
+            marks,
         ))
     }) else {
         return;
     };
+    app.set_spot_marks(ModelRc::new(VecModel::from(marks)));
     app.set_can_undo(undo);
     app.set_can_redo(redo);
     app.set_auto_on(s.auto);

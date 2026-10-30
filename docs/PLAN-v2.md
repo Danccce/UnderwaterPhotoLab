@@ -309,7 +309,16 @@ Orange/Gelb 35° ±35°), schwach gesättigte Pixel kaum; Pixel außerhalb aller
 Übertragen gehört der Farbmischer zur Gruppe Farbe, die Vignette zu Ton. Oberfläche: Vignette im Reiter
 „Ton“, Farbmischer unten im Reiter „Farbe“ mit Umschalter der drei Bereiche. Außerdem: Die feste
 Statuszeile ist ersetzt durch eine kurze Meldung unten im Bild (5 s).
-- [ ] 13.3 Partikel entfernen: Klick-Werkzeug (Fleck aus der Umgebung füllen); später evtl. automatisch
+- [x] 13.3 Partikel entfernen: Klick-Werkzeug (Fleck aus der Umgebung füllen); später evtl. automatisch
+
+Umgesetzt – 13.3: `Settings.spots` (bis 100 Flecken, Lage als Anteil des aufrechten Bildes, Radius als Anteil
+der langen Kante), in `.uwcc.json` als `"spots": [[x, y, r], …]`; wird nie auf andere Bilder übertragen.
+`uwcc_filters::heal` bessert vor Geometrie und Filtern aus: sucht in 16 Richtungen (Abstand 2,8 r und 4 r) die
+Quelle, deren Ring (1,35–1,9 r) am besten zur Umgebung passt, gleicht die Helligkeit an und füllt mit weichem
+Rand (voll bis 0,9 r, aus bis 1,3 r). Vorschau, Zoom und Export nutzen dieselbe Funktion; die Caches hängen
+an Geometrie und Flecken. Umrechnung Bildschirm ↔ aufrechtes Bild über `geometry::Mapping`. Oberfläche:
+Knopf „Partikel“ unter dem Bild oder Taste P; Klick setzt einen Fleck, Klick auf einen Kreis entfernt ihn,
+Größe 4–120 px (Bildschirm), „Alle entfernen“; Strg+Z nimmt zurück.
 - [x] 13.4 Programmsymbol (Fenster und .exe): `assets\make-icon.ps1` zeichnet es (Ozeanblau, Ring weiß/
   korallenorange für das wiederhergestellte Rot, Luftblasen) in 16–256 px und packt `icon.ico`; Fenster über
   Slint (`icon`), .exe über `app.rc` und `embed-resource` (windres der MinGW-Toolchain).

@@ -26,6 +26,13 @@ export struct ProgramItem {
     chosen: bool,
 }
 
+// Ein ausgebesserter Partikel im Ergebnis (Pixel der vollen Auflösung).
+export struct SpotMark {
+    x: float,
+    y: float,
+    r: float,
+}
+
 export struct PresetItem {
     name: string,
     builtin: bool,
@@ -540,9 +547,36 @@ export component LabWindow inherits Window {
 
     function set-cropping(on: bool) {
         root.cropping = on;
+        root.healing = false;
         root.zoomed = false;
         root.line-tool = false;
         root.cropping-changed();
+    }
+
+    // Partikel entfernen (Taste P): Klick setzt einen Partikel, Klick auf einen Kreis nimmt ihn weg.
+    in-out property <bool> healing;
+    // Durchmesser des nächsten Partikels in Pixeln des Ergebnisses (volle Auflösung).
+    in-out property <float> heal-size: 24;
+    in property <[SpotMark]> spot-marks;
+    callback heal-click(float, float);
+    callback clear-spots();
+    function set-healing(on: bool) {
+        if on && root.cropping {
+            root.set-cropping(false);
+        }
+        root.healing = on;
+    }
+    // Bildpixel (Ergebnis) → Bildschirm, in beiden Ansichten (Umkehrung von image-x/-y).
+    pure function screen-x(px: float) -> length {
+        root.zoomed ? preview-box.width / 2 + (px - root.zoom-cx) * root.zoom-scale * 1phx
+            : (preview-box.width - root.full-width * root.fit) / 2 + px * root.fit
+    }
+    pure function screen-y(py: float) -> length {
+        root.zoomed ? preview-box.height / 2 + (py - root.zoom-cy) * root.zoom-scale * 1phx
+            : (preview-box.height - root.full-height * root.fit) / 2 + py * root.fit
+    }
+    pure function screen-len(px: float) -> length {
+        root.zoomed ? px * root.zoom-scale * 1phx : px * root.fit
     }
     // Größter Zuschnitt im gewählten Verhältnis, um die bisherige Mitte.
     function apply-ratio() {
@@ -690,6 +724,15 @@ export component LabWindow inherits Window {
                 "Ecken oder Kanten ziehen ändert die Größe, innen ziehen verschiebt. Seitenverhältnis wählbar, Hoch-/Querformat tauscht es.",
                 "Geraderichten mit dem Regler (±45°) oder „Linie ziehen“: Linie entlang Horizont oder Riffkante ziehen, sie wird waagerecht bzw. senkrecht.",
                 "Links/Rechts drehen und Spiegeln; der Zuschnitt dreht mit. Der Export ist aufrecht und zugeschnitten.",
+            ],
+        },
+        {
+            title: "Partikel entfernen",
+            lines: [
+                "„Partikel“ unter dem Bild oder Taste P schaltet das Werkzeug ein; Fertig, P, Enter oder Esc beenden es.",
+                "Klick auf einen Schwebeteilchen-Fleck füllt ihn aus der passenden Umgebung; Klick auf einen weißen Kreis entfernt ihn wieder.",
+                "Größe 4–120 px: der Kreis am Mauszeiger soll den Fleck knapp umschließen. In der 100-%-Ansicht (Z) trifft man kleine Flecken genauer.",
+                "Bis zu 100 Flecken je Bild; „Alle entfernen“ löscht sie, Strg+Z nimmt einzelne zurück. Sie werden nicht auf andere Bilder übertragen.",
             ],
         },
         {
@@ -841,6 +884,14 @@ export component LabWindow inherits Window {
             }
             if root.cropping && (event.text == Key.Escape || event.text == Key.Return) {
                 root.set-cropping(false);
+                return accept;
+            }
+            if (event.text == "p" || event.text == "P") && !event.modifiers.control && root.has-preview && !root.loading {
+                root.set-healing(!root.healing);
+                return accept;
+            }
+            if root.healing && (event.text == Key.Escape || event.text == Key.Return) {
+                root.set-healing(false);
                 return accept;
             }
             if root.zoomed && event.text == Key.Escape {
@@ -1034,22 +1085,30 @@ export component LabWindow inherits Window {
 
                     // Ohne Zoom verschiebt jeder Klick die Split-Linie; mit Zoom nur ein Griff an der
                     // Linie, sonst verschiebt Ziehen den Ausschnitt.
-                    TouchArea {
+                    preview-touch := TouchArea {
                         property <bool> panning;
                         property <bool> splitting;
                         property <length> start-x;
                         property <length> start-y;
                         property <float> start-cx;
                         property <float> start-cy;
-                        property <bool> on-split: root.has-preview && root.split && !root.hold
+                        property <bool> on-split: root.has-preview && root.split && !root.hold && !root.healing
                             && (!root.zoomed || abs(self.mouse-x - preview-box.width * root.split-pos) < 12px);
-                        mouse-cursor: root.picking ? MouseCursor.crosshair
+                        mouse-cursor: root.picking || root.healing ? MouseCursor.crosshair
                             : self.on-split || self.splitting ? MouseCursor.ew-resize
                             : self.panning ? MouseCursor.move
                             : MouseCursor.default;
                         pointer-event(event) => {
+                            // Partikel-Werkzeug: ein Klick ohne Ziehen setzt bzw. entfernt einen Partikel;
+                            // Ziehen verschiebt im Zoom weiterhin den Ausschnitt.
+                            if root.healing && event.button == PointerEventButton.left && event.kind == PointerEventKind.up
+                                && abs(self.mouse-x - self.start-x) < 4px && abs(self.mouse-y - self.start-y) < 4px {
+                                root.heal-click(root.image-x(self.mouse-x), root.image-y(self.mouse-y));
+                            }
                             if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
                                 keys.focus();
+                                self.start-x = self.mouse-x;
+                                self.start-y = self.mouse-y;
                                 if root.picking {
                                     root.picking = false;
                                     root.pick(root.image-x(self.mouse-x) / root.full-width, root.image-y(self.mouse-y) / root.full-height);
@@ -1097,7 +1156,7 @@ export component LabWindow inherits Window {
                             reject
                         }
                         double-clicked => {
-                            if root.has-preview && !root.picking && !root.cropping {
+                            if root.has-preview && !root.picking && !root.cropping && !root.healing {
                                 if root.zoomed {
                                     root.zoomed = false;
                                 } else {
@@ -1127,6 +1186,98 @@ export component LabWindow inherits Window {
                             }
                             self.last-x = self.center.x;
                             self.last-y = self.center.y;
+                        }
+                    }
+
+                    // Partikel-Werkzeug: Kreise der gesetzten Partikel, Vorschaukreis am Mauszeiger,
+                    // Werkzeugleiste oben.
+                    if root.has-preview && root.healing && !root.cropping: Rectangle {
+                        for m in root.spot-marks: Rectangle {
+                            x: root.screen-x(m.x) - root.screen-len(m.r);
+                            y: root.screen-y(m.y) - root.screen-len(m.r);
+                            width: 2 * root.screen-len(m.r);
+                            height: self.width;
+                            border-radius: self.width / 2;
+                            border-width: 1.5px;
+                            border-color: #ffffffd8;
+                        }
+                        if preview-touch.has-hover: Rectangle {
+                            x: preview-touch.mouse-x - root.screen-len(root.heal-size / 2);
+                            y: preview-touch.mouse-y - root.screen-len(root.heal-size / 2);
+                            width: root.screen-len(root.heal-size);
+                            height: self.width;
+                            border-radius: self.width / 2;
+                            border-width: 1px;
+                            border-color: Palette.accent-background;
+                        }
+                        Rectangle {
+                            x: (parent.width - self.width) / 2;
+                            y: 10px;
+                            width: min(parent.width - 20px, 640px);
+                            height: 44px;
+                            border-radius: 8px;
+                            background: #000000c8;
+                            TouchArea { }
+                            HorizontalLayout {
+                                padding: 8px;
+                                spacing: 8px;
+                                Text {
+                                    text: "Partikel: Klick setzt, Klick auf Kreis entfernt";
+                                    vertical-alignment: center;
+                                    font-size: 12px;
+                                }
+                                Text {
+                                    text: "Größe";
+                                    vertical-alignment: center;
+                                    font-size: 12px;
+                                    color: #c8ccd2;
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
+                                    ValueSlider {
+                                        minimum: 4;
+                                        maximum: 120;
+                                        value <=> root.heal-size;
+                                        released => {
+                                            keys.focus();
+                                        }
+                                        double-clicked => {
+                                            root.heal-size = 24;
+                                            keys.focus();
+                                        }
+                                    }
+                                }
+                                Text {
+                                    width: 44px;
+                                    text: round(root.heal-size) + " px";
+                                    horizontal-alignment: right;
+                                    vertical-alignment: center;
+                                    font-size: 12px;
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        SmallButton {
+                                            text: "Alle entfernen (" + root.spot-marks.length + ")";
+                                            enabled: root.spot-marks.length > 0;
+                                            clicked => {
+                                                root.clear-spots();
+                                                keys.focus();
+                                            }
+                                        }
+                                        SmallButton {
+                                            text: "Fertig (P)";
+                                            active: true;
+                                            clicked => {
+                                                root.set-healing(false);
+                                                keys.focus();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -2356,6 +2507,15 @@ export component LabWindow inherits Window {
                                 enabled: root.has-preview && !root.loading;
                                 clicked => {
                                     root.set-cropping(!root.cropping);
+                                    keys.focus();
+                                }
+                            }
+                            SmallButton {
+                                text: "Partikel";
+                                active: root.healing;
+                                enabled: root.has-preview && !root.loading;
+                                clicked => {
+                                    root.set-healing(!root.healing);
                                     keys.focus();
                                 }
                             }

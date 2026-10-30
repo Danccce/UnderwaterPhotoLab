@@ -57,6 +57,92 @@ pub fn straighten_zoom(fw: u32, fh: u32, deg: f32) -> f32 {
     a.cos() + ratio * a.sin()
 }
 
+/// Umrechnung zwischen Punkten (Pixel, stetig) des aufrechten Bildes `w × h` und des Ergebnisses.
+pub struct Mapping {
+    sw: f32,
+    sh: f32,
+    fw: f32,
+    fh: f32,
+    q: u8,
+    flip: bool,
+    deg: f32,
+    sin: f32,
+    cos: f32,
+    zoom: f32,
+    /// Anfang des Zuschnitts im Rahmen.
+    cx: f32,
+    cy: f32,
+}
+
+impl Mapping {
+    pub fn new(w: u32, h: u32, g: &Geometry) -> Self {
+        let (fw, fh) = frame_size(w, h, g);
+        let (cx, cy, _, _) = crop_px(fw, fh, g);
+        let deg = g.straighten.clamp(-MAX_STRAIGHTEN, MAX_STRAIGHTEN);
+        let (sin, cos) = deg.to_radians().sin_cos();
+        Self {
+            sw: w as f32,
+            sh: h as f32,
+            fw: fw as f32,
+            fh: fh as f32,
+            q: g.quarter_turns % 4,
+            flip: g.flip_horizontal,
+            deg,
+            sin,
+            cos,
+            zoom: straighten_zoom(fw, fh, deg),
+            cx: cx as f32,
+            cy: cy as f32,
+        }
+    }
+
+    /// Vergrößerung durch das Geraderichten (Längen im Ergebnis = im aufrechten Bild × diese).
+    pub fn zoom(&self) -> f32 {
+        self.zoom
+    }
+
+    /// Rahmenpunkt → Punkt im aufrechten Bild.
+    fn source(&self, fx: f32, fy: f32) -> (f32, f32) {
+        let (mut tx, mut ty) = (fx, fy);
+        if self.deg != 0.0 {
+            let (u, v) = (fx - self.fw / 2.0, fy - self.fh / 2.0);
+            // Inhalt im Uhrzeigersinn gedreht: zurück gegen den Uhrzeigersinn, dann verkleinert.
+            tx = self.fw / 2.0 + (u * self.cos + v * self.sin) / self.zoom;
+            ty = self.fh / 2.0 + (-u * self.sin + v * self.cos) / self.zoom;
+        }
+        let (x, y) = match self.q {
+            0 => (tx, ty),
+            1 => (ty, self.sh - tx),
+            2 => (self.sw - tx, self.sh - ty),
+            _ => (self.sw - ty, tx),
+        };
+        (if self.flip { self.sw - x } else { x }, y)
+    }
+
+    /// Punkt im Ergebnis → Punkt im aufrechten Bild.
+    pub fn to_upright(&self, ox: f32, oy: f32) -> (f32, f32) {
+        self.source(self.cx + ox, self.cy + oy)
+    }
+
+    /// Punkt im aufrechten Bild → Punkt im Ergebnis (Umkehrung von [`Self::to_upright`]).
+    pub fn to_output(&self, sx: f32, sy: f32) -> (f32, f32) {
+        let x = if self.flip { self.sw - sx } else { sx };
+        let (tx, ty) = match self.q {
+            0 => (x, sy),
+            1 => (self.sh - sy, x),
+            2 => (self.sw - x, self.sh - sy),
+            _ => (sy, self.sw - x),
+        };
+        let (mut fx, mut fy) = (tx, ty);
+        if self.deg != 0.0 {
+            let (u, v) = (tx - self.fw / 2.0, ty - self.fh / 2.0);
+            fx = self.fw / 2.0 + self.zoom * (u * self.cos - v * self.sin);
+            fy = self.fh / 2.0 + self.zoom * (u * self.sin + v * self.cos);
+        }
+        (fx - self.cx, fy - self.cy)
+    }
+}
+
 /// Wendet `g` auf das aufrechte RGBA-Bild `w × h` an; Ergebnis und seine Größe.
 pub fn transform(rgba: &[u8], w: u32, h: u32, g: &Geometry) -> (Vec<u8>, u32, u32) {
     if is_identity(g) {
@@ -64,29 +150,10 @@ pub fn transform(rgba: &[u8], w: u32, h: u32, g: &Geometry) -> (Vec<u8>, u32, u3
     }
     let (fw, fh) = frame_size(w, h, g);
     let (cx, cy, ow, oh) = crop_px(fw, fh, g);
-    let deg = g.straighten.clamp(-MAX_STRAIGHTEN, MAX_STRAIGHTEN);
-    let (sin, cos) = deg.to_radians().sin_cos();
-    let zoom = straighten_zoom(fw, fh, deg);
+    let map = Mapping::new(w, h, g);
+    let deg = map.deg;
     let (sw, sh) = (w as f32, h as f32);
-    let q = g.quarter_turns % 4;
-
-    // Rahmenpunkt (Pixelmitte, stetig) → Punkt im aufrechten Bild.
-    let source = |fx: f32, fy: f32| -> (f32, f32) {
-        let (mut tx, mut ty) = (fx, fy);
-        if deg != 0.0 {
-            let (u, v) = (fx - fw as f32 / 2.0, fy - fh as f32 / 2.0);
-            // Inhalt im Uhrzeigersinn gedreht: zurück gegen den Uhrzeigersinn, dann verkleinert.
-            tx = fw as f32 / 2.0 + (u * cos + v * sin) / zoom;
-            ty = fh as f32 / 2.0 + (-u * sin + v * cos) / zoom;
-        }
-        let (x, y) = match q {
-            0 => (tx, ty),
-            1 => (ty, sh - tx),
-            2 => (sw - tx, sh - ty),
-            _ => (sw - ty, tx),
-        };
-        (if g.flip_horizontal { sw - x } else { x }, y)
-    };
+    let source = |fx: f32, fy: f32| map.source(fx, fy);
 
     let mut out = vec![0u8; ow as usize * oh as usize * 4];
     let stride = w as usize * 4;
@@ -144,6 +211,22 @@ mod tests {
         assert_eq!(reds(&turned(0, true).0), [2, 1, 0, 5, 4, 3], "gespiegelt");
         assert_eq!(reds(&turned(1, true).0), [5, 2, 4, 1, 3, 0], "erst spiegeln, dann drehen");
         assert_eq!(reds(&turned(4, false).0), reds(&tiny()), "vier Viertel = unverändert");
+    }
+
+    #[test]
+    fn mapping_to_output_reverses_to_upright() {
+        let g = Geometry {
+            quarter_turns: 3,
+            flip_horizontal: true,
+            straighten: 7.0,
+            crop: Some(Crop { x: 0.1, y: 0.2, width: 0.6, height: 0.5 }),
+        };
+        let m = Mapping::new(400, 300, &g);
+        for &(ox, oy) in &[(0.0, 0.0), (37.5, 81.25), (120.0, 10.0)] {
+            let (sx, sy) = m.to_upright(ox, oy);
+            let (bx, by) = m.to_output(sx, sy);
+            assert!((bx - ox).abs() < 1e-3 && (by - oy).abs() < 1e-3, "({ox}, {oy}) → ({bx}, {by})");
+        }
     }
 
     #[test]

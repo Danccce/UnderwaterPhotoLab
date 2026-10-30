@@ -23,7 +23,7 @@ use std::{
 
 use serde_json::{json, Map, Value};
 use uwcc_core::{
-    ColorRange, Crop, Delta, Detail, Effects, Geometry, LevelsDelta, Settings, Tone, DEFAULT_SHARPEN_RADIUS,
+    ColorRange, Crop, Delta, Detail, Effects, Geometry, LevelsDelta, Settings, Spot, Spots, Tone, DEFAULT_SHARPEN_RADIUS,
 };
 
 use crate::{ExportTarget, SUBFOLDER};
@@ -189,7 +189,19 @@ pub fn settings_to_json(s: &Settings) -> Value {
             "cyan": range_to_json(&s.effects.cyan),
             "warm": range_to_json(&s.effects.warm),
         },
+        "spots": s.spots.as_slice().iter().map(|p| json!([p.x, p.y, p.radius])).collect::<Vec<_>>(),
     })
+}
+
+fn spots_from_json(v: Option<&Value>) -> Spots {
+    let mut spots = Spots::default();
+    for p in v.and_then(Value::as_array).into_iter().flatten() {
+        let f = |i: usize| p.get(i).and_then(Value::as_f64).map(|v| v as f32);
+        if let (Some(x), Some(y), Some(radius)) = (f(0), f(1), f(2)) {
+            spots.push(Spot { x, y, radius });
+        }
+    }
+    spots
 }
 
 fn range_to_json(r: &ColorRange) -> Value {
@@ -232,6 +244,7 @@ pub fn settings_from_json(v: &Value) -> Settings {
         detail: detail_from_json(v.get("detail")),
         geometry: geometry_from_json(v.get("geometry")),
         effects: effects_from_json(v.get("effects")),
+        spots: spots_from_json(v.get("spots")),
     }
 }
 
@@ -300,6 +313,8 @@ mod tests {
             cyan: ColorRange::default(),
             warm: ColorRange { hue: 0.0, saturation: 30.0, luminance: 12.0 },
         };
+        s.spots.push(Spot { x: 0.25, y: 0.5, radius: 0.004 });
+        s.spots.push(Spot { x: 0.75, y: 0.125, radius: 0.0025 });
         s.geometry = Geometry {
             quarter_turns: 3,
             flip_horizontal: true,

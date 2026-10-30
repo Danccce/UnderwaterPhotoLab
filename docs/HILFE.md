@@ -74,6 +74,15 @@ Schärfen und Rauschreduzierung wirken auf einzelne Pixel; die verkleinerte Ansi
 - **Links/Rechts drehen** (90°) und **Spiegeln**; der Zuschnitt dreht bzw. spiegelt mit. **Zurücksetzen** nimmt Drehen, Spiegeln, Geraderichten und Zuschnitt zurück.
 - Der Export schreibt das Bild aufrecht und zugeschnitten (EXIF-Ausrichtung 1), das eingebettete Vorschaubild zeigt den Zuschnitt. Beim Übernehmen auf mehrere Bilder bleiben Zuschnitt und Drehung jedes Bildes erhalten.
 
+## Partikel entfernen
+
+**Partikel** unter dem Bild oder Taste **P** schaltet das Werkzeug ein; **Fertig**, **P**, **Enter** oder **Esc** beenden es.
+
+- **Klick** auf einen Schwebeteilchen-Fleck (Backscatter) füllt ihn aus der passenden Umgebung; der weiße Kreis zeigt die Stelle. **Klick auf einen Kreis** entfernt ihn wieder.
+- **Größe** (4–120 px am Bildschirm) – der blaue Kreis am Mauszeiger zeigt sie; der Kreis sollte den Fleck knapp umschließen. In der 100-%-Ansicht (Z) lassen sich kleine Flecken genauer treffen.
+- **Alle entfernen** löscht alle Flecken des Bildes; Strg+Z nimmt einzelne Schritte zurück.
+- Bis zu 100 Flecken je Bild. Sie gelten nur für dieses Bild und werden beim Übernehmen auf mehrere Bilder nicht mitkopiert.
+
 ## Mehrere Bilder
 
 - **Strg+Klick:** Bild dazu oder weg. **Umschalt+Klick:** Bereich. **Strg+A:** alle. **Esc:** Auswahl aufheben.

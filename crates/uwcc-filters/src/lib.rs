@@ -9,6 +9,7 @@
 //! verkleinerte Vorschau zeigt sie nur ungefähr (mindestens ein Pixel), genau die 100-%-Ansicht.
 
 pub mod geometry;
+pub mod heal;
 pub mod plane;
 
 use std::{sync::Arc, thread};

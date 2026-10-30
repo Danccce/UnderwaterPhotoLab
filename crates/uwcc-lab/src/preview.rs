@@ -12,7 +12,7 @@ use std::{
 use std::cell::RefCell;
 
 use slint::{Rgba8Pixel, SharedPixelBuffer, Weak};
-use uwcc_core::{Correction, Geometry, Settings};
+use uwcc_core::{Correction, Geometry, Settings, Spots};
 use uwcc_filters::geometry;
 use uwcc_photo::{Photo, RgbaImage};
 
@@ -21,8 +21,8 @@ use crate::LabWindow;
 /// Längste Kante der Vorschau; der Export rechnet in voller Auflösung.
 pub const PREVIEW_MAX: u32 = 1280;
 
-/// Ein Bild nach einer Geometrie, gemerkt, bis sich die Geometrie ändert.
-pub type Cached = RefCell<Option<(Geometry, Arc<RgbaImage>)>>;
+/// Ein Bild nach Ausbessern und Geometrie, gemerkt, bis sich beides ändert.
+pub type Cached = RefCell<Option<(Geometry, Spots, Arc<RgbaImage>)>>;
 
 pub struct Loaded {
     pub path: PathBuf,
@@ -41,19 +41,29 @@ pub struct Loaded {
     pub full_view: Cached,
 }
 
-/// `img` nach `g`, aus `cache` oder neu gerechnet.
-pub fn transformed(img: &Arc<RgbaImage>, g: &Geometry, cache: &Cached) -> Arc<RgbaImage> {
-    if geometry::is_identity(g) {
+/// `img` mit ausgebesserten `spots`, dann nach `g`; aus `cache` oder neu gerechnet.
+pub fn transformed(img: &Arc<RgbaImage>, g: &Geometry, spots: &Spots, cache: &Cached) -> Arc<RgbaImage> {
+    if geometry::is_identity(g) && spots.is_empty() {
         return img.clone();
     }
-    if let Some((cg, cached)) = cache.borrow().as_ref() {
-        if cg == g {
+    if let Some((cg, cs, cached)) = cache.borrow().as_ref() {
+        if cg == g && cs == spots {
             return cached.clone();
         }
     }
-    let (px, w, h) = geometry::transform(img.as_raw(), img.width(), img.height(), g);
+    let healed;
+    let source: &RgbaImage = if spots.is_empty() {
+        img
+    } else {
+        let mut copy = (**img).clone();
+        let (w, h) = copy.dimensions();
+        uwcc_filters::heal::heal(&mut copy, w, h, spots.as_slice());
+        healed = copy;
+        &healed
+    };
+    let (px, w, h) = geometry::transform(source.as_raw(), source.width(), source.height(), g);
     let out = Arc::new(RgbaImage::from_raw(w, h, px).expect("Puffergröße passt"));
-    *cache.borrow_mut() = Some((*g, out.clone()));
+    *cache.borrow_mut() = Some((*g, *spots, out.clone()));
     out
 }
 
@@ -69,7 +79,7 @@ impl Loaded {
 
     /// Unbearbeitete Vorschau nach der Geometrie.
     pub fn view(&self, cropping: bool) -> Arc<RgbaImage> {
-        transformed(&self.original, &self.view_geometry(cropping), &self.view)
+        transformed(&self.original, &self.view_geometry(cropping), &self.settings.spots, &self.view)
     }
 
     /// Pixel der Vorschau je Pixel des Originals.
@@ -80,6 +90,11 @@ impl Loaded {
     /// Größe des Ergebnisses in voller Auflösung (nach Drehen und Zuschnitt).
     pub fn output_size(&self) -> (u32, u32) {
         geometry::output_size(self.full.width(), self.full.height(), &self.settings.geometry)
+    }
+
+    /// Umrechnung zwischen aufrechtem Bild und Ergebnis in voller Auflösung.
+    pub fn mapping(&self) -> geometry::Mapping {
+        geometry::Mapping::new(self.full.width(), self.full.height(), &self.settings.geometry)
     }
 
     /// Größe des Rahmens in voller Auflösung (gedreht, ohne Zuschnitt).

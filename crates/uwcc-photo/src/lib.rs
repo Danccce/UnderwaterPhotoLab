@@ -116,8 +116,9 @@ impl Photo {
         // die schon gedrehten Pixel noch einmal.
         let mut upright = DynamicImage::ImageRgba8(self.rgba.clone());
         upright.apply_orientation(self.orientation);
-        let upright = upright.into_rgba8();
+        let mut upright = upright.into_rgba8();
         let (uw, uh) = upright.dimensions();
+        uwcc_filters::heal::heal(&mut upright, uw, uh, settings.spots.as_slice());
         let (mut px, w, h) = if uwcc_filters::geometry::is_identity(&settings.geometry) {
             (upright.into_raw(), uw, uh)
         } else {

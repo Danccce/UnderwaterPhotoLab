@@ -12,7 +12,7 @@ use std::{
 };
 
 use slint::{ComponentHandle, Image, Rgba8Pixel, SharedPixelBuffer};
-use uwcc_core::{Correction, Geometry, Settings};
+use uwcc_core::{Correction, Geometry, Settings, Spots};
 use uwcc_filters::geometry;
 use uwcc_photo::RgbaImage;
 
@@ -31,6 +31,7 @@ struct Job {
     full: Option<Arc<RgbaImage>>,
     upright: Arc<RgbaImage>,
     geometry: Geometry,
+    spots: Spots,
     reference: Arc<uwcc_filters::Reference>,
     settings: Settings,
     auto: Correction,
@@ -50,7 +51,10 @@ impl Job {
     /// einen Rand mit, damit Filter mit Nachbarschaft am Rand des Ausschnitts richtig wirken.
     /// Dazu das ganze Bild nach der Geometrie, falls es dafür erst gerechnet wurde.
     fn run(&self) -> (SharedPixelBuffer<Rgba8Pixel>, SharedPixelBuffer<Rgba8Pixel>, Option<Arc<RgbaImage>>) {
-        let computed = self.full.is_none().then(|| preview::transformed(&self.upright, &self.geometry, &RefCell::new(None)));
+        let computed = self
+            .full
+            .is_none()
+            .then(|| preview::transformed(&self.upright, &self.geometry, &self.spots, &RefCell::new(None)));
         let full = self.full.as_ref().or(computed.as_ref()).expect("eins von beiden");
         let (fw, fh) = full.dimensions();
         let s = self.scale.min(1.0);
@@ -88,16 +92,16 @@ impl Job {
 fn job(app: &LabWindow) -> Option<Job> {
     let (path, upright, full, reference, settings, auto, (fw, fh)) = with_state(|st| {
         st.current.as_ref().map(|l| {
-            let g = l.settings.geometry;
-            let full = if geometry::is_identity(&g) {
+            let (g, spots) = (l.settings.geometry, l.settings.spots);
+            let full = if geometry::is_identity(&g) && spots.is_empty() {
                 Some(l.full.clone())
             } else {
-                l.full_view.borrow().as_ref().filter(|(cg, _)| *cg == g).map(|(_, img)| img.clone())
+                l.full_view.borrow().as_ref().filter(|(cg, cs, _)| *cg == g && *cs == spots).map(|(_, _, img)| img.clone())
             };
             (l.path.clone(), l.full.clone(), full, l.reference.clone(), l.settings, l.auto, l.output_size())
         })
     })?;
-    let geometry = settings.geometry;
+    let (geometry, spots) = (settings.geometry, settings.spots);
     let scale = app.get_zoom_scale().max(0.01);
     let span = |view: f32, center: f32, size: u32| {
         let len = ((view / scale).ceil().max(1.0) as u32 + 2).min(size);
@@ -111,6 +115,7 @@ fn job(app: &LabWindow) -> Option<Job> {
         full,
         upright,
         geometry,
+        spots,
         reference,
         settings,
         auto,
@@ -141,8 +146,8 @@ pub fn request(app: &LabWindow) {
             let current = with_state(|st| {
                 let l = st.current.as_ref().filter(|l| l.path == job.path)?;
                 if let Some(img) = computed {
-                    if l.settings.geometry == job.geometry {
-                        *l.full_view.borrow_mut() = Some((job.geometry, img));
+                    if l.settings.geometry == job.geometry && l.settings.spots == job.spots {
+                        *l.full_view.borrow_mut() = Some((job.geometry, job.spots, img));
                     }
                 }
                 Some(())

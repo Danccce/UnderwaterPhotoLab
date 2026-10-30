@@ -108,6 +108,64 @@ const MIXER_RANGES: [(f32, f32); 3] = [(215.0, 35.0), (180.0, 25.0), (35.0, 35.0
 const MIXER_HUE: f32 = 30.0;
 const MIXER_STOPS: f32 = 0.7;
 
+/// Höchstens so viele ausgebesserte Partikel je Bild (feste Größe, damit `Settings` `Copy` bleibt).
+pub const MAX_SPOTS: usize = 100;
+
+/// Ein ausgebesserter Partikel im *aufrechten* Bild (vor Drehen und Zuschnitt): Mitte als Anteil von
+/// Breite und Höhe, Radius als Anteil der langen Kante.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Spot {
+    pub x: f32,
+    pub y: f32,
+    pub radius: f32,
+}
+
+/// Die Partikel eines Bildes; ungenutzte Plätze bleiben auf dem Standardwert, damit `==` stimmt.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Spots {
+    items: [Spot; MAX_SPOTS],
+    len: u8,
+}
+
+impl Default for Spots {
+    fn default() -> Self {
+        Self { items: [Spot::default(); MAX_SPOTS], len: 0 }
+    }
+}
+
+impl Spots {
+    pub fn as_slice(&self) -> &[Spot] {
+        &self.items[..self.len as usize]
+    }
+
+    pub fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Hängt `spot` an; `false`, wenn schon [`MAX_SPOTS`] da sind.
+    pub fn push(&mut self, spot: Spot) -> bool {
+        if self.len() >= MAX_SPOTS {
+            return false;
+        }
+        self.items[self.len()] = spot;
+        self.len += 1;
+        true
+    }
+
+    pub fn remove(&mut self, index: usize) {
+        let len = self.len();
+        if index < len {
+            self.items.copy_within(index + 1..len, index);
+            self.len -= 1;
+            self.items[len - 1] = Spot::default();
+        }
+    }
+}
+
 /// Ausschnitt in normalisierten Koordinaten (0–1) des gedrehten und geradegerichteten Bildes.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Crop {
@@ -192,6 +250,8 @@ pub struct Settings {
     pub detail: Detail,
     pub geometry: Geometry,
     pub effects: Effects,
+    /// Ausgebesserte Partikel; gehören zum einzelnen Bild und werden nie übertragen.
+    pub spots: Spots,
 }
 
 impl Default for Settings {
@@ -208,6 +268,7 @@ impl Default for Settings {
             detail: Detail::default(),
             geometry: Geometry::default(),
             effects: Effects::default(),
+            spots: Spots::default(),
         }
     }
 }
@@ -998,6 +1059,25 @@ mod tests {
         let [r, _, b] = ops.color([0.8, 0.5, 0.3]);
         assert!(r - b > 0.8 - 0.3, "Orange kräftiger");
         assert_eq!(Settings::default().effective(Field::WarmSaturation, &AUTO), 0.0);
+    }
+
+    #[test]
+    fn spots_push_remove_and_compare() {
+        let mut s = Spots::default();
+        let a = Spot { x: 0.1, y: 0.2, radius: 0.01 };
+        let b = Spot { x: 0.5, y: 0.5, radius: 0.02 };
+        assert!(s.push(a) && s.push(b));
+        s.remove(0);
+        assert_eq!(s.as_slice(), &[b]);
+        let mut only_b = Spots::default();
+        only_b.push(b);
+        assert_eq!(s, only_b, "freie Plätze zurückgesetzt");
+        for _ in 1..MAX_SPOTS {
+            assert!(s.push(a));
+        }
+        assert!(!s.push(a), "voll");
+        let target = Settings { spots: only_b, ..Settings::default() };
+        assert_eq!(target.with_groups(&Settings::default(), Groups { geometry: true, ..Groups::default() }).spots, only_b);
     }
 
     #[test]
