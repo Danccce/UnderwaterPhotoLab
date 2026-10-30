@@ -1,4 +1,4 @@
-import { Button, CheckBox, Palette, ScrollView } from "std-widgets.slint";
+import { Button, CheckBox, ComboBox, Palette, ScrollView } from "std-widgets.slint";
 
 export struct Thumb {
     image: image,
@@ -454,6 +454,53 @@ export component LabWindow inherits Window {
         root.zoomed ? root.zoom-cy + (my - preview-box.height / 2) / 1phx / root.zoom-scale
             : (my - (preview-box.height - root.full-height * root.fit) / 2) / root.fit
     }
+    // Zuschneiden (Taste C): die Vorschau zeigt den ganzen gedrehten Rahmen, darüber den Zuschnitt
+    // als Anteile 0–1 des Rahmens. Gezogen wird hier; beim Loslassen geht er an Rust.
+    in-out property <bool> cropping;
+    callback cropping-changed();
+    in property <float> frame-width: 1;
+    in property <float> frame-height: 1;
+    in-out property <float> crop-x;
+    in-out property <float> crop-y;
+    in-out property <float> crop-w: 1;
+    in-out property <float> crop-h: 1;
+    callback crop-changed(float, float, float, float);
+    // Seitenverhältnis: 0 frei, 1 wie Original, 2 3:2, 3 4:3, 4 1:1, 5 16:9, 6 4:5.
+    in-out property <int> crop-ratio;
+    in-out property <bool> crop-portrait;
+    in-out property <float> v-straighten;
+    property <bool> line-tool;
+    callback rotate(bool);
+    callback flip();
+    callback reset-geometry();
+    property <float> ratio-base: root.crop-ratio == 1 ? root.frame-width / root.frame-height
+        : root.crop-ratio == 2 ? 3 / 2 : root.crop-ratio == 3 ? 4 / 3 : root.crop-ratio == 5 ? 16 / 9
+        : root.crop-ratio == 6 ? 4 / 5 : 1;
+    // Breite durch Höhe in Pixeln.
+    property <float> ratio: root.crop-portrait ? 1 / root.ratio-base : root.ratio-base;
+
+    function set-cropping(on: bool) {
+        root.cropping = on;
+        root.zoomed = false;
+        root.line-tool = false;
+        root.cropping-changed();
+    }
+    // Größter Zuschnitt im gewählten Verhältnis, um die bisherige Mitte.
+    function apply-ratio() {
+        if root.crop-ratio != 0 {
+            let k = root.frame-width / root.frame-height / root.ratio;
+            let w = k > 1 ? 1 / k : 1;
+            let h = w * k;
+            let cx = root.crop-x + root.crop-w / 2;
+            let cy = root.crop-y + root.crop-h / 2;
+            root.crop-x = clamp(cx - w / 2, 0, 1 - w);
+            root.crop-y = clamp(cy - h / 2, 0, 1 - h);
+            root.crop-w = w;
+            root.crop-h = h;
+            root.crop-changed(root.crop-x, root.crop-y, root.crop-w, root.crop-h);
+        }
+    }
+
     // Während des Ladens ist die Bildgröße noch unbekannt; dann zentriert Rust nach dem Laden.
     in-out property <bool> center-on-load;
     // Zoomt auf `scale`, die Bildstelle unter (mx, my) bleibt stehen; bis zum eingepassten Bild
@@ -555,6 +602,15 @@ export component LabWindow inherits Window {
             ],
         },
         {
+            title: "Zuschneiden und Ausrichten",
+            lines: [
+                "„Zuschneiden“ unter dem Bild oder Taste C: ganzes Bild mit Zuschnittrahmen und Werkzeugleiste. Fertig, C, Enter oder Esc beenden; Strg+Z nimmt zurück.",
+                "Ecken oder Kanten ziehen ändert die Größe, innen ziehen verschiebt. Seitenverhältnis wählbar, Hoch-/Querformat tauscht es.",
+                "Geraderichten mit dem Regler (±45°) oder „Linie ziehen“: Linie entlang Horizont oder Riffkante ziehen, sie wird waagerecht bzw. senkrecht.",
+                "Links/Rechts drehen und Spiegeln; der Zuschnitt dreht mit. Der Export ist aufrecht und zugeschnitten.",
+            ],
+        },
+        {
             title: "Mehrere Bilder",
             lines: [
                 "Strg+Klick: Bild dazu oder weg. Umschalt+Klick: Bereich. Strg+A: alle. Esc: Auswahl aufheben.",
@@ -631,7 +687,7 @@ export component LabWindow inherits Window {
     property <bool> space-held;
     // Leertaste oder „Vorher“-Knopf: das ganze Bild als Original, auch in der Split-Ansicht.
     property <bool> hold: root.space-held || before-button.pressed;
-    property <float> original-fraction: root.hold ? 1 : (root.split ? root.split-pos : 0);
+    property <float> original-fraction: root.cropping ? 0 : root.hold ? 1 : (root.split ? root.split-pos : 0);
     property <length> current-left: root.cell-gap + root.current * (root.cell-width + root.cell-gap);
 
     init => {
@@ -662,6 +718,14 @@ export component LabWindow inherits Window {
                 root.show-help = false;
                 return accept;
             }
+            if (event.text == "c" || event.text == "C") && !event.modifiers.control && root.has-preview && !root.loading {
+                root.set-cropping(!root.cropping);
+                return accept;
+            }
+            if root.cropping && (event.text == Key.Escape || event.text == Key.Return) {
+                root.set-cropping(false);
+                return accept;
+            }
             if root.zoomed && event.text == Key.Escape {
                 root.zoomed = false;
                 return accept;
@@ -678,7 +742,7 @@ export component LabWindow inherits Window {
                 root.redo();
                 return accept;
             }
-            if (event.text == "z" || event.text == "Z") && !event.modifiers.control && root.has-preview {
+            if (event.text == "z" || event.text == "Z") && !event.modifiers.control && root.has-preview && !root.cropping {
                 if root.zoomed {
                     root.zoomed = false;
                 } else {
@@ -714,7 +778,7 @@ export component LabWindow inherits Window {
                 root.clear-selection();
                 return accept;
             }
-            if (event.text == "s" || event.text == "S") && root.has-preview {
+            if (event.text == "s" || event.text == "S") && root.has-preview && !root.cropping {
                 root.split = !root.split;
                 return accept;
             }
@@ -753,7 +817,7 @@ export component LabWindow inherits Window {
                     background: #141518;
                     clip: true;
 
-                    if root.has-preview && !root.zoomed: Image {
+                    if root.has-preview && !root.zoomed && !root.cropping: Image {
                         width: 100%;
                         height: 100%;
                         source: root.preview-corrected;
@@ -791,13 +855,13 @@ export component LabWindow inherits Window {
                             image-rendering: root.zoom-scale > 1.01 ? ImageRendering.pixelated : ImageRendering.smooth;
                         }
                     }
-                    if root.has-preview && root.split && !root.hold: Rectangle {
+                    if root.has-preview && root.split && !root.hold && !root.cropping: Rectangle {
                         x: preview-box.width * root.split-pos - 1px;
                         width: 2px;
                         height: 100%;
                         background: white;
                     }
-                    if root.has-preview && root.split && !root.hold: Rectangle {
+                    if root.has-preview && root.split && !root.hold && !root.cropping: Rectangle {
                         x: preview-box.width * root.split-pos - 14px;
                         y: preview-box.height / 2 - 14px;
                         width: 28px;
@@ -815,17 +879,17 @@ export component LabWindow inherits Window {
                             stroke-width: 0px;
                         }
                     }
-                    if root.has-preview && root.split && !root.hold: Tag {
+                    if root.has-preview && root.split && !root.hold && !root.cropping: Tag {
                         x: 12px;
                         y: 12px;
                         text: "Original";
                     }
-                    if root.has-preview && root.split && !root.hold: Tag {
+                    if root.has-preview && root.split && !root.hold && !root.cropping: Tag {
                         x: preview-box.width - self.width - 12px;
                         y: 12px;
                         text: "Korrigiert";
                     }
-                    if root.has-preview && root.hold: Tag {
+                    if root.has-preview && root.hold && !root.cropping: Tag {
                         x: 12px;
                         y: 12px;
                         text: "Original";
@@ -901,7 +965,7 @@ export component LabWindow inherits Window {
                         // Mausrad und Pinch (kommt unter Windows als Strg+Rad) zoomen um den
                         // Mauszeiger; zwei Finger auf dem Touchpad verschieben den Ausschnitt.
                         scroll-event(event) => {
-                            if !root.has-preview || root.loading || root.picking {
+                            if !root.has-preview || root.loading || root.picking || root.cropping {
                                 return reject;
                             }
                             if event.modifiers.control || !root.wheel-from-touchpad {
@@ -916,7 +980,7 @@ export component LabWindow inherits Window {
                             reject
                         }
                         double-clicked => {
-                            if root.has-preview && !root.picking {
+                            if root.has-preview && !root.picking && !root.cropping {
                                 if root.zoomed {
                                     root.zoomed = false;
                                 } else {
@@ -931,7 +995,7 @@ export component LabWindow inherits Window {
                         property <float> start-scale;
                         property <length> last-x;
                         property <length> last-y;
-                        enabled: root.has-preview && !root.loading;
+                        enabled: root.has-preview && !root.loading && !root.cropping;
                         started => {
                             self.start-scale = root.zoomed ? root.zoom-scale : root.fit-scale;
                             self.last-x = self.center.x;
@@ -946,6 +1010,355 @@ export component LabWindow inherits Window {
                             }
                             self.last-x = self.center.x;
                             self.last-y = self.center.y;
+                        }
+                    }
+
+                    // Zuschneiden: ganzer Rahmen, außerhalb des Zuschnitts abgedunkelt, mit Drittel-Raster,
+                    // Griffen und Werkzeugleiste. Beim Loslassen geht der Zuschnitt an Rust (ein Schritt
+                    // fürs Rückgängigmachen).
+                    if root.has-preview && root.cropping: crop-box := Rectangle {
+                        property <length> top: 96px;
+                        property <length> margin: 24px;
+                        property <length> fit: min((self.width - 2 * self.margin) / root.frame-width,
+                            (self.height - self.top - self.margin) / root.frame-height);
+                        property <length> iw: root.frame-width * self.fit;
+                        property <length> ih: root.frame-height * self.fit;
+                        property <length> ix: (self.width - self.iw) / 2;
+                        property <length> iy: self.top + (self.height - self.top - self.margin - self.ih) / 2;
+                        property <length> rx: self.ix + root.crop-x * self.iw;
+                        property <length> ry: self.iy + root.crop-y * self.ih;
+                        property <length> rw: root.crop-w * self.iw;
+                        property <length> rh: root.crop-h * self.ih;
+                        background: #141518;
+
+                        Image {
+                            x: crop-box.ix;
+                            y: crop-box.iy;
+                            width: crop-box.iw;
+                            height: crop-box.ih;
+                            source: root.preview-corrected;
+                        }
+                        Rectangle {
+                            x: crop-box.ix;
+                            y: crop-box.iy;
+                            width: crop-box.iw;
+                            height: crop-box.ry - crop-box.iy;
+                            background: #000000a8;
+                        }
+                        Rectangle {
+                            x: crop-box.ix;
+                            y: crop-box.ry + crop-box.rh;
+                            width: crop-box.iw;
+                            height: crop-box.iy + crop-box.ih - crop-box.ry - crop-box.rh;
+                            background: #000000a8;
+                        }
+                        Rectangle {
+                            x: crop-box.ix;
+                            y: crop-box.ry;
+                            width: crop-box.rx - crop-box.ix;
+                            height: crop-box.rh;
+                            background: #000000a8;
+                        }
+                        Rectangle {
+                            x: crop-box.rx + crop-box.rw;
+                            y: crop-box.ry;
+                            width: crop-box.ix + crop-box.iw - crop-box.rx - crop-box.rw;
+                            height: crop-box.rh;
+                            background: #000000a8;
+                        }
+                        for k in [1, 2]: Rectangle {
+                            x: crop-box.rx + crop-box.rw * k / 3;
+                            y: crop-box.ry;
+                            width: 1px;
+                            height: crop-box.rh;
+                            background: #ffffff60;
+                        }
+                        for k in [1, 2]: Rectangle {
+                            x: crop-box.rx;
+                            y: crop-box.ry + crop-box.rh * k / 3;
+                            width: crop-box.rw;
+                            height: 1px;
+                            background: #ffffff60;
+                        }
+                        Rectangle {
+                            x: crop-box.rx;
+                            y: crop-box.ry;
+                            width: crop-box.rw;
+                            height: crop-box.rh;
+                            border-width: 1px;
+                            border-color: white;
+                        }
+                        // Griffe: Ecken immer, Kantenmitten nur ohne festes Seitenverhältnis.
+                        for c in [{x: 0, y: 0, edge: false}, {x: 1, y: 0, edge: false}, {x: 0, y: 1, edge: false},
+                            {x: 1, y: 1, edge: false}, {x: 0.5, y: 0, edge: true}, {x: 0.5, y: 1, edge: true},
+                            {x: 0, y: 0.5, edge: true}, {x: 1, y: 0.5, edge: true}]: Rectangle {
+                            visible: !c.edge || root.crop-ratio == 0;
+                            x: crop-box.rx + crop-box.rw * c.x - 6px;
+                            y: crop-box.ry + crop-box.rh * c.y - 6px;
+                            width: 12px;
+                            height: 12px;
+                            background: white;
+                            border-width: 1px;
+                            border-color: #00000080;
+                        }
+                        if crop-touch.mode == 4: Path {
+                            width: 100%;
+                            height: 100%;
+                            viewbox-width: crop-box.width / 1px;
+                            viewbox-height: crop-box.height / 1px;
+                            commands: "M " + crop-touch.sx / 1px + " " + crop-touch.sy / 1px
+                                + " L " + crop-touch.mouse-x / 1px + " " + crop-touch.mouse-y / 1px;
+                            stroke: #ffd400;
+                            stroke-width: 2px;
+                            fill: transparent;
+                        }
+
+                        // Ziehen: Ecke oder Kante ändert die Größe, innen verschieben; mit „Linie ziehen“ eine
+                        // Linie, die danach waagerecht bzw. senkrecht wird.
+                        crop-touch := TouchArea {
+                            property <int> mode; // 0 nichts, 1 verschieben, 2 Ecke, 3 Kante, 4 Linie
+                            property <int> hx; // gezogene Seite waagerecht: 0 links, 1 rechts, −1 keine
+                            property <int> hy; // senkrecht: 0 oben, 1 unten, −1 keine
+                            property <length> sx;
+                            property <length> sy;
+                            property <float> x0;
+                            property <float> y0;
+                            property <float> w0;
+                            property <float> h0;
+                            property <length> near: 14px;
+                            property <bool> at-left: abs(self.mouse-x - crop-box.rx) <= self.near;
+                            property <bool> at-right: abs(self.mouse-x - crop-box.rx - crop-box.rw) <= self.near;
+                            property <bool> at-top: abs(self.mouse-y - crop-box.ry) <= self.near;
+                            property <bool> at-bottom: abs(self.mouse-y - crop-box.ry - crop-box.rh) <= self.near;
+                            property <bool> in-x: self.mouse-x > crop-box.rx && self.mouse-x < crop-box.rx + crop-box.rw;
+                            property <bool> in-y: self.mouse-y > crop-box.ry && self.mouse-y < crop-box.ry + crop-box.rh;
+                            property <bool> on-corner: (self.at-left || self.at-right) && (self.at-top || self.at-bottom);
+                            property <bool> on-side: root.crop-ratio == 0 && (((self.at-left || self.at-right) && self.in-y)
+                                || ((self.at-top || self.at-bottom) && self.in-x));
+                            mouse-cursor: root.line-tool ? MouseCursor.crosshair
+                                : self.on-corner ? ((self.at-left == self.at-top) ? MouseCursor.nwse-resize : MouseCursor.nesw-resize)
+                                : self.on-side ? ((self.at-left || self.at-right) ? MouseCursor.ew-resize : MouseCursor.ns-resize)
+                                : self.in-x && self.in-y ? MouseCursor.move : MouseCursor.default;
+
+                            pointer-event(event) => {
+                                if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                                    keys.focus();
+                                    self.sx = self.mouse-x;
+                                    self.sy = self.mouse-y;
+                                    self.x0 = root.crop-x;
+                                    self.y0 = root.crop-y;
+                                    self.w0 = root.crop-w;
+                                    self.h0 = root.crop-h;
+                                    if root.line-tool {
+                                        self.mode = 4;
+                                    } else if self.on-corner {
+                                        self.mode = 2;
+                                        self.hx = self.at-left ? 0 : 1;
+                                        self.hy = self.at-top ? 0 : 1;
+                                    } else if self.on-side {
+                                        self.mode = 3;
+                                        self.hx = self.at-left ? 0 : self.at-right ? 1 : -1;
+                                        self.hy = self.hx != -1 ? -1 : self.at-top ? 0 : 1;
+                                    } else if self.in-x && self.in-y {
+                                        self.mode = 1;
+                                    } else {
+                                        self.mode = 0;
+                                    }
+                                }
+                                if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
+                                    if self.mode == 4 {
+                                        let dx = (self.mouse-x - self.sx) / 1px;
+                                        let dy = (self.mouse-y - self.sy) / 1px;
+                                        if abs(dx) + abs(dy) > 10 {
+                                            // Winkel der Linie auf −90 … 90°, dann zur nächsten Waagerechten bzw. Senkrechten.
+                                            let raw = atan2(dy, dx) / 1deg;
+                                            let a = raw > 90 ? raw - 180 : raw <= -90 ? raw + 180 : raw;
+                                            let tilt = abs(a) <= 45 ? a : a > 0 ? a - 90 : a + 90;
+                                            root.edited("straighten", clamp(root.v-straighten - tilt, -45, 45));
+                                        }
+                                        root.line-tool = false;
+                                    } else if self.mode != 0 {
+                                        root.crop-changed(root.crop-x, root.crop-y, root.crop-w, root.crop-h);
+                                    }
+                                    self.mode = 0;
+                                }
+                            }
+                            moved => {
+                                if self.pressed && (self.mode == 1 || self.mode == 2 || self.mode == 3) {
+                                    let dx = (self.mouse-x - self.sx) / crop-box.iw;
+                                    let dy = (self.mouse-y - self.sy) / crop-box.ih;
+                                    if self.mode == 1 {
+                                        root.crop-x = clamp(self.x0 + dx, 0, 1 - self.w0);
+                                        root.crop-y = clamp(self.y0 + dy, 0, 1 - self.h0);
+                                    } else if self.mode == 3 || root.crop-ratio == 0 {
+                                        if self.hx == 0 {
+                                            let left = clamp(self.x0 + dx, 0, self.x0 + self.w0 - 0.05);
+                                            root.crop-x = left;
+                                            root.crop-w = self.x0 + self.w0 - left;
+                                        }
+                                        if self.hx == 1 {
+                                            root.crop-w = clamp(self.w0 + dx, 0.05, 1 - self.x0);
+                                        }
+                                        if self.hy == 0 {
+                                            let upper = clamp(self.y0 + dy, 0, self.y0 + self.h0 - 0.05);
+                                            root.crop-y = upper;
+                                            root.crop-h = self.y0 + self.h0 - upper;
+                                        }
+                                        if self.hy == 1 {
+                                            root.crop-h = clamp(self.h0 + dy, 0.05, 1 - self.y0);
+                                        }
+                                    } else {
+                                        // Festes Verhältnis: die gegenüberliegende Ecke bleibt, Höhe = Breite · k.
+                                        let ax = self.hx == 0 ? self.x0 + self.w0 : self.x0;
+                                        let ay = self.hy == 0 ? self.y0 + self.h0 : self.y0;
+                                        let px = clamp((self.hx == 0 ? self.x0 : self.x0 + self.w0) + dx, 0, 1);
+                                        let room-x = self.hx == 0 ? ax : 1 - ax;
+                                        let room-y = self.hy == 0 ? ay : 1 - ay;
+                                        let k = root.frame-width / root.frame-height / root.ratio;
+                                        let w = min(clamp(abs(px - ax), 0.05, room-x), room-y / k);
+                                        let h = w * k;
+                                        root.crop-x = self.hx == 0 ? ax - w : ax;
+                                        root.crop-y = self.hy == 0 ? ay - h : ay;
+                                        root.crop-w = w;
+                                        root.crop-h = h;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Werkzeugleiste
+                        Rectangle {
+                            x: (crop-box.width - self.width) / 2;
+                            y: 10px;
+                            width: min(crop-box.width - 20px, 780px);
+                            height: 76px;
+                            border-radius: 8px;
+                            background: #000000c8;
+                            // Klicks auf die Leiste erreichen den Zuschnitt darunter nicht.
+                            TouchArea { }
+                            VerticalLayout {
+                                padding: 8px;
+                                spacing: 6px;
+                                HorizontalLayout {
+                                    spacing: 6px;
+                                    Text {
+                                        text: "Seitenverhältnis";
+                                        vertical-alignment: center;
+                                        font-size: 12px;
+                                    }
+                                    ComboBox {
+                                        width: 110px;
+                                        model: ["Frei", "Original", "3:2", "4:3", "1:1", "16:9", "4:5"];
+                                        current-index <=> root.crop-ratio;
+                                        selected(value) => {
+                                            root.apply-ratio();
+                                            keys.focus();
+                                        }
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        SmallButton {
+                                            text: root.crop-portrait ? "Hochformat" : "Querformat";
+                                            enabled: root.crop-ratio != 0 && root.crop-ratio != 4;
+                                            clicked => {
+                                                root.crop-portrait = !root.crop-portrait;
+                                                root.apply-ratio();
+                                                keys.focus();
+                                            }
+                                        }
+                                    }
+                                    Rectangle {
+                                        horizontal-stretch: 1;
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        HorizontalLayout {
+                                            spacing: 6px;
+                                            SmallButton {
+                                                text: "Links drehen";
+                                                clicked => {
+                                                    root.rotate(false);
+                                                    keys.focus();
+                                                }
+                                            }
+                                            SmallButton {
+                                                text: "Rechts drehen";
+                                                clicked => {
+                                                    root.rotate(true);
+                                                    keys.focus();
+                                                }
+                                            }
+                                            SmallButton {
+                                                text: "Spiegeln";
+                                                clicked => {
+                                                    root.flip();
+                                                    keys.focus();
+                                                }
+                                            }
+                                            SmallButton {
+                                                text: "Zurücksetzen";
+                                                clicked => {
+                                                    root.reset-geometry();
+                                                    keys.focus();
+                                                }
+                                            }
+                                            SmallButton {
+                                                text: "Fertig (C)";
+                                                active: true;
+                                                clicked => {
+                                                    root.set-cropping(false);
+                                                    keys.focus();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    Text {
+                                        text: "Geraderichten";
+                                        vertical-alignment: center;
+                                        font-size: 12px;
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        horizontal-stretch: 1;
+                                        ValueSlider {
+                                            minimum: -45;
+                                            maximum: 45;
+                                            value <=> root.v-straighten;
+                                            changed(v) => {
+                                                root.edited("straighten", v);
+                                            }
+                                            released => {
+                                                keys.focus();
+                                            }
+                                            double-clicked => {
+                                                root.reset-field("straighten");
+                                                keys.focus();
+                                            }
+                                        }
+                                    }
+                                    Text {
+                                        width: 48px;
+                                        text: round(root.v-straighten * 10) / 10 + "°";
+                                        horizontal-alignment: right;
+                                        vertical-alignment: center;
+                                        font-size: 12px;
+                                    }
+                                    VerticalLayout {
+                                        alignment: center;
+                                        SmallButton {
+                                            text: "Linie ziehen";
+                                            active: root.line-tool;
+                                            clicked => {
+                                                root.line-tool = !root.line-tool;
+                                                keys.focus();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1601,10 +2014,19 @@ export component LabWindow inherits Window {
                             }
                             SmallButton {
                                 text: "Split-Ansicht";
-                                active: root.split;
-                                enabled: root.has-preview;
+                                active: root.split && !root.cropping;
+                                enabled: root.has-preview && !root.cropping;
                                 clicked => {
                                     root.split = !root.split;
+                                    keys.focus();
+                                }
+                            }
+                            SmallButton {
+                                text: "Zuschneiden";
+                                active: root.cropping;
+                                enabled: root.has-preview && !root.loading;
+                                clicked => {
+                                    root.set-cropping(!root.cropping);
                                     keys.focus();
                                 }
                             }

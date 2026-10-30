@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use slint::Model;
+use uwcc_core::Settings;
 
 use crate::{select, store, with_state, LabWindow};
 
@@ -81,7 +82,14 @@ pub fn transfer(app: &LabWindow, mode: Transfer) {
             .filter(|p| **p != l.path)
             .cloned()
             .collect();
-        let undo: Vec<_> = targets.iter().map(|p| (p.clone(), st.settings.insert(p.clone(), source))).collect();
+        // Drehen, Geraderichten und Zuschnitt gehören zum einzelnen Bild und werden nicht übertragen.
+        let undo: Vec<_> = targets
+            .iter()
+            .map(|p| {
+                let geometry = st.settings.get(p).map(|s| s.geometry).unwrap_or_default();
+                (p.clone(), st.settings.insert(p.clone(), Settings { geometry, ..source }))
+            })
+            .collect();
         for (path, previous) in &undo {
             st.history.entry(path.clone()).or_default().record(previous.unwrap_or_default(), None);
         }

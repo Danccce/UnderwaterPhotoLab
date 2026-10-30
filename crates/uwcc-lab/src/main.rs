@@ -297,6 +297,37 @@ fn main() -> Result<(), slint::PlatformError> {
         update_config(&app, |c| c.strip_corrected = corrected);
     });
     let weak = app.as_weak();
+    app.on_rotate(move |clockwise| {
+        if let Some(app) = weak.upgrade() {
+            controls::rotate(&app, clockwise);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_flip(move || {
+        if let Some(app) = weak.upgrade() {
+            controls::flip(&app);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_crop_changed(move |x, y, w, h| {
+        if let Some(app) = weak.upgrade() {
+            controls::crop(&app, x, y, w, h);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_reset_geometry(move || {
+        if let Some(app) = weak.upgrade() {
+            controls::reset_geometry(&app);
+        }
+    });
+    // Zuschneiden an/aus: die Vorschau zeigt den ganzen Rahmen bzw. den Zuschnitt.
+    let weak = app.as_weak();
+    app.on_cropping_changed(move || {
+        if let Some(app) = weak.upgrade() {
+            histogram::show_corrected(&app);
+        }
+    });
+    let weak = app.as_weak();
     app.on_panel_tab_changed(move |tab| {
         if let Some(app) = weak.upgrade() {
             update_config(&app, |c| c.panel_tab = tab);
@@ -429,6 +460,7 @@ fn select(app: &LabWindow, index: i32) {
     app.set_current(index);
     app.set_can_undo(false);
     app.set_can_redo(false);
+    app.set_cropping(false);
     zoom::new_image(app, None);
 
     let thumb = app.get_thumbs().row_data(index as usize).filter(|t| t.loaded && !t.failed);
@@ -449,9 +481,7 @@ fn loaded(app: &LabWindow, result: Result<preview::Loaded, String>) {
             if let Some(s) = with_state(|st| st.settings.get(&l.path).copied()) {
                 l.settings = s;
             }
-            app.set_preview_original(Image::from_rgba8(l.original_buffer()));
             app.set_has_preview(true);
-            zoom::new_image(app, Some(&l.full));
             info::show(app, &l.path, Some(&l));
             with_state(|st| st.current = Some(l));
             histogram::show_corrected(app);

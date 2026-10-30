@@ -88,13 +88,17 @@ pub fn mark_clipping(rgba: &mut [u8]) {
     }
 }
 
-/// Rechnet die korrigierte Vorschau des aktuellen Bildes, setzt sie samt Histogramm,
-/// markiert bei eingeschalteter Warnung die beschnittenen Stellen und frischt die
-/// 100-%-Ansicht auf.
+/// Rechnet die Vorschau des aktuellen Bildes (nach der Geometrie; beim Zuschneiden ohne
+/// Zuschnitt), setzt Original und Korrektur samt Histogramm, markiert bei eingeschalteter Warnung
+/// die beschnittenen Stellen und frischt die Zoom-Ansicht auf.
 pub fn show_corrected(app: &LabWindow) {
-    let Some(mut buf) = with_state(|st| st.current.as_ref().map(|l| l.corrected_buffer())) else {
+    let cropping = app.get_cropping();
+    let Some((original, mut buf)) =
+        with_state(|st| st.current.as_ref().map(|l| (l.original_buffer(cropping), l.corrected_buffer(cropping))))
+    else {
         return;
     };
+    app.set_preview_original(Image::from_rgba8(original));
     let hist = Histogram::of(buf.as_bytes());
     let [r, g, b] = hist.paths();
     app.set_hist_red(r.into());

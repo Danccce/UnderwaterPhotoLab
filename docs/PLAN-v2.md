@@ -243,10 +243,34 @@ Umgesetzt – Details:
 
 ### Phase 11 – Zuschneiden und Ausrichten
 
-- [ ] 11.1 Zuschnitt-Modus (Taste C): Rahmen, Griffe, Drittel-Raster, Seitenverhältnisse
-- [ ] 11.2 Geraderichten (Regler, Linie ziehen), Drehen 90°, Spiegeln
-- [ ] 11.3 Export: Pixel aufrecht, Orientation = 1, Vorschaubild aus dem Zuschnitt; Leiste zeigt Zuschnitt
-- [ ] 11.4 Tests: Drehungen/Orientierungen 1–8, Zuschnitt in voller Auflösung exakt
+- [x] 11.1 Zuschnitt-Modus (Taste C): Rahmen, Griffe, Drittel-Raster, Seitenverhältnisse
+- [x] 11.2 Geraderichten (Regler, Linie ziehen), Drehen 90°, Spiegeln
+- [x] 11.3 Export: Pixel aufrecht, Orientation = 1, Vorschaubild aus dem Zuschnitt; Leiste zeigt Zuschnitt
+- [x] 11.4 Tests: Drehungen/Orientierungen 1–8, Zuschnitt in voller Auflösung exakt
+
+Umgesetzt – Details (`092f57c` Grundlage, danach Anzeige und Zuschnitt-Modus):
+
+- **Geometrie** (`uwcc_filters::geometry`): aufrechtes Bild → waagerecht spiegeln → Viertel im Uhrzeigersinn
+  = *Rahmen*; Geraderichten dreht den Inhalt um die Mitte und vergrößert um `cos θ + (lang/kurz) · sin θ`, damit
+  keine leeren Ecken bleiben (der Rahmen behält seine Größe); der Zuschnitt (Anteile 0–1) bezieht sich auf den
+  Rahmen. Ein Abtastschritt je Ausgabepixel: ohne Geraderichten exakt, sonst bilinear.
+- **Bedienung:** „Spiegeln“ spiegelt so, wie das Bild angezeigt wird (hochkant: Spiegeln plus 180°), und
+  spiegelt Zuschnitt und Winkel mit; Drehen dreht den Zuschnitt mit (`Geometry::rotate/flip` im Kern).
+  Geraderichten ist ein normales Regler-Feld (`Field::Straighten`): Rückgängig, Doppelklick, Zusammenfassen.
+- **Zuschnitt-Modus:** Werkzeugleiste oben (Seitenverhältnis Frei/Original/3:2/4:3/1:1/16:9/4:5 mit
+  Hoch/Quer, Drehen, Spiegeln, Zurücksetzen, Fertig; Geraderichten-Regler und „Linie ziehen“). Gezogen wird
+  in Slint, beim Loslassen geht der Zuschnitt an Rust (ein Rückgängig-Schritt). Mit festem Verhältnis nur
+  Ecken. Zoom, Split-Ansicht und Mausrad-Zoom sind im Modus aus.
+- **Anzeige:** Vorschau, Original-Vergleich, Pipette, Histogramm und Zoom zeigen das Ergebnis nach der
+  Geometrie; das ganze Bild nach der Geometrie für den Zoom wird einmal im Hintergrund gerechnet und
+  gemerkt. `Context::scale` (Pixel je Original-Pixel) ist jetzt ausdrücklich, weil die lange Kante nach einem
+  Zuschnitt nichts mehr über die Auflösung sagt.
+- **Export:** immer aufrecht mit Orientation 1 (`exif::upright`), auch ohne Geometrie; das EXIF-Vorschaubild
+  zeigt den Zuschnitt, die Leiste („Korrigiert“) daher auch.
+- **Übernehmen auf mehrere Bilder** überträgt Drehen, Geraderichten und Zuschnitt nicht (vorgezogen aus 12.1).
+- **Tests:** Vierteldrehungen und Spiegeln pixelgenau, Zuschnitt exakt, Geraderichten füllt den Rahmen,
+  Drehen/Spiegeln heben sich auf, alle acht EXIF-Ausrichtungen exportieren aufrecht wie die Vorschau und
+  mit Drehen + Zuschnitt in der richtigen Größe; EXIF-Orientation in beiden Byte-Reihenfolgen.
 
 ### Phase 12 – Viele Bilder
 

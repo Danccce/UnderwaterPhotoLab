@@ -3,7 +3,7 @@
 use std::{cell::RefCell, time::Duration};
 
 use slint::{ComponentHandle, Timer, TimerMode};
-use uwcc_core::{Field, Settings};
+use uwcc_core::{Crop, Field, Settings};
 
 use crate::{with_state, LabWindow};
 
@@ -27,6 +27,28 @@ pub fn reset(app: &LabWindow) {
     update(app, None, |s, _| *s = Settings::default());
 }
 
+/// Um 90° drehen; der Zuschnitt dreht mit.
+pub fn rotate(app: &LabWindow, clockwise: bool) {
+    update(app, None, |s, _| s.geometry.rotate(clockwise));
+}
+
+/// Waagerecht spiegeln, wie das Bild angezeigt wird.
+pub fn flip(app: &LabWindow) {
+    update(app, None, |s, _| s.geometry.flip());
+}
+
+/// Zuschnitt als Anteile des Rahmens; das ganze Bild heißt „kein Zuschnitt“.
+pub fn crop(app: &LabWindow, x: f32, y: f32, w: f32, h: f32) {
+    let full = x <= 0.0005 && y <= 0.0005 && w >= 0.9995 && h >= 0.9995;
+    let c = Crop { x: x.clamp(0.0, 1.0), y: y.clamp(0.0, 1.0), width: w.clamp(0.0, 1.0), height: h.clamp(0.0, 1.0) };
+    update(app, None, |s, _| s.geometry.crop = (!full).then_some(c));
+}
+
+/// Drehen, Spiegeln, Geraderichten und Zuschnitt zurücksetzen.
+pub fn reset_geometry(app: &LabWindow) {
+    update(app, None, |s, _| s.geometry = Default::default());
+}
+
 /// Doppelklick auf einen Regler: nur dieses Feld zurücksetzen.
 pub fn reset_field(app: &LabWindow, field: &str) {
     if let Some(field) = Field::from_name(field) {
@@ -38,7 +60,7 @@ pub fn reset_field(app: &LabWindow, field: &str) {
 /// dass die Stelle neutral grau wird.
 pub fn pick(app: &LabWindow, fx: f32, fy: f32) {
     let sample = with_state(|st| {
-        let img = &st.current.as_ref()?.original;
+        let img = &st.current.as_ref()?.view(false);
         if !(0.0..1.0).contains(&fx) || !(0.0..1.0).contains(&fy) {
             return None;
         }
@@ -97,7 +119,7 @@ fn update(app: &LabWindow, field: Option<Field>, f: impl FnOnce(&mut Settings, &
 /// Schreibt die wirksamen Werte in die Regler, markiert das Bild in der Leiste und plant die
 /// Neuberechnung der Vorschau.
 pub fn refresh(app: &LabWindow) {
-    let Some((s, values, undo, redo)) = with_state(|st| {
+    let Some((s, values, undo, redo, frame, output)) = with_state(|st| {
         let l = st.current.as_ref()?;
         let h = st.history.get(&l.path);
         Some((
@@ -105,6 +127,8 @@ pub fn refresh(app: &LabWindow) {
             Field::ALL.map(|f| l.settings.effective(f, &l.auto) as f32),
             h.is_some_and(|h| h.can_undo()),
             h.is_some_and(|h| h.can_redo()),
+            l.frame_size(),
+            l.output_size(),
         ))
     }) else {
         return;
@@ -112,6 +136,14 @@ pub fn refresh(app: &LabWindow) {
     app.set_can_undo(undo);
     app.set_can_redo(redo);
     app.set_auto_on(s.auto);
+    let c = s.geometry.crop.unwrap_or(Crop { x: 0.0, y: 0.0, width: 1.0, height: 1.0 });
+    app.set_crop_x(c.x);
+    app.set_crop_y(c.y);
+    app.set_crop_w(c.width);
+    app.set_crop_h(c.height);
+    app.set_frame_width(frame.0 as f32);
+    app.set_frame_height(frame.1 as f32);
+    crate::zoom::geometry_changed(app, s.geometry, output);
     for (field, v) in Field::ALL.into_iter().zip(values) {
         match field {
             Field::Strength => app.set_v_strength(v),
@@ -131,6 +163,7 @@ pub fn refresh(app: &LabWindow) {
             Field::SharpenMask => app.set_v_sharpen_mask(v),
             Field::NoiseColor => app.set_v_noise_color(v),
             Field::NoiseLuma => app.set_v_noise_luma(v),
+            Field::Straighten => app.set_v_straighten(v),
             // Die Levels je Kanal stellt nur die Auto-Analyse ein; im Fenster gibt es dafür keine Regler.
             Field::RedLow | Field::RedHigh | Field::GreenLow | Field::GreenHigh | Field::BlueLow | Field::BlueHigh => {}
         }

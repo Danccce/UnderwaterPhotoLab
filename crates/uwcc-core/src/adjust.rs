@@ -100,6 +100,32 @@ pub struct Geometry {
     pub crop: Option<Crop>,
 }
 
+impl Geometry {
+    /// Um 90° im (`clockwise`) bzw. gegen den Uhrzeigersinn; der Zuschnitt dreht mit.
+    pub fn rotate(&mut self, clockwise: bool) {
+        self.quarter_turns = (self.quarter_turns + if clockwise { 1 } else { 3 }) % 4;
+        self.crop = self.crop.map(|c| {
+            if clockwise {
+                Crop { x: 1.0 - c.y - c.height, y: c.x, width: c.height, height: c.width }
+            } else {
+                Crop { x: c.y, y: 1.0 - c.x - c.width, width: c.height, height: c.width }
+            }
+        });
+    }
+
+    /// Waagerecht spiegeln, so wie das Bild gerade angezeigt wird. Gespiegelt wird vor dem Drehen;
+    /// bei Hochkant-Drehung ist das angezeigte Waagerecht daher Spiegeln plus 180°. Zuschnitt und
+    /// Geraderichten spiegeln mit.
+    pub fn flip(&mut self) {
+        self.flip_horizontal = !self.flip_horizontal;
+        if self.quarter_turns % 2 == 1 {
+            self.quarter_turns = (self.quarter_turns + 2) % 4;
+        }
+        self.straighten = -self.straighten;
+        self.crop = self.crop.map(|c| Crop { x: 1.0 - c.x - c.width, ..c });
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Settings {
     /// Basis ist die Analyse des jeweiligen Bildes, sonst [`Correction::NONE`].
@@ -209,10 +235,11 @@ pub enum Field {
     SharpenMask,
     NoiseColor,
     NoiseLuma,
+    Straighten,
 }
 
 impl Field {
-    pub const ALL: [Field; 23] = [
+    pub const ALL: [Field; 24] = [
         Field::Strength,
         Field::Temperature,
         Field::Tint,
@@ -236,6 +263,7 @@ impl Field {
         Field::SharpenMask,
         Field::NoiseColor,
         Field::NoiseLuma,
+        Field::Straighten,
     ];
 
     pub fn name(self) -> &'static str {
@@ -263,6 +291,7 @@ impl Field {
             Field::SharpenMask => "sharpen-mask",
             Field::NoiseColor => "noise-color",
             Field::NoiseLuma => "noise-luma",
+            Field::Straighten => "straighten",
         }
     }
 
@@ -299,6 +328,7 @@ impl Settings {
             Field::SharpenMask => self.detail.sharpen_mask as f64,
             Field::NoiseColor => self.detail.noise_color as f64,
             Field::NoiseLuma => self.detail.noise_luma as f64,
+            Field::Straighten => self.geometry.straighten as f64,
         }
     }
 
@@ -332,6 +362,7 @@ impl Settings {
             Field::SharpenMask => self.detail.sharpen_mask = value as f32,
             Field::NoiseColor => self.detail.noise_color = value as f32,
             Field::NoiseLuma => self.detail.noise_luma = value as f32,
+            Field::Straighten => self.geometry.straighten = (value as f32).clamp(-45.0, 45.0),
         }
     }
 }
@@ -398,6 +429,7 @@ impl Settings {
             Field::SharpenMask => self.detail.sharpen_mask = defaults.detail.sharpen_mask,
             Field::NoiseColor => self.detail.noise_color = defaults.detail.noise_color,
             Field::NoiseLuma => self.detail.noise_luma = defaults.detail.noise_luma,
+            Field::Straighten => self.geometry.straighten = defaults.geometry.straighten,
         }
     }
 }
@@ -734,6 +766,40 @@ mod tests {
         for f in [Field::Exposure, Field::Contrast, Field::Highlights, Field::Shadows, Field::Dehaze] {
             assert_eq!(Settings::default().effective(f, &AUTO), 0.0, "{f:?}");
         }
+    }
+
+    #[test]
+    fn rotating_four_times_or_flipping_twice_restores_the_geometry() {
+        let start = Geometry {
+            quarter_turns: 1,
+            straighten: 3.5,
+            crop: Some(Crop { x: 0.1, y: 0.2, width: 0.5, height: 0.25 }),
+            ..Geometry::default()
+        };
+        let close = |a: Geometry, b: Geometry| {
+            let (ca, cb) = (a.crop.unwrap(), b.crop.unwrap());
+            a.quarter_turns == b.quarter_turns
+                && a.flip_horizontal == b.flip_horizontal
+                && a.straighten == b.straighten
+                && [ca.x - cb.x, ca.y - cb.y, ca.width - cb.width, ca.height - cb.height].iter().all(|d| d.abs() < 1e-6)
+        };
+        let mut g = start;
+        for _ in 0..4 {
+            g.rotate(true);
+        }
+        assert!(close(g, start));
+        g.rotate(true);
+        g.rotate(false);
+        assert!(close(g, start), "rechts und links heben sich auf");
+        let crop = g.crop.unwrap();
+        g.rotate(true);
+        assert_eq!(g.crop.unwrap().width, crop.height, "Zuschnitt dreht mit");
+        g.rotate(false);
+        g.flip();
+        assert_eq!(g.straighten, -3.5);
+        assert_eq!(g.quarter_turns, 3, "hochkant: Spiegeln plus 180°");
+        g.flip();
+        assert!(close(g, start));
     }
 
     #[test]

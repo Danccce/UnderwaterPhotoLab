@@ -51,6 +51,16 @@ Schärfen und Rauschreduzierung wirken auf einzelne Pixel; die verkleinerte Ansi
 - **Doppelklick auf einen Regler** setzt nur diesen zurück; „Zurücksetzen“ setzt alle zurück.
 - **Rückgängig / Wiederholen:** **Strg+Z** bzw. **Strg+Y** (oder Strg+Umschalt+Z), oder die Pfeile neben „Zurücksetzen“. Jedes Bild hat seinen eigenen Verlauf (bis 100 Schritte, solange das Programm läuft); ein Zug an einem Regler zählt als ein Schritt. Auch eine Übernahme auf mehrere Bilder lässt sich je Bild zurücknehmen.
 
+## Zuschneiden und Ausrichten
+
+**Zuschneiden** unter dem Bild oder Taste **C** zeigt das ganze Bild mit dem Zuschnittrahmen und einer Werkzeugleiste. **Fertig**, **C**, **Enter** oder **Esc** beenden den Modus; der Zuschnitt bleibt (Strg+Z nimmt ihn zurück).
+
+- **Rahmen:** an den Ecken oder Kanten ziehen ändert die Größe, innen ziehen verschiebt ihn. Das Drittel-Raster hilft beim Bildaufbau.
+- **Seitenverhältnis:** Frei, Original, 3:2, 4:3, 1:1, 16:9, 4:5; **Hoch-/Querformat** tauscht es. Mit festem Verhältnis wird nur an den Ecken gezogen.
+- **Geraderichten:** Regler ±45° (Doppelklick: 0°) oder **Linie ziehen** und dann eine Linie entlang des Horizonts oder einer Riffkante ziehen – sie wird waagerecht (oder senkrecht, wenn sie eher steil ist). Das Bild wird dabei so weit vergrößert, dass keine leeren Ecken entstehen.
+- **Links/Rechts drehen** (90°) und **Spiegeln**; der Zuschnitt dreht bzw. spiegelt mit. **Zurücksetzen** nimmt Drehen, Spiegeln, Geraderichten und Zuschnitt zurück.
+- Der Export schreibt das Bild aufrecht und zugeschnitten (EXIF-Ausrichtung 1), das eingebettete Vorschaubild zeigt den Zuschnitt. Beim Übernehmen auf mehrere Bilder bleiben Zuschnitt und Drehung jedes Bildes erhalten.
+
 ## Mehrere Bilder
 
 - **Strg+Klick:** Bild dazu oder weg. **Umschalt+Klick:** Bereich. **Strg+A:** alle. **Esc:** Auswahl aufheben.
