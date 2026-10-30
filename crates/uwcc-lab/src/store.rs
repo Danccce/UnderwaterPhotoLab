@@ -78,8 +78,12 @@ pub fn save_now(app: &LabWindow) {
     }
 }
 
-/// Orangefarbener Punkt (bearbeitet) und Haken (aktuell exportiert) für alle Bilder.
+/// Orangefarbener Punkt (bearbeitet) und Haken (aktuell exportiert) für alle Bilder, dazu die
+/// Plätze in der gefilterten Leiste (Filter „Unbearbeitet“ bzw. „Nicht exportiert“). Das aktuelle
+/// Bild bleibt immer sichtbar, sonst verschwände es beim ersten Regler aus „Unbearbeitet“.
 pub fn refresh_marks(app: &LabWindow) {
+    let filter = app.get_strip_filter();
+    let current = app.get_current();
     let marks: Vec<(bool, bool)> = with_state(|st| {
         st.files
             .iter()
@@ -87,13 +91,50 @@ pub fn refresh_marks(app: &LabWindow) {
             .collect()
     });
     let model = app.get_thumbs();
+    let (mut shown, mut current_slot) = (0, -1);
     for (i, (edited, exported)) in marks.into_iter().enumerate() {
+        let is_current = i as i32 == current;
+        let visible = is_current
+            || match filter {
+                1 => !edited,
+                2 => !exported,
+                _ => true,
+            };
+        let slot = if visible {
+            shown += 1;
+            shown - 1
+        } else {
+            -1
+        };
+        if is_current {
+            current_slot = slot;
+        }
         if let Some(mut row) = model.row_data(i) {
-            if row.edited != edited || row.exported != exported {
+            if row.edited != edited || row.exported != exported || row.slot != slot {
                 row.edited = edited;
                 row.exported = exported;
+                row.slot = slot;
                 model.set_row_data(i, row);
             }
         }
     }
+    app.set_shown_count(shown);
+    app.set_current_slot(current_slot);
+}
+
+/// Index des nächsten angezeigten Bildes in Richtung `step` (±1) ab `from`.
+pub fn next_shown(app: &LabWindow, from: i32, step: i32) -> Option<i32> {
+    let model = app.get_thumbs();
+    let mut i = from;
+    loop {
+        i += step.signum();
+        if model.row_data(usize::try_from(i).ok()?)?.slot >= 0 {
+            return Some(i);
+        }
+    }
+}
+
+/// Indizes der angezeigten Bilder.
+pub fn shown_indices(app: &LabWindow) -> Vec<usize> {
+    app.get_thumbs().iter().enumerate().filter(|(_, t)| t.slot >= 0).map(|(i, _)| i).collect()
 }

@@ -274,9 +274,25 @@ Umgesetzt – Details (`092f57c` Grundlage, danach Anzeige und Zuschnitt-Modus):
 
 ### Phase 12 – Viele Bilder
 
-- [ ] 12.1 Selektives Übernehmen (Gruppen wählen; Zuschnitt standardmäßig aus)
-- [ ] 12.2 Presets: speichern, anwenden, auf Auswahl anwenden; mitgelieferte für Blauwasser, Grünwasser, Blitz
-- [ ] 12.3 Leiste filtern (alle / unbearbeitet / nicht exportiert)
+- [x] 12.1 Selektives Übernehmen (Gruppen wählen; Zuschnitt standardmäßig aus) (`17c4d3e`)
+- [x] 12.2 Presets: speichern, anwenden, auf Auswahl anwenden; mitgelieferte für Blauwasser, Grünwasser, Blitz (`253db9e`)
+- [x] 12.3 Leiste filtern (alle / unbearbeitet / nicht exportiert)
+
+Umgesetzt – Details:
+
+- **12.1:** `uwcc_core::Groups` (Farbe = Auto, Abweichung, Stärke, Weißabgleich, Dynamik, Rot-Obergrenze; Ton;
+  Details; Zuschnitt = ganze Geometrie) und `Settings::with_groups`. Vier Schalter unter „Mehrere Bilder“,
+  gemerkt als `transferGroups` in `config.json`. Übernehmen, Presets und deren Rückgängig laufen über eine
+  gemeinsame Funktion (`selection::apply`), die auch das gerade geladene Bild mitführt.
+- **12.2:** Mitgeliefert „Blauwasser“, „Grünwasser (See)“, „Mit Blitz“ (relativ zu Auto, ohne Geometrie);
+  eigene in `%APPDATA%\UnderwaterPhotoLab\presets.json` im Format der `.uwcc.json`. Menü „Preset anwenden …“
+  (bei Auswahl „Preset auf N Bilder …“), „Speichern …“ mit Namensfeld, eigene löschbar. Angewendet werden
+  Farbe, Ton und Details; Drehen und Zuschnitt bleiben.
+- **12.3:** `Thumb.slot` (Platz in der gefilterten Leiste, −1 ausgeblendet) rechnet `store::refresh_marks`;
+  das aktuelle Bild bleibt immer sichtbar. Pfeiltasten springen über ausgeblendete, Strg+A wählt nur
+  angezeigte. Die Infozeile nennt mit Filter zusätzlich die Anzahl der angezeigten.
+- **Offen:** Bei großer Auswahl nehmen „Mehrere Bilder“ und die Export-Knöpfe viel Platz; der Scrollbereich der
+  Regler wird dann klein.
 
 Zurückgestellt (Entscheidung): Bewertung/Auswahl der Guten (Markieren, Sterne) und ein Export-Profil „Web“.
 

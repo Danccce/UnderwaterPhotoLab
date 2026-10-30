@@ -11,6 +11,8 @@ export struct Thumb {
     // Vorschaubild der exportierten Datei
     corrected: image,
     has-corrected: bool,
+    // Platz in der gefilterten Leiste; −1 = ausgeblendet.
+    slot: int,
 }
 
 struct HelpSection {
@@ -591,6 +593,7 @@ export component LabWindow inherits Window {
                 "Ordner öffnen: Knopf links in der Leiste, Ordner oder Bild ins Fenster ziehen, oder Ordner auf die .exe ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner.",
                 "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
                 "Leiste durchblättern: Mausrad über der Leiste oder Scrollbalken darunter ziehen bzw. in die Spur klicken.",
+                "Leiste filtern (unter dem Bild): Alle, Unbearbeitet, Nicht exportiert. Das aktuelle Bild bleibt sichtbar; Pfeiltasten und Strg+A gelten für die angezeigten.",
                 "Original zeigen: Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten.",
                 "Split-Ansicht: Knopf „Split-Ansicht“ unter dem Bild oder Taste S; die Trennlinie mit der Maus ziehen.",
                 "Zoom: Doppelklick ins Bild (100 % an dieser Stelle) oder Taste Z; Mausrad oder zwei Finger auf- und zuziehen (Touchpad, Touchbildschirm) zoomt stufenlos bis 400 %. Ziehen oder zwei Finger schieben verschiebt den Ausschnitt. Doppelklick, Z oder Esc zurück.",
@@ -714,15 +717,21 @@ export component LabWindow inherits Window {
     // Leertaste oder „Vorher“-Knopf: das ganze Bild als Original, auch in der Split-Ansicht.
     property <bool> hold: root.space-held || before-button.pressed;
     property <float> original-fraction: root.cropping ? 0 : root.hold ? 1 : (root.split ? root.split-pos : 0);
-    property <length> current-left: root.cell-gap + root.current * (root.cell-width + root.cell-gap);
+    // Leiste filtern: 0 alle, 1 unbearbeitet, 2 nicht (aktuell) exportiert. Rust setzt die Plätze
+    // (`Thumb.slot`), die Anzahl und den Platz des aktuellen Bildes, das immer sichtbar bleibt.
+    in-out property <int> strip-filter;
+    callback strip-filter-changed(int);
+    in property <int> shown-count;
+    in property <int> current-slot: -1;
+    property <length> current-left: root.cell-gap + root.current-slot * (root.cell-width + root.cell-gap);
 
     init => {
         Palette.color-scheme = ColorScheme.dark;
     }
 
-    // Das gewählte Bild in der Leiste sichtbar halten (Pfeiltasten, neuer Ordner).
-    changed current => {
-        if root.current >= 0 {
+    // Das gewählte Bild in der Leiste sichtbar halten (Pfeiltasten, neuer Ordner, Filter).
+    changed current-slot => {
+        if root.current-slot >= 0 {
             if root.current-left + strip.content-x < 0 {
                 strip.content-x = root.cell-gap - root.current-left;
             } else if root.current-left + root.cell-width + strip.content-x > strip.visible-width {
@@ -2021,7 +2030,7 @@ export component LabWindow inherits Window {
                             }
                         }
                         if !root.exporting && root.selected-count > 1: Button {
-                            text: "Auswahl exportieren, " + root.selected-count + " Bilder (Strg+Umschalt+E)";
+                            text: "Auswahl exportieren (" + root.selected-count + " Bilder)";
                             clicked => {
                                 root.export-selection();
                                 keys.focus();
@@ -2205,11 +2214,26 @@ export component LabWindow inherits Window {
                     }
 
                     Text {
-                        text: root.thumbs.length == 0 ? "Kein Ordner geöffnet" : root.folder + "   ·   " + root.thumbs.length + " Bilder";
+                        text: root.thumbs.length == 0 ? "Kein Ordner geöffnet"
+                            : root.folder + "   ·   " + root.thumbs.length + " Bilder"
+                            + (root.strip-filter != 0 ? ", " + root.shown-count + " angezeigt" : "");
                         horizontal-stretch: 1;
                         vertical-alignment: center;
                         overflow: elide;
                         font-size: 12px;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Segmented {
+                            width: 270px;
+                            options: ["Alle", "Unbearbeitet", "Nicht exportiert"];
+                            selected: root.strip-filter;
+                            changed(i) => {
+                                root.strip-filter = i;
+                                root.strip-filter-changed(i);
+                                keys.focus();
+                            }
+                        }
                     }
                     Text {
                         text: "Leiste zeigt:";
@@ -2303,12 +2327,13 @@ export component LabWindow inherits Window {
                     strip := ScrollView {
                         width: 100%;
                         height: parent.height - 18px;
-                        content-width: root.thumbs.length * (root.cell-width + root.cell-gap) + root.cell-gap;
+                        content-width: root.shown-count * (root.cell-width + root.cell-gap) + root.cell-gap;
                         content-height: self.visible-height;
                         horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
 
                         for thumb[i] in root.thumbs: Rectangle {
-                            x: root.cell-gap + i * (root.cell-width + root.cell-gap);
+                            visible: thumb.slot >= 0;
+                            x: root.cell-gap + thumb.slot * (root.cell-width + root.cell-gap);
                             y: 10px;
                             width: root.cell-width;
                             height: 118px;

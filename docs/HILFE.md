@@ -10,6 +10,7 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 
 - **Ordner öffnen:** Knopf links in der Bildleiste, einen Ordner oder ein Bild ins Fenster ziehen, oder einen Ordner auf `UnderwaterPhotoLab.exe` ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner wieder.
 - **Bild wechseln:** Klick in die Leiste oder Pfeiltasten ← →.
+- **Leiste filtern:** unter dem Bild **Alle**, **Unbearbeitet** (noch keine Einstellung geändert) oder **Nicht exportiert** (noch nie oder mit anderen Einstellungen exportiert). Das aktuelle Bild bleibt immer sichtbar; Pfeiltasten und Strg+A gelten für die angezeigten Bilder.
 - **Leiste durchblättern:** Mausrad über der Leiste, oder den Scrollbalken darunter ziehen bzw. in seine Spur klicken (springt direkt an die Stelle).
 - **Original zeigen:** Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten (der Knopf wird dabei blau).
 - **Split-Ansicht:** Knopf „Split-Ansicht“ unter dem Bild oder Taste **S**; die Trennlinie mit der Maus ziehen.

@@ -58,8 +58,10 @@ pub fn single(app: &LabWindow, index: i32) {
     sync(app);
 }
 
+/// Alle angezeigten Bilder (mit Filter nur diese).
 pub fn select_all(app: &LabWindow) {
-    with_state(|st| st.selection = (0..st.files.len()).collect());
+    let shown = store::shown_indices(app);
+    with_state(|st| st.selection = shown.into_iter().collect());
     sync(app);
 }
 

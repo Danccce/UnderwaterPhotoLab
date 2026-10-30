@@ -192,12 +192,16 @@ fn main() -> Result<(), slint::PlatformError> {
     let weak = app.as_weak();
     app.on_navigate(move |step| {
         if let Some(app) = weak.upgrade() {
-            let last = with_state(|st| st.files.len() as i32 - 1);
-            let next = (app.get_current() + step).clamp(0, last.max(0));
-            if next != app.get_current() {
+            if let Some(next) = store::next_shown(&app, app.get_current(), step) {
                 select(&app, next);
                 selection::single(&app, next);
             }
+        }
+    });
+    let weak = app.as_weak();
+    app.on_strip_filter_changed(move |_| {
+        if let Some(app) = weak.upgrade() {
+            store::refresh_marks(&app);
         }
     });
 
@@ -443,6 +447,7 @@ fn open(app: &LabWindow, path: &Path) {
             selected: false,
             corrected: Image::default(),
             has_corrected: false,
+            slot: -1,
         })
         .collect();
     app.set_thumbs(ModelRc::new(VecModel::from(rows)));
@@ -492,6 +497,7 @@ fn select(app: &LabWindow, index: i32) {
         return;
     };
     app.set_current(index);
+    store::refresh_marks(app);
     app.set_can_undo(false);
     app.set_can_redo(false);
     app.set_cropping(false);
