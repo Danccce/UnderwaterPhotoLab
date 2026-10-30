@@ -64,7 +64,7 @@ Schärfen und Rauschreduzierung wirken auf einzelne Pixel; die verkleinerte Ansi
 ## Mehrere Bilder
 
 - **Strg+Klick:** Bild dazu oder weg. **Umschalt+Klick:** Bereich. **Strg+A:** alle. **Esc:** Auswahl aufheben.
-- Übernommen werden die Einstellungen des **blau umrandeten** Bildes.
+- Übernommen werden die Einstellungen des **blau umrandeten** Bildes – und zwar nur die Gruppen, deren Schalter unter „Mehrere Bilder“ markiert sind: **Farbe** (Auto, Stärke, Weißabgleich, Dynamik, Rot), **Ton**, **Details**, **Zuschnitt** (Drehen, Geraderichten, Zuschnitt; anfangs aus). Die Wahl bleibt beim nächsten Start erhalten.
 - **„Gleiche Werte übernehmen“:** jedes Bild bekommt genau dieselbe Korrektur – für eine Serie aus derselben Situation.
 - **„Auto + Abweichung übernehmen“:** jedes Bild behält seine eigene Auto-Analyse, deine Änderungen kommen dazu.
 - **„Letzte Übernahme rückgängig“** gilt, bis ein Regler bewegt wird.

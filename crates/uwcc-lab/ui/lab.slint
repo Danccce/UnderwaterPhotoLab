@@ -545,6 +545,12 @@ export component LabWindow inherits Window {
 
     in property <int> selected-count;
     in property <bool> can-undo-transfer;
+    // Gruppen, die beim Übernehmen auf mehrere Bilder mitkommen; in config.json gemerkt.
+    in-out property <bool> transfer-color: true;
+    in-out property <bool> transfer-tone: true;
+    in-out property <bool> transfer-detail: true;
+    in-out property <bool> transfer-geometry;
+    callback transfer-groups-changed();
     callback transfer-fixed();
     callback transfer-relative();
     callback undo-transfer();
@@ -614,7 +620,7 @@ export component LabWindow inherits Window {
             title: "Mehrere Bilder",
             lines: [
                 "Strg+Klick: Bild dazu oder weg. Umschalt+Klick: Bereich. Strg+A: alle. Esc: Auswahl aufheben.",
-                "Übernommen werden die Einstellungen des blau umrandeten Bildes.",
+                "Übernommen werden die Einstellungen des blau umrandeten Bildes – nur die Gruppen, deren Schalter (Farbe, Ton, Details, Zuschnitt) markiert sind; Zuschnitt ist anfangs aus.",
                 "„Gleiche Werte übernehmen“: jedes Bild bekommt genau dieselbe Korrektur – für eine Serie aus derselben Situation.",
                 "„Auto + Abweichung übernehmen“: jedes Bild behält seine Auto-Analyse, deine Änderungen kommen dazu.",
                 "„Letzte Übernahme rückgängig“ gilt, bis ein Regler bewegt wird.",
@@ -1753,6 +1759,46 @@ export component LabWindow inherits Window {
 
                         if root.selected-count > 1 || root.can-undo-transfer: Heading {
                             text: root.selected-count > 1 ? "Mehrere Bilder (" + root.selected-count + ")" : "Mehrere Bilder";
+                        }
+                        // Welche Gruppen übertragen werden; Zuschnitt ist standardmäßig aus.
+                        if root.selected-count > 1: HorizontalLayout {
+                            spacing: 6px;
+                            SmallButton {
+                                text: "Farbe";
+                                active: root.transfer-color;
+                                clicked => {
+                                    root.transfer-color = !root.transfer-color;
+                                    root.transfer-groups-changed();
+                                    keys.focus();
+                                }
+                            }
+                            SmallButton {
+                                text: "Ton";
+                                active: root.transfer-tone;
+                                clicked => {
+                                    root.transfer-tone = !root.transfer-tone;
+                                    root.transfer-groups-changed();
+                                    keys.focus();
+                                }
+                            }
+                            SmallButton {
+                                text: "Details";
+                                active: root.transfer-detail;
+                                clicked => {
+                                    root.transfer-detail = !root.transfer-detail;
+                                    root.transfer-groups-changed();
+                                    keys.focus();
+                                }
+                            }
+                            SmallButton {
+                                text: "Zuschnitt";
+                                active: root.transfer-geometry;
+                                clicked => {
+                                    root.transfer-geometry = !root.transfer-geometry;
+                                    root.transfer-groups-changed();
+                                    keys.focus();
+                                }
+                            }
                         }
                         if root.selected-count > 1: Button {
                             text: "Gleiche Werte übernehmen";

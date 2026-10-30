@@ -103,6 +103,10 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
     app.set_strip_corrected(cfg.strip_corrected);
     app.set_panel_tab(cfg.panel_tab);
+    app.set_transfer_color(cfg.transfer_groups.color);
+    app.set_transfer_tone(cfg.transfer_groups.tone);
+    app.set_transfer_detail(cfg.transfer_groups.detail);
+    app.set_transfer_geometry(cfg.transfer_groups.geometry);
     with_state(|st| st.config = cfg);
     programs::refresh(&app);
 
@@ -325,6 +329,13 @@ fn main() -> Result<(), slint::PlatformError> {
     app.on_cropping_changed(move || {
         if let Some(app) = weak.upgrade() {
             histogram::show_corrected(&app);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_transfer_groups_changed(move || {
+        if let Some(app) = weak.upgrade() {
+            let groups = selection::groups(&app);
+            update_config(&app, |c| c.transfer_groups = groups);
         }
     });
     let weak = app.as_weak();

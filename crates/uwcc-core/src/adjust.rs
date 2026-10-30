@@ -100,6 +100,23 @@ pub struct Geometry {
     pub crop: Option<Crop>,
 }
 
+/// Gruppen von Einstellungen, die sich einzeln auf andere Bilder übertragen lassen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Groups {
+    /// Auto, Abweichung, Stärke, Weißabgleich, Dynamik, Rot-Obergrenze.
+    pub color: bool,
+    pub tone: bool,
+    pub detail: bool,
+    /// Drehen, Spiegeln, Geraderichten, Zuschnitt; gehört meist zum einzelnen Bild.
+    pub geometry: bool,
+}
+
+impl Default for Groups {
+    fn default() -> Self {
+        Self { color: true, tone: true, detail: true, geometry: false }
+    }
+}
+
 impl Geometry {
     /// Um 90° im (`clockwise`) bzw. gegen den Uhrzeigersinn; der Zuschnitt dreht mit.
     pub fn rotate(&mut self, clockwise: bool) {
@@ -368,6 +385,30 @@ impl Settings {
 }
 
 impl Settings {
+    /// `self` mit den in `groups` gewählten Gruppen aus `source`; alles andere bleibt.
+    pub fn with_groups(&self, source: &Settings, groups: Groups) -> Settings {
+        let mut s = *self;
+        if groups.color {
+            s.auto = source.auto;
+            s.delta = source.delta;
+            s.strength = source.strength;
+            s.temperature = source.temperature;
+            s.tint = source.tint;
+            s.vibrance = source.vibrance;
+            s.red_limit = source.red_limit;
+        }
+        if groups.tone {
+            s.tone = source.tone;
+        }
+        if groups.detail {
+            s.detail = source.detail;
+        }
+        if groups.geometry {
+            s.geometry = source.geometry;
+        }
+        s
+    }
+
     /// Dieselben Einstellungen als feste Werte: Auto aus und die Abweichung so, dass jedes Bild
     /// genau die Korrektur bekommt, die `self` mit `auto` ergibt („gleiche Werte übernehmen“).
     pub fn fixed(&self, auto: &Correction) -> Settings {
@@ -766,6 +807,32 @@ mod tests {
         for f in [Field::Exposure, Field::Contrast, Field::Highlights, Field::Shadows, Field::Dehaze] {
             assert_eq!(Settings::default().effective(f, &AUTO), 0.0, "{f:?}");
         }
+    }
+
+    #[test]
+    fn groups_copy_only_what_is_chosen() {
+        let target = Settings {
+            temperature: -10.0,
+            tone: Tone { exposure: 20.0, ..Tone::default() },
+            geometry: Geometry { quarter_turns: 1, ..Geometry::default() },
+            ..Settings::default()
+        };
+        let source = Settings {
+            auto: false,
+            temperature: 30.0,
+            strength: 0.5,
+            tone: Tone { dehaze: 40.0, ..Tone::default() },
+            detail: Detail { sharpen: 50.0, ..Detail::default() },
+            geometry: Geometry { straighten: 3.0, ..Geometry::default() },
+            ..Settings::default()
+        };
+        let all = target.with_groups(&source, Groups { geometry: true, ..Groups::default() });
+        assert_eq!(all, source);
+        let only_tone = target.with_groups(&source, Groups { color: false, tone: true, detail: false, geometry: false });
+        assert_eq!(only_tone, Settings { tone: source.tone, ..target });
+        let standard = target.with_groups(&source, Groups::default());
+        assert_eq!(standard.geometry, target.geometry, "Zuschnitt standardmäßig nicht");
+        assert_eq!((standard.temperature, standard.auto, standard.strength), (30.0, false, 0.5));
     }
 
     #[test]

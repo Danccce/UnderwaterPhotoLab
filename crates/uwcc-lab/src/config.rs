@@ -4,6 +4,7 @@
 use std::{fs, path::PathBuf};
 
 use serde_json::{json, Map, Value};
+use uwcc_core::Groups;
 use uwcc_photo::{sidecar, DEFAULT_JPEG_QUALITY};
 
 pub const MIN_JPEG_QUALITY: u8 = 50;
@@ -31,6 +32,8 @@ pub struct Config {
     pub last_folder: Option<PathBuf>,
     /// Zuletzt gewählte Reglergruppe: 0 Farbe, 1 Ton, 2 Details.
     pub panel_tab: i32,
+    /// Gruppen, die „Mehrere Bilder“ überträgt.
+    pub transfer_groups: Groups,
 }
 
 impl Default for Config {
@@ -42,6 +45,7 @@ impl Default for Config {
             programs: Vec::new(),
             last_folder: None,
             panel_tab: 0,
+            transfer_groups: Groups::default(),
         }
     }
 }
@@ -90,6 +94,16 @@ pub fn load() -> Config {
             .unwrap_or_default(),
         last_folder: o.get("lastFolder").and_then(Value::as_str).map(PathBuf::from),
         panel_tab: o.get("panelTab").and_then(Value::as_i64).map_or(d.panel_tab, |t| t.clamp(0, 2) as i32),
+        transfer_groups: o.get("transferGroups").map_or(d.transfer_groups, |g| {
+            let flag = |k: &str, default: bool| g.get(k).and_then(Value::as_bool).unwrap_or(default);
+            let t = d.transfer_groups;
+            Groups {
+                color: flag("color", t.color),
+                tone: flag("tone", t.tone),
+                detail: flag("detail", t.detail),
+                geometry: flag("geometry", t.geometry),
+            }
+        }),
     }
 }
 
@@ -107,6 +121,8 @@ pub fn save(config: &Config) -> Result<(), String> {
         .collect();
     o.insert("programs".into(), programs.into());
     o.insert("panelTab".into(), config.panel_tab.into());
+    let g = config.transfer_groups;
+    o.insert("transferGroups".into(), json!({"color": g.color, "tone": g.tone, "detail": g.detail, "geometry": g.geometry}));
     match &config.last_folder {
         Some(dir) => o.insert("lastFolder".into(), dir.display().to_string().into()),
         None => o.remove("lastFolder"),
