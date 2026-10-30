@@ -729,6 +729,23 @@ export component LabWindow inherits Window {
         Palette.color-scheme = ColorScheme.dark;
     }
 
+    // Meldungen (Export, Pipette, Presets …) kurz unten im Bild statt in einer festen Zeile.
+    property <bool> toast-on;
+    changed status => {
+        if root.status != "" {
+            root.toast-on = true;
+            toast-timer.restart();
+        }
+    }
+    toast-timer := Timer {
+        interval: 5s;
+        running: false;
+        triggered => {
+            root.toast-on = false;
+            self.stop();
+        }
+    }
+
     // Das gewählte Bild in der Leiste sichtbar halten (Pfeiltasten, neuer Ordner, Filter).
     changed current-slot => {
         if root.current-slot >= 0 {
@@ -1045,6 +1062,24 @@ export component LabWindow inherits Window {
                             }
                             self.last-x = self.center.x;
                             self.last-y = self.center.y;
+                        }
+                    }
+
+                    if root.toast-on: Rectangle {
+                        x: (preview-box.width - self.width) / 2;
+                        y: preview-box.height - self.height - 48px;
+                        width: min(toast-text.preferred-width + 28px, preview-box.width * 0.8);
+                        height: toast-text.preferred-height + 16px;
+                        border-radius: 6px;
+                        background: #000000c8;
+                        toast-text := Text {
+                            x: 14px;
+                            width: parent.width - 28px;
+                            text: root.status;
+                            wrap: word-wrap;
+                            horizontal-alignment: center;
+                            color: white;
+                            font-size: 13px;
                         }
                     }
 
@@ -2151,12 +2186,6 @@ export component LabWindow inherits Window {
                                 root.cancel-export();
                                 keys.focus();
                             }
-                        }
-                        Text {
-                            text: root.status;
-                            wrap: word-wrap;
-                            color: #8a8f98;
-                            font-size: 12px;
                         }
                     }
                 }

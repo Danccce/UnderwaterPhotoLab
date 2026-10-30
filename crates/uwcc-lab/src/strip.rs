@@ -8,7 +8,6 @@ use std::{
         Arc,
     },
     thread,
-    time::Instant,
 };
 
 use slint::{Image, Model, Rgba8Pixel, SharedPixelBuffer, Weak};
@@ -41,12 +40,9 @@ pub fn load(weak: Weak<LabWindow>, files: Vec<(PathBuf, Option<PathBuf>)>, curre
     let total = files.len();
     let files = Arc::new(files);
     let next = Arc::new(AtomicUsize::new(0));
-    let done = Arc::new(AtomicUsize::new(0));
-    let start = Instant::now();
 
     for _ in 0..WORKERS.min(total) {
-        let (weak, files, next, done, current) =
-            (weak.clone(), files.clone(), next.clone(), done.clone(), current.clone());
+        let (weak, files, next, current) = (weak.clone(), files.clone(), next.clone(), current.clone());
         thread::spawn(move || loop {
             if current.load(Ordering::SeqCst) != generation {
                 return;
@@ -58,8 +54,6 @@ pub fn load(weak: Weak<LabWindow>, files: Vec<(PathBuf, Option<PathBuf>)>, curre
             let (original, exported) = &files[i];
             let buffer = thumbnail_buffer(original);
             let corrected = exported.as_deref().and_then(thumbnail_buffer);
-            let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
-            let elapsed = start.elapsed();
             let current = current.clone();
 
             let _ = weak.upgrade_in_event_loop(move |app| {
@@ -78,11 +72,6 @@ pub fn load(weak: Weak<LabWindow>, files: Vec<(PathBuf, Option<PathBuf>)>, curre
                         row.corrected = Image::from_rgba8(c);
                     }
                     model.set_row_data(i, row);
-                }
-                if finished == total {
-                    app.set_status(format!("{total} Bilder, Vorschaubilder in {:.2} s", elapsed.as_secs_f64()).into());
-                } else if finished % 25 == 0 {
-                    app.set_status(format!("Vorschaubilder {finished} / {total} …").into());
                 }
             });
         });

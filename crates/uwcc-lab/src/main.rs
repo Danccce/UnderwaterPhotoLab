@@ -101,7 +101,6 @@ fn main() -> Result<(), slint::PlatformError> {
         .select()?;
 
     let app = LabWindow::new()?;
-    app.set_status("Kein Ordner geöffnet.".into());
     let cfg = config::load();
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
     app.set_strip_corrected(cfg.strip_corrected);
@@ -455,11 +454,9 @@ fn open(app: &LabWindow, path: &Path) {
     app.set_has_preview(false);
     info::clear(app);
     app.set_current(-1);
-    app.set_status(if files.is_empty() {
-        "Keine Bilder (JPG, PNG, TIFF) in diesem Ordner.".into()
-    } else {
-        format!("{} Bilder, lade Vorschaubilder …", files.len()).into()
-    });
+    if files.is_empty() {
+        app.set_status("Keine Bilder (JPG, PNG, TIFF) in diesem Ordner.".into());
+    }
 
     let selected = wanted.and_then(|w| files.iter().position(|f| *f == w)).unwrap_or(0);
     let (counter, generation, jobs) = with_state(|st| {
