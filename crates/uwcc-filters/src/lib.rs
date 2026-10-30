@@ -8,6 +8,7 @@
 //! auf Pixelebene, ihre Radien sind Pixel der vollen Auflösung ([`Context::full_px`]); die
 //! verkleinerte Vorschau zeigt sie nur ungefähr (mindestens ein Pixel), genau die 100-%-Ansicht.
 
+pub mod geometry;
 pub mod plane;
 
 use std::{sync::Arc, thread};
@@ -118,11 +119,23 @@ pub struct Context {
     /// Lage des gerechneten Ausschnitts im ganzen Bild (Pixel dieser Auflösung); `(0, 0)` für das
     /// ganze Bild. Hält das Raster der groben Filter am ganzen Bild ausgerichtet.
     pub origin: (u32, u32),
+    /// Pixel dieser Auflösung je Pixel des Originals (1 = volle Auflösung).
+    pub scale: f32,
 }
 
 impl Context {
+    /// Für das ganze Bild `width × height` (nach Geometrie) in einer Auflösung, deren Maßstab sich
+    /// aus der Größe ergibt – stimmt nur ohne Zuschnitt, sonst [`Self::with_scale`].
     pub fn new(auto: Correction, reference: Arc<Reference>, width: u32, height: u32) -> Self {
-        Self { auto, reference, long_edge: width.max(height), origin: (0, 0) }
+        let long_edge = width.max(height);
+        let scale = long_edge as f32 / reference.full_long_edge.max(1) as f32;
+        Self { auto, reference, long_edge, origin: (0, 0), scale }
+    }
+
+    /// Dasselbe mit ausdrücklichem Maßstab (zugeschnittene Bilder: die lange Kante sagt dann nichts
+    /// über die Auflösung).
+    pub fn with_scale(self, scale: f32) -> Self {
+        Self { scale, ..self }
     }
 
     /// Radius in Pixeln für `permille` Promille der langen Kante.
@@ -132,7 +145,7 @@ impl Context {
 
     /// `px` Pixel der vollen Auflösung in Pixeln der gerade gerechneten Auflösung.
     pub fn full_px(&self, px: f32) -> f32 {
-        px * self.long_edge as f32 / self.reference.full_long_edge.max(1) as f32
+        px * self.scale
     }
 }
 

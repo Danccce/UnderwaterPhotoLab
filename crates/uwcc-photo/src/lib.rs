@@ -1,8 +1,8 @@
 //! Fotos laden, Vorschaubilder lesen, Ordner einlesen und korrigiert exportieren.
 //!
-//! Die Pixel bleiben in der gespeicherten Ausrichtung, EXIF (samt Orientation-Tag) und ICC-Profil
-//! werden unverändert übernommen. Bildbetrachter drehen das Ergebnis dadurch genauso wie das
-//! Original. Gedreht wird nur für die Anzeige ([`Photo::preview`], [`thumbnail`]).
+//! Der Export schreibt aufrechte Pixel (nach EXIF-Orientation, Drehen, Spiegeln, Geraderichten
+//! und Zuschnitt) und setzt das Orientation-Tag auf 1; das übrige EXIF und das ICC-Profil werden
+//! übernommen, das EXIF-Vorschaubild aus dem Ergebnis neu erzeugt.
 
 mod exif;
 mod info;
@@ -112,17 +112,28 @@ impl Photo {
             fs::create_dir_all(dir).map_err(|e| err(&e))?;
         }
 
-        let mut rgba = self.rgba.clone();
-        let (w, h) = rgba.dimensions();
-        let ctx = uwcc_filters::Context::new(*auto, std::sync::Arc::new(self.reference()), w, h);
-        uwcc_filters::render(&mut rgba, w, h, settings, &ctx);
+        // Aufrecht, dann Geometrie: die Datei bekommt Orientation = 1, sonst drehte ein Betrachter
+        // die schon gedrehten Pixel noch einmal.
+        let mut upright = DynamicImage::ImageRgba8(self.rgba.clone());
+        upright.apply_orientation(self.orientation);
+        let upright = upright.into_rgba8();
+        let (uw, uh) = upright.dimensions();
+        let (mut px, w, h) = if uwcc_filters::geometry::is_identity(&settings.geometry) {
+            (upright.into_raw(), uw, uh)
+        } else {
+            uwcc_filters::geometry::transform(upright.as_raw(), uw, uh, &settings.geometry)
+        };
+        let ctx = uwcc_filters::Context::new(*auto, std::sync::Arc::new(self.reference()), w, h).with_scale(1.0);
+        uwcc_filters::render(&mut px, w, h, settings, &ctx);
+        let rgba = RgbaImage::from_raw(w, h, px).ok_or_else(|| err(&"Puffergröße"))?;
         let rgb = DynamicImage::ImageRgba8(rgba).into_rgb8();
 
         // Das Vorschaubild im EXIF zeigt sonst weiter das unkorrigierte Original (Explorer, Leiste).
         let exif = self.exif.as_ref().map(|e| {
+            let e = exif::upright(e);
             exif_thumbnail_jpeg(&rgb)
-                .and_then(|jpeg| exif::with_thumbnail(e, &jpeg))
-                .unwrap_or_else(|| exif::without_thumbnail(e))
+                .and_then(|jpeg| exif::with_thumbnail(&e, &jpeg))
+                .unwrap_or_else(|| exif::without_thumbnail(&e))
         });
 
         let tmp = out.with_file_name(format!(".{name}.tmp"));
@@ -279,6 +290,50 @@ mod tests {
         dir
     }
 
+    /// Größe des aufrechten Bildes.
+    fn preview_upright_size(photo: &Photo) -> (u32, u32) {
+        let (w, h) = photo.rgba.dimensions();
+        match photo.orientation {
+            Orientation::Rotate90 | Orientation::Rotate270 | Orientation::Rotate90FlipH | Orientation::Rotate270FlipH => (h, w),
+            _ => (w, h),
+        }
+    }
+
+    /// Alle acht EXIF-Ausrichtungen: der Export ist aufrecht wie die Vorschau, mit Orientation 1;
+    /// Drehen, Spiegeln und Zuschnitt wirken auf das aufrechte Bild.
+    #[test]
+    fn export_is_upright_for_all_orientations_and_applies_geometry() {
+        use uwcc_core::{Crop, Geometry};
+        let dir = temp_dir("orientations");
+        for o in 1..=8u16 {
+            let input = dir.join(format!("o{o}.jpg"));
+            write_test_jpeg(&input, o);
+            let photo = Photo::open(&input).unwrap();
+            let auto = photo.analyze();
+            let plain = Settings { auto: false, ..Settings::default() };
+            let out = photo.export(&plain, &auto, ExportTarget::Subfolder, 100).unwrap();
+            let saved = Photo::open(&out).unwrap();
+            assert_eq!(saved.orientation, Orientation::NoTransforms, "Ausrichtung {o}");
+            let preview = photo.preview(1000);
+            assert_eq!(saved.rgba.dimensions(), preview.dimensions(), "Ausrichtung {o}: wie die Vorschau");
+            // Gleiche Pixel wie die (unverkleinerte) Vorschau, bis auf JPEG-Rundung.
+            let diff = saved.rgba.pixels().zip(preview.pixels()).map(|(a, b)| (a[1] as i32 - b[1] as i32).abs()).max().unwrap();
+            assert!(diff <= 12, "Ausrichtung {o}: Abweichung {diff}");
+
+            let turned = Settings {
+                geometry: Geometry {
+                    quarter_turns: 1,
+                    crop: Some(Crop { x: 0.0, y: 0.25, width: 1.0, height: 0.5 }),
+                    ..Geometry::default()
+                },
+                ..plain
+            };
+            photo.export(&turned, &auto, ExportTarget::Subfolder, 100).unwrap();
+            let (pw, ph) = preview.dimensions();
+            assert_eq!(Photo::open(&out).unwrap().rgba.dimensions(), (ph, pw / 2), "Ausrichtung {o}: gedreht und halbiert");
+        }
+    }
+
     /// Ein kleines JPG mit EXIF (Orientation + Vorschaubild) und ICC-Profil.
     fn write_test_jpeg(path: &Path, orientation: u16) -> (Vec<u8>, Vec<u8>) {
         let thumb = {
@@ -347,10 +402,10 @@ mod tests {
         let saved = Photo::open(&out).unwrap();
         let saved_exif = saved.exif.as_deref().unwrap();
         assert_ne!(exif::thumbnail_jpeg(saved_exif), exif::thumbnail_jpeg(&exif), "neues Vorschaubild");
-        assert_eq!(exif_thumbnail(&out, 200).unwrap().dimensions(), (48, 64), "aus dem Export, gedreht wie das Bild");
+        assert_eq!(exif_thumbnail(&out, 200).unwrap().dimensions(), (48, 64), "aus dem Export, aufrecht");
         assert_eq!(saved.icc.as_deref(), Some(&icc[..]));
-        assert_eq!(saved.orientation, Orientation::Rotate90);
-        assert_eq!(saved.rgba.dimensions(), (64, 48), "Pixel nicht gedreht");
+        assert_eq!(saved.orientation, Orientation::NoTransforms, "Pixel schon gedreht");
+        assert_eq!(saved.rgba.dimensions(), (48, 64), "Pixel aufrecht");
 
         let first = fs::read(&out).unwrap();
         let warmer = Settings { temperature: 60.0, ..Settings::default() };
@@ -580,8 +635,8 @@ mod tests {
             photo.export_to(&Settings::default(), &auto, &out, DEFAULT_JPEG_QUALITY).unwrap();
             let exported = start.elapsed();
             let saved = Photo::open(&out).unwrap();
-            assert_eq!(saved.orientation, photo.orientation);
-            assert_eq!(saved.rgba.dimensions(), photo.rgba.dimensions());
+            assert_eq!(saved.orientation, Orientation::NoTransforms);
+            assert_eq!(saved.rgba.dimensions(), preview_upright_size(&photo), "aufrecht gespeichert");
             println!("{}: öffnen {opened:?}, Export {exported:?}, Auto {auto:?}", file_name(f));
         }
     }

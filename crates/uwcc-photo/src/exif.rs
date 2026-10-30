@@ -129,6 +129,22 @@ impl<'a> Tiff<'a> {
     }
 }
 
+const TAG_ORIENTATION: u16 = 0x0112;
+
+/// Dasselbe EXIF mit Orientation = 1 (aufrecht), für Exporte mit schon gedrehten Pixeln; ohne
+/// Tag oder bei unlesbarem EXIF unverändert.
+pub(crate) fn upright(tiff: &[u8]) -> Vec<u8> {
+    let mut out = tiff.to_vec();
+    if let Some(t) = Tiff::new(tiff) {
+        if let Some(entry) = t.ifd0().and_then(|ifd0| t.entry(ifd0, TAG_ORIENTATION)) {
+            if t.u16(entry + 2) == Some(TYPE_SHORT) && entry + 10 <= out.len() {
+                t.put_u16(&mut out, entry + 8, 1);
+            }
+        }
+    }
+    out
+}
+
 /// Die JPEG-Daten des Vorschaubilds aus IFD1 (Tags 0x0201/0x0202).
 pub(crate) fn thumbnail_jpeg(tiff: &[u8]) -> Option<&[u8]> {
     let t = Tiff::new(tiff)?;
@@ -296,6 +312,17 @@ pub(crate) mod tests {
         let dropped = without_thumbnail(&tiff);
         assert_eq!(thumbnail_jpeg(&dropped), None);
         assert_eq!(orientation(&dropped), orientation(&tiff));
+    }
+
+    #[test]
+    fn upright_sets_orientation_one_in_both_byte_orders() {
+        use image::metadata::Orientation;
+        for tiff in [exif_with_thumbnail(6, &[0xFF, 0xD8, 0xFF, 0xD9]), exif_without_ifd1(8)] {
+            let out = upright(&tiff);
+            assert_eq!(orientation(&out), Some(Orientation::NoTransforms));
+            assert_eq!(out.len(), tiff.len(), "sonst nichts verschoben");
+        }
+        assert_eq!(upright(b"nonsense"), b"nonsense");
     }
 
     #[test]
