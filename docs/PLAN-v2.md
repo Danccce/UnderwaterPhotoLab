@@ -310,7 +310,9 @@ Orange/Gelb 35° ±35°), schwach gesättigte Pixel kaum; Pixel außerhalb aller
 „Ton“, Farbmischer unten im Reiter „Farbe“ mit Umschalter der drei Bereiche. Außerdem: Die feste
 Statuszeile ist ersetzt durch eine kurze Meldung unten im Bild (5 s).
 - [ ] 13.3 Partikel entfernen: Klick-Werkzeug (Fleck aus der Umgebung füllen); später evtl. automatisch
-- [ ] 13.4 Programmsymbol (Fenster und .exe)
+- [x] 13.4 Programmsymbol (Fenster und .exe): `assets\make-icon.ps1` zeichnet es (Ozeanblau, Ring weiß/
+  korallenorange für das wiederhergestellte Rot, Luftblasen) in 16–256 px und packt `icon.ico`; Fenster über
+  Slint (`icon`), .exe über `app.rc` und `embed-resource` (windres der MinGW-Toolchain).
 
 ## Nicht in v2
 

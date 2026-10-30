@@ -1,0 +1,2 @@
+// Programmsymbol der .exe (Explorer, Taskleiste); erzeugt von assets\make-icon.ps1.
+1 ICON "../../assets/icon.ico"
