@@ -313,6 +313,51 @@ component SmallButton inherits Rectangle {
     }
 }
 
+// Waagerechter Scrollbalken, immer sichtbar (der eingebaute erscheint erst beim Darüberfahren):
+// Griff ziehen oder in die Spur klicken, dann springt der Griff mittig an die Stelle.
+component HScrollbar inherits Rectangle {
+    in property <length> content-width;
+    in property <length> visible-width;
+    in-out property <length> content-x;
+    property <length> range: max(0px, root.content-width - root.visible-width);
+    property <length> thumb-width: max(40px, root.width * root.visible-width / max(1px, root.content-width));
+    property <length> travel: max(1px, root.width - root.thumb-width);
+    property <length> thumb-x: root.range > 0 ? -root.content-x / root.range * root.travel : 0px;
+    // Abstand des Mauszeigers vom Anfang des Griffs beim Ziehen.
+    property <length> grab;
+    visible: root.range > 0;
+    border-radius: 5px;
+    background: #ffffff10;
+
+    function scroll-to(thumb-left: length) {
+        root.content-x = -clamp(thumb-left, 0px, root.travel) / root.travel * root.range;
+    }
+
+    Rectangle {
+        x: root.thumb-x;
+        width: root.thumb-width;
+        border-radius: 5px;
+        background: touch.pressed ? Palette.accent-background : touch.has-hover ? #ffffff60 : #ffffff38;
+    }
+    touch := TouchArea {
+        pointer-event(event) => {
+            if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                if self.mouse-x >= root.thumb-x && self.mouse-x <= root.thumb-x + root.thumb-width {
+                    root.grab = self.mouse-x - root.thumb-x;
+                } else {
+                    root.grab = root.thumb-width / 2;
+                    root.scroll-to(self.mouse-x - root.grab);
+                }
+            }
+        }
+        moved => {
+            if self.pressed {
+                root.scroll-to(self.mouse-x - root.grab);
+            }
+        }
+    }
+}
+
 component Heading inherits Text {
     font-weight: 700;
     font-size: 13px;
@@ -480,6 +525,7 @@ export component LabWindow inherits Window {
             lines: [
                 "Ordner öffnen: Knopf links in der Leiste, Ordner oder Bild ins Fenster ziehen, oder Ordner auf die .exe ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner.",
                 "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
+                "Leiste durchblättern: Mausrad über der Leiste oder Scrollbalken darunter ziehen bzw. in die Spur klicken.",
                 "Original zeigen: Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten.",
                 "Split-Ansicht: Knopf „Split-Ansicht“ unter dem Bild oder Taste S; die Trennlinie mit der Maus ziehen.",
                 "Zoom: Doppelklick ins Bild (100 % an dieser Stelle) oder Taste Z; Mausrad oder zwei Finger auf- und zuziehen (Touchpad, Touchbildschirm) zoomt stufenlos bis 400 %. Ziehen oder zwei Finger schieben verschiebt den Ausschnitt. Doppelklick, Z oder Esc zurück.",
@@ -1667,9 +1713,10 @@ export component LabWindow inherits Window {
 
                     strip := ScrollView {
                         width: 100%;
-                        height: 100%;
+                        height: parent.height - 18px;
                         content-width: root.thumbs.length * (root.cell-width + root.cell-gap) + root.cell-gap;
                         content-height: self.visible-height;
+                        horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
 
                         for thumb[i] in root.thumbs: Rectangle {
                             x: root.cell-gap + i * (root.cell-width + root.cell-gap);
@@ -1745,6 +1792,15 @@ export component LabWindow inherits Window {
                                 }
                             }
                         }
+                    }
+                    HScrollbar {
+                        x: 8px;
+                        y: parent.height - 16px;
+                        width: parent.width - 16px;
+                        height: 10px;
+                        content-width: strip.content-width;
+                        visible-width: strip.visible-width;
+                        content-x <=> strip.content-x;
                     }
                 }
                 }

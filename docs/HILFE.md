@@ -10,6 +10,7 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 
 - **Ordner öffnen:** Knopf links in der Bildleiste, einen Ordner oder ein Bild ins Fenster ziehen, oder einen Ordner auf `UnderwaterPhotoLab.exe` ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner wieder.
 - **Bild wechseln:** Klick in die Leiste oder Pfeiltasten ← →.
+- **Leiste durchblättern:** Mausrad über der Leiste, oder den Scrollbalken darunter ziehen bzw. in seine Spur klicken (springt direkt an die Stelle).
 - **Original zeigen:** Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten (der Knopf wird dabei blau).
 - **Split-Ansicht:** Knopf „Split-Ansicht“ unter dem Bild oder Taste **S**; die Trennlinie mit der Maus ziehen.
 - **Zoom:** Doppelklick ins Bild (100 % an dieser Stelle) oder Taste **Z** (100 % in der Mitte). **Mausrad** oder am Touchpad bzw. Touchbildschirm **zwei Finger auf- und zuziehen** zoomt stufenlos bis 400 %; die Stelle unter dem Mauszeiger bleibt stehen. **Ziehen** mit der Maus oder **zwei Finger schieben** am Touchpad verschiebt den Ausschnitt; die Trennlinie der Split-Ansicht greift man direkt an der Linie. Doppelklick, **Z** oder **Esc** zurück zur ganzen Ansicht. So lassen sich Schärfe, Rauschen und Schwebeteilchen beurteilen.

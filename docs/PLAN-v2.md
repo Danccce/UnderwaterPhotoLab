@@ -194,6 +194,9 @@ Mit Ton und Dehaze wurde die Reglerleiste länger als das Fenster; deshalb vor P
 - [x] **Eine Markierungsfarbe:** alle Hervorhebungen (Umschalter, Knöpfe, aktuelles Bild in der Leiste,
   Split-Griff, Menüs) nutzen `Palette.accent-background` wie Regler, Checkbox und Hauptknopf; halbtransparente
   Flächen werden daraus abgeleitet (`25c7241`).
+- [x] **Scrollbalken unter der Bildleiste**, immer sichtbar (`HScrollbar`; der eingebaute Fluent-Balken
+  erscheint erst beim Darüberfahren und ist abgeschaltet): Griff ziehen oder in die Spur klicken; Griff
+  mindestens 40 px breit (Wunsch nach Phase 10).
 
 ### Phase 10 – Details
 
