@@ -122,16 +122,18 @@ pub fn refresh_marks(app: &LabWindow) {
     app.set_current_slot(current_slot);
 }
 
-/// Index des nächsten angezeigten Bildes in Richtung `step` (±1) ab `from`.
+/// Index des angezeigten Bildes `step` Plätze weiter (negativ: zurück) ab `from`; `None`, wenn es
+/// so viele nicht mehr gibt (z. B. Pfeil nach unten in der letzten Zeile des Rasters).
 pub fn next_shown(app: &LabWindow, from: i32, step: i32) -> Option<i32> {
     let model = app.get_thumbs();
-    let mut i = from;
-    loop {
+    let (mut i, mut left) = (from, step.abs());
+    while left > 0 {
         i += step.signum();
         if model.row_data(usize::try_from(i).ok()?)?.slot >= 0 {
-            return Some(i);
+            left -= 1;
         }
     }
+    (i != from).then_some(i)
 }
 
 /// Indizes der angezeigten Bilder.

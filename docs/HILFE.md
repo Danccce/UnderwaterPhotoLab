@@ -10,6 +10,7 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 
 - **Ordner öffnen:** Knopf links in der Bildleiste, einen Ordner oder ein Bild ins Fenster ziehen, oder einen Ordner auf `UnderwaterPhotoLab.exe` ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner wieder.
 - **Bild wechseln:** Klick in die Leiste oder Pfeiltasten ← →.
+- **Rasteransicht:** Knopf **Raster (G)** unter dem Bild oder Taste **G** zeigt alle (gefilterten) Bilder als Raster statt der Vorschau. Klick wählt ein Bild (Strg+Klick, Umschalt+Klick wie in der Leiste), Pfeiltasten ← → ↑ ↓ wandern durch das Raster. **Doppelklick** oder **Enter** öffnet das Bild zum Bearbeiten, **G** wechselt ebenfalls zurück. Die Reglerleiste bleibt sichtbar, so lassen sich ausgewählte Bilder auch im Raster übernehmen oder exportieren.
 - **Leiste filtern:** unter dem Bild **Alle**, **Unbearbeitet** (noch keine Einstellung geändert) oder **Nicht exportiert** (noch nie oder mit anderen Einstellungen exportiert). Das aktuelle Bild bleibt immer sichtbar; Pfeiltasten und Strg+A gelten für die angezeigten Bilder.
 - **Leiste durchblättern:** Mausrad über der Leiste, oder den Scrollbalken darunter ziehen bzw. in seine Spur klicken (springt direkt an die Stelle).
 - **Original zeigen:** Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten (der Knopf wird dabei blau).
@@ -17,7 +18,7 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 - **Zoom:** Doppelklick ins Bild (100 % an dieser Stelle) oder Taste **Z** (100 % in der Mitte). **Mausrad** oder am Touchpad bzw. Touchbildschirm **zwei Finger auf- und zuziehen** zoomt stufenlos bis 400 %; die Stelle unter dem Mauszeiger bleibt stehen. **Ziehen** mit der Maus oder **zwei Finger schieben** am Touchpad verschiebt den Ausschnitt; die Trennlinie der Split-Ansicht greift man direkt an der Linie. Doppelklick, **Z** oder **Esc** zurück zur ganzen Ansicht. So lassen sich Schärfe, Rauschen und Schwebeteilchen beurteilen.
 - **Bildinformationen:** oben rechts auf den Dateinamen klicken; ein Fenster neben der Reglerleiste zeigt alle Angaben (Aufnahme, Kamera, Objektiv, Belichtung, Auto-Analyse …). Ein Klick daneben schließt es.
 - **Reglerleiste:** Bildinfo, Auto-Korrektur, Stärke und der Umschalter Farbe | Ton | Details stehen fest; nur die Regler der gewählten Gruppe scrollen.
-- **Leiste „Original | Korrigiert“:** bei „Korrigiert“ erscheinen exportierte Bilder korrigiert, alle anderen als Original – so sieht man, wo noch etwas zu tun ist.
+- **„Vorschaubilder: Original | Korrigiert“:** bei „Korrigiert“ erscheinen exportierte Bilder in Leiste und Raster korrigiert, alle anderen als Original – so sieht man, wo noch etwas zu tun ist.
 
 ![Split-Ansicht](img/ansicht-split.jpg)
 

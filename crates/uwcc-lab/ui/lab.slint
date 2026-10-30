@@ -515,6 +515,34 @@ export component LabWindow inherits Window {
         }
         root.healing = on;
     }
+
+    // Rasteranzeige (Taste G): alle angezeigten Bilder statt der Vorschau; Doppelklick oder Enter
+    // öffnet das gewählte zum Bearbeiten. Die Zellen füllen die Breite, mindestens `grid-min-width`.
+    in-out property <bool> library;
+    property <length> grid-min-width: 190px;
+    property <int> grid-cols: max(1, floor((grid.visible-width - root.cell-gap) / (root.grid-min-width + root.cell-gap)));
+    property <length> grid-cell-width: (grid.visible-width - root.cell-gap * (root.grid-cols + 1)) / root.grid-cols;
+    property <length> grid-cell-height: root.grid-cell-width * 0.75 + 26px;
+    function set-library(on: bool) {
+        if on {
+            root.set-cropping(false);
+            root.healing = false;
+        }
+        root.library = on;
+    }
+    function show-current-in-grid() {
+        if root.current-slot >= 0 {
+            let top = root.cell-gap + floor(root.current-slot / root.grid-cols) * (root.grid-cell-height + root.cell-gap);
+            if top + grid.content-y < 0 {
+                grid.content-y = root.cell-gap - top;
+            } else if top + root.grid-cell-height + grid.content-y > grid.visible-height {
+                grid.content-y = grid.visible-height - top - root.grid-cell-height - root.cell-gap;
+            }
+        }
+    }
+    changed library => {
+        root.show-current-in-grid();
+    }
     // Bildpixel (Ergebnis) → Bildschirm, in beiden Ansichten (Umkehrung von image-x/-y).
     pure function screen-x(px: float) -> length {
         root.zoomed ? preview-box.width / 2 + (px - root.zoom-cx) * root.zoom-scale * 1phx
@@ -627,6 +655,7 @@ export component LabWindow inherits Window {
             lines: [
                 "Ordner öffnen: Knopf links in der Leiste, Ordner oder Bild ins Fenster ziehen, oder Ordner auf die .exe ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner.",
                 "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
+                "Rasteransicht: Knopf „Raster (G)“ unter dem Bild oder Taste G zeigt alle Bilder als Raster. Klick wählt (Strg/Umschalt wie in der Leiste), Pfeiltasten ← → ↑ ↓ wandern, Doppelklick oder Enter öffnet das Bild zum Bearbeiten.",
                 "Leiste durchblättern: Mausrad über der Leiste oder Scrollbalken darunter ziehen bzw. in die Spur klicken.",
                 "Leiste filtern (unter dem Bild): Alle, Unbearbeitet, Nicht exportiert. Das aktuelle Bild bleibt sichtbar; Pfeiltasten und Strg+A gelten für die angezeigten.",
                 "Original zeigen: Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten.",
@@ -792,6 +821,7 @@ export component LabWindow inherits Window {
 
     // Das gewählte Bild in der Leiste sichtbar halten (Pfeiltasten, neuer Ordner, Filter).
     changed current-slot => {
+        root.show-current-in-grid();
         if root.current-slot >= 0 {
             if root.current-left + strip.content-x < 0 {
                 strip.content-x = root.cell-gap - root.current-left;
@@ -814,7 +844,23 @@ export component LabWindow inherits Window {
                 root.show-help = false;
                 return accept;
             }
-            if (event.text == "c" || event.text == "C") && !event.modifiers.control && root.has-preview && !root.loading {
+            if (event.text == "g" || event.text == "G") && !event.modifiers.control && root.thumbs.length > 0 {
+                root.set-library(!root.library);
+                return accept;
+            }
+            if root.library && event.text == Key.Return {
+                root.set-library(false);
+                return accept;
+            }
+            if root.library && event.text == Key.UpArrow {
+                root.navigate(-root.grid-cols);
+                return accept;
+            }
+            if root.library && event.text == Key.DownArrow {
+                root.navigate(root.grid-cols);
+                return accept;
+            }
+            if (event.text == "c" || event.text == "C") && !event.modifiers.control && root.has-preview && !root.loading && !root.library {
                 root.set-cropping(!root.cropping);
                 return accept;
             }
@@ -822,7 +868,7 @@ export component LabWindow inherits Window {
                 root.set-cropping(false);
                 return accept;
             }
-            if (event.text == "p" || event.text == "P") && !event.modifiers.control && root.has-preview && !root.loading {
+            if (event.text == "p" || event.text == "P") && !event.modifiers.control && root.has-preview && !root.loading && !root.library {
                 root.set-healing(!root.healing);
                 return accept;
             }
@@ -846,7 +892,7 @@ export component LabWindow inherits Window {
                 root.redo();
                 return accept;
             }
-            if (event.text == "z" || event.text == "Z") && !event.modifiers.control && root.has-preview && !root.cropping {
+            if (event.text == "z" || event.text == "Z") && !event.modifiers.control && root.has-preview && !root.cropping && !root.library {
                 if root.zoomed {
                     root.zoomed = false;
                 } else {
@@ -882,7 +928,7 @@ export component LabWindow inherits Window {
                 root.clear-selection();
                 return accept;
             }
-            if (event.text == "s" || event.text == "S") && root.has-preview && !root.cropping {
+            if (event.text == "s" || event.text == "S") && root.has-preview && !root.cropping && !root.library {
                 root.split = !root.split;
                 return accept;
             }
@@ -1211,6 +1257,99 @@ export component LabWindow inherits Window {
                                                 keys.focus();
                                             }
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        visible: root.library;
+                        background: #141518;
+
+                        grid := ScrollView {
+                            width: 100%;
+                            height: 100%;
+                            content-width: self.visible-width;
+                            content-height: ceil(root.shown-count / root.grid-cols) * (root.grid-cell-height + root.cell-gap) + root.cell-gap;
+                            horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+
+                            for thumb[i] in root.thumbs: Rectangle {
+                                visible: thumb.slot >= 0;
+                                x: root.cell-gap + mod(thumb.slot, root.grid-cols) * (root.grid-cell-width + root.cell-gap);
+                                y: root.cell-gap + floor(thumb.slot / root.grid-cols) * (root.grid-cell-height + root.cell-gap);
+                                width: root.grid-cell-width;
+                                height: root.grid-cell-height;
+                                border-radius: 6px;
+                                border-width: 2px;
+                                border-color: i == root.current ? Palette.accent-background : (thumb.selected ? Palette.accent-background.transparentize(0.45) : transparent);
+                                background: i == root.current ? Palette.accent-background.transparentize(0.8) : (thumb.selected ? Palette.accent-background.transparentize(0.89) : #2b2d31);
+
+                                cell-image := Image {
+                                    x: 6px;
+                                    y: 6px;
+                                    width: parent.width - 12px;
+                                    height: parent.height - 32px;
+                                    source: root.strip-corrected && thumb.has-corrected ? thumb.corrected : thumb.image;
+                                    image-fit: contain;
+                                }
+                                if !thumb.loaded: Text {
+                                    y: cell-image.y + cell-image.height / 2 - 8px;
+                                    text: "…";
+                                    color: #6b7078;
+                                }
+                                if thumb.failed: Text {
+                                    y: cell-image.y + cell-image.height / 2 - 8px;
+                                    text: "nicht lesbar";
+                                    color: #e5484d;
+                                    font-size: 11px;
+                                }
+                                if thumb.exported: Rectangle {
+                                    x: 10px;
+                                    y: cell-image.y + cell-image.height - 22px;
+                                    width: 18px;
+                                    height: 18px;
+                                    border-radius: 9px;
+                                    background: #2ea043;
+                                    border-width: 1px;
+                                    border-color: #141518;
+                                    Text {
+                                        text: "✓";
+                                        color: white;
+                                        font-size: 11px;
+                                        font-weight: 700;
+                                    }
+                                }
+                                if thumb.edited: Rectangle {
+                                    x: parent.width - 18px;
+                                    y: 10px;
+                                    width: 10px;
+                                    height: 10px;
+                                    border-radius: 5px;
+                                    background: #f5a623;
+                                    border-width: 1px;
+                                    border-color: #141518;
+                                }
+                                Text {
+                                    x: 6px;
+                                    y: parent.height - 22px;
+                                    width: parent.width - 12px;
+                                    text: thumb.name;
+                                    font-size: 11px;
+                                    color: #c8ccd2;
+                                    overflow: elide;
+                                    horizontal-alignment: center;
+                                }
+                                TouchArea {
+                                    pointer-event(event) => {
+                                        if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                                            keys.focus();
+                                            root.thumb-pressed(i, event.modifiers.control, event.modifiers.shift);
+                                        }
+                                    }
+                                    double-clicked => {
+                                        root.set-library(false);
+                                        keys.focus();
                                     }
                                 }
                             }
@@ -2370,18 +2509,27 @@ export component LabWindow inherits Window {
                         alignment: center;
                         HorizontalLayout {
                             spacing: 6px;
+                            SmallButton {
+                                text: "Raster (G)";
+                                active: root.library;
+                                enabled: root.thumbs.length > 0;
+                                clicked => {
+                                    root.set-library(!root.library);
+                                    keys.focus();
+                                }
+                            }
                             before-button := SmallButton {
                                 text: "Original";
                                 active: self.pressed || root.space-held;
-                                enabled: root.has-preview;
+                                enabled: root.has-preview && !root.library;
                                 clicked => {
                                     keys.focus();
                                 }
                             }
                             SmallButton {
                                 text: "Split-Ansicht";
-                                active: root.split && !root.cropping;
-                                enabled: root.has-preview && !root.cropping;
+                                active: root.split && !root.cropping && !root.library;
+                                enabled: root.has-preview && !root.cropping && !root.library;
                                 clicked => {
                                     root.split = !root.split;
                                     keys.focus();
@@ -2390,7 +2538,7 @@ export component LabWindow inherits Window {
                             SmallButton {
                                 text: "Zuschneiden";
                                 active: root.cropping;
-                                enabled: root.has-preview && !root.loading;
+                                enabled: root.has-preview && !root.loading && !root.library;
                                 clicked => {
                                     root.set-cropping(!root.cropping);
                                     keys.focus();
@@ -2399,7 +2547,7 @@ export component LabWindow inherits Window {
                             SmallButton {
                                 text: "Partikel";
                                 active: root.healing;
-                                enabled: root.has-preview && !root.loading;
+                                enabled: root.has-preview && !root.loading && !root.library;
                                 clicked => {
                                     root.set-healing(!root.healing);
                                     keys.focus();
@@ -2435,7 +2583,7 @@ export component LabWindow inherits Window {
                         }
                     }
                     Text {
-                        text: "Leiste zeigt:";
+                        text: "Vorschaubilder:";
                         vertical-alignment: center;
                         font-size: 12px;
                     }
@@ -2475,9 +2623,10 @@ export component LabWindow inherits Window {
                 }
             }
 
-            // Bildleiste
+            // Bildleiste; in der Rasteranzeige überflüssig.
             Rectangle {
-                height: 150px;
+                height: root.library ? 0px : 150px;
+                visible: !root.library;
                 background: Palette.alternate-background;
 
                 Rectangle {

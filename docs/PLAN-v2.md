@@ -323,6 +323,12 @@ Größe 4–120 px (Bildschirm), „Alle entfernen“; Strg+Z nimmt zurück.
   korallenorange für das wiederhergestellte Rot, Luftblasen) in 16–256 px und packt `icon.ico`; Fenster über
   Slint (`icon`), .exe über `app.rc` und `embed-resource` (windres der MinGW-Toolchain).
 
+- [x] 13.5 Rasteransicht wie bei RapidRaw: Knopf „Raster (G)“ unter dem Bild oder Taste G zeigt statt der
+  Vorschau alle angezeigten (gefilterten) Bilder als Raster; die Zellen (mind. 190 px) füllen die Breite.
+  Klick wählt (Strg/Umschalt wie in der Leiste), ← → ↑ ↓ wandern (↑ ↓ eine Zeile, `store::next_shown` mit
+  Schrittweite), Doppelklick oder Enter öffnet das Bild zum Bearbeiten. Bildleiste und Ansicht-Knöpfe sind im
+  Raster aus; die Reglerleiste bleibt, damit Übernehmen und Export der Auswahl auch dort gehen.
+
 Nachgeschärft – weniger Regler (27 → 18): Rot-Obergrenze ohne Regler (bleibt beim gespeicherten Wert,
 Standard 4). Schärfen ein Regler mit festem Radius 1 px und Maskieren 30 (`Detail::with_sharpen`;
 `DEFAULT_SHARPEN_MASK`, auch für `.uwcc.json` ohne `sharpenMask`). „Rauschen entfernen“ statt zwei Reglern:
