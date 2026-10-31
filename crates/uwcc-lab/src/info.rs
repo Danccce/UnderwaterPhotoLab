@@ -1,5 +1,5 @@
-//! Bildinformationen in der Reglerleiste: Aufnahmedaten aus dem EXIF sofort beim Auswählen,
-//! Bildgröße und Auto-Analyse, sobald das Bild geladen ist. Die Übersicht zeigt dieselben Angaben
+//! Bildinformationen in der Reglerleiste: Aufnahmedaten aus dem EXIF und Bildgröße aus dem Dateikopf
+//! sofort beim Auswählen, die Auto-Analyse, sobald das Bild geladen ist. Die Übersicht zeigt dieselben Angaben
 //! ohne die Auto-Analyse (`info-photo-rows`); die gehört zur Bearbeitung.
 
 use std::path::Path;
@@ -17,7 +17,7 @@ pub fn clear(app: &LabWindow) {
 
 const ANALYSIS: &str = "Auto-Analyse";
 
-/// Zeigt die Informationen zu `path`; mit `loaded` zusätzlich Bildgröße und Auto-Analyse.
+/// Zeigt die Informationen zu `path`; mit `loaded` zusätzlich die Auto-Analyse.
 pub fn show(app: &LabWindow, path: &Path, loaded: Option<&Loaded>) {
     let i = uwcc_photo::read_info(path);
     let exposure: Vec<&str> =
@@ -27,6 +27,10 @@ pub fn show(app: &LabWindow, path: &Path, loaded: Option<&Loaded>) {
     let summary: Vec<&str> =
         [i.taken.as_deref(), i.camera.as_deref(), exposure.as_deref()].into_iter().flatten().collect();
     let size = std::fs::metadata(path).ok().map(|m| format!("{:.1} MB", m.len() as f64 / 1_048_576.0).replace('.', ","));
+    // Aus dem Dateikopf, also sofort; nicht erst, wenn das ganze Bild geladen ist.
+    let pixels = uwcc_photo::upright_size(path)
+        .or_else(|| loaded.map(|l| l.full.dimensions()))
+        .map(|(w, h)| format!("{w} × {h} px"));
 
     let mut rows: Vec<(&str, Option<String>)> = vec![
         ("Aufnahme", i.taken.clone()),
@@ -36,12 +40,12 @@ pub fn show(app: &LabWindow, path: &Path, loaded: Option<&Loaded>) {
         ("Brennweite", i.focal_length.clone()),
         ("Belichtungskorr.", i.exposure_bias.clone()),
         ("Blitz", i.flash.clone()),
+        ("Bildgröße", pixels),
         ("Dateigröße", size),
         ("Software", i.software.clone()),
     ];
     if let Some(l) = loaded {
         let a = &l.auto;
-        rows.insert(7, ("Bildgröße", Some(format!("{} × {} px", l.full.width(), l.full.height()))));
         rows.push((
             ANALYSIS,
             Some(format!(

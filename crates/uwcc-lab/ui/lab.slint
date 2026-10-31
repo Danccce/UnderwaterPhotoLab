@@ -882,6 +882,17 @@ export component LabWindow inherits Window {
         Palette.color-scheme = ColorScheme.dark;
     }
 
+    // Startbildschirm beim Programmstart.
+    in property <string> version;
+    property <bool> splash: true;
+    Timer {
+        interval: 1600ms;
+        running: root.splash;
+        triggered => {
+            root.splash = false;
+        }
+    }
+
     // Meldungen (Export, Pipette, Presets …) kurz unten im Bild statt in einer festen Zeile.
     property <bool> toast-on;
     public function notify(text: string) {
@@ -2946,6 +2957,48 @@ export component LabWindow inherits Window {
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // Startbildschirm: deckt das Fenster ab, während es maximiert wird und der Ordner lädt.
+        Rectangle {
+            opacity: root.splash ? 1 : 0;
+            animate opacity { duration: 450ms; easing: ease-in; }
+            visible: self.opacity > 0;
+            background: #0f1012;
+            TouchArea { }
+            VerticalLayout {
+                alignment: center;
+                spacing: 12px;
+                HorizontalLayout {
+                    alignment: center;
+                    Image {
+                        width: 128px;
+                        height: 128px;
+                        source: @image-url("../../../assets/icon-256.png");
+                    }
+                }
+                Rectangle {
+                    height: 6px;
+                }
+                Text {
+                    text: "UnderwaterPhotoLab";
+                    font-size: 30px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Farbkorrektur für Unterwasserfotos";
+                    color: #8a8f98;
+                    font-size: 14px;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Version " + root.version;
+                    color: #5a5d65;
+                    font-size: 12px;
+                    horizontal-alignment: center;
                 }
             }
         }

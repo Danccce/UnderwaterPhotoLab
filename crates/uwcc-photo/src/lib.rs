@@ -271,6 +271,17 @@ fn scaled_jpeg<R: std::io::Read>(mut decoder: jpeg_decoder::Decoder<R>, max: u32
     }
 }
 
+/// Größe des aufrechten Bildes aus dem Dateikopf, ohne die Pixel zu dekodieren.
+pub fn upright_size(path: &Path) -> Option<(u32, u32)> {
+    let (w, h) = image::image_dimensions(path).ok()?;
+    let orientation = exif::read_segment(path).and_then(|tiff| Orientation::from_exif_chunk(&tiff));
+    let turned = matches!(
+        orientation,
+        Some(Orientation::Rotate90 | Orientation::Rotate270 | Orientation::Rotate90FlipH | Orientation::Rotate270FlipH)
+    );
+    Some(if turned { (h, w) } else { (w, h) })
+}
+
 /// Nur das EXIF-Vorschaubild, gedreht wie das Bild; `None`, wenn es keins gibt.
 pub fn exif_thumbnail(path: &Path, max: u32) -> Option<RgbaImage> {
     let tiff = exif::read_segment(path)?;
@@ -367,6 +378,7 @@ mod tests {
         let path = dir.join("big.jpg");
         let img = image::RgbImage::from_fn(1600, 1200, |x, y| image::Rgb([(x / 7) as u8, (y / 5) as u8, 90]));
         img.save(&path).unwrap();
+        assert_eq!(upright_size(&path), Some((1600, 1200)));
         let t = sharp_thumbnail(&path, 320).unwrap();
         assert_eq!(t.dimensions(), (320, 240));
         let p = t.get_pixel(160, 120);

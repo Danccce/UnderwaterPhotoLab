@@ -101,6 +101,7 @@ fn main() -> Result<(), slint::PlatformError> {
         .select()?;
 
     let app = LabWindow::new()?;
+    app.set_version(env!("CARGO_PKG_VERSION").into());
     let cfg = config::load();
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
     app.set_strip_corrected(cfg.strip_corrected);
