@@ -333,6 +333,14 @@ Größe 4–120 px (Bildschirm), „Alle entfernen“; Strg+Z nimmt zurück.
   große Vorschaubild der Kamera (Olympus 1920 × 1440, ~17 ms je Bild), sonst JPG mit IDCT-Verkleinerung
   (`jpeg-decoder`, ~240 ms), sonst ganz dekodiert.
 
+- [x] 13.6 Aussehen und Aufbau wie RapidRaw: dunkler Grund, abgerundete Flächen mit 8 px Abstand. Die
+  **Übersicht** ist die Startseite: links „Ordner öffnen …“, „Bildgröße“, „Vorschaubilder Original |
+  Korrigiert“ und alle Angaben zum markierten Bild; oben Titel, Ordner, Filter und „?“; quadratische Zellen,
+  Bild füllt die Zelle, Name unten links auf einem Verlauf. Die **Bearbeitung** hat links eine Spalte mit
+  „Zurück zur Übersicht“ und darunter den Symbolen Original, Split-Ansicht, Zuschneiden, Partikel
+  (`ToolButton`, Hinweis beim Darüberfahren); die Bildleiste ohne „Ordner öffnen“ und ohne Namen sitzt unter
+  dem Bild. Die Leiste unter dem Bild mit „Raster“, Filter und Pfad entfällt; G wechselt weiter.
+
 Nachgeschärft – weniger Regler (27 → 18): Rot-Obergrenze ohne Regler (bleibt beim gespeicherten Wert,
 Standard 4). Schärfen ein Regler mit festem Radius 1 px und Maskieren 30 (`Detail::with_sharpen`;
 `DEFAULT_SHARPEN_MASK`, auch für `.uwcc.json` ohne `sharpenMask`). „Rauschen entfernen“ statt zwei Reglern:
@@ -357,7 +365,8 @@ Farbe = Wert, Helligkeit = 0,3 × Wert (`Detail::with_noise`). Farbmischer ohne 
 | Reihenfolge | Phase 8 Grundlagen, dann Ton + Dehaze (9), Details (10), Zuschneiden (11), Viele Bilder (12) |
 | Reglerleiste | Gruppen Farbe / Ton / Details per Umschalter; nur die Regler scrollen, der Rest steht fest |
 | Anzahl Regler | so wenige wie möglich: keine Rot-Obergrenze, Schärfen und Rauschen je ein Regler, Farbmischer drei Regler |
-| Ansicht-Knöpfe | Original und Split-Ansicht unter dem Bild, nicht in der Reglerleiste |
+| Ansicht-Knöpfe | als Symbole in der Spalte links der Bearbeitung (früher unter dem Bild), nicht in der Reglerleiste |
+| Startseite | die Übersicht (Raster) wie in RapidRaw; Doppelklick öffnet die Bearbeitung |
 | JPG-Qualität | im Menü am Export-Knopf, nicht in der Reglerleiste |
 | Markierungsfarbe | eine für alles: die Akzentfarbe der Slint-Palette |
 | Versionsverwaltung | GitHub [Danccce/UnderwaterPhotoLab](https://github.com/Danccce/UnderwaterPhotoLab), Commits mit der noreply-Adresse |

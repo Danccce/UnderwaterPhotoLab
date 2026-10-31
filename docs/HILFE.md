@@ -8,17 +8,25 @@ Im Programm öffnet **F1** oder der Knopf **„?“** dieselbe Hilfe.
 
 ## Bilder auswählen und vergleichen
 
-- **Ordner öffnen:** Knopf links in der Bildleiste, einen Ordner oder ein Bild ins Fenster ziehen, oder einen Ordner auf `UnderwaterPhotoLab.exe` ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner wieder.
-- **Bild wechseln:** Klick in die Leiste oder Pfeiltasten ← →.
-- **Rasteransicht:** Knopf **Raster (G)** unter dem Bild oder Taste **G** zeigt alle (gefilterten) Bilder als Raster, ohne Vorschau und Regler. Klick wählt ein Bild (Strg+Klick, Umschalt+Klick wie in der Leiste), Pfeiltasten ← → ↑ ↓ wandern durch das Raster. **Doppelklick** oder **Enter** öffnet das Bild zum Bearbeiten, **G** wechselt ebenfalls zurück. Unten links stehen im Raster **Ordner öffnen …** und der Regler **Größe** für die Bilder (Doppelklick: Standard; bleibt beim nächsten Start). Schärfere Vorschaubilder lädt das Programm nach dem Öffnen eines Ordners im Hintergrund nach (bei Olympus aus dem großen Vorschaubild der Kamera, wenige Sekunden).
-- **Leiste filtern:** unter dem Bild **Alle**, **Unbearbeitet** (noch keine Einstellung geändert) oder **Nicht exportiert** (noch nie oder mit anderen Einstellungen exportiert). Das aktuelle Bild bleibt immer sichtbar; Pfeiltasten und Strg+A gelten für die angezeigten Bilder.
-- **Leiste durchblättern:** Mausrad über der Leiste, oder den Scrollbalken darunter ziehen bzw. in seine Spur klicken (springt direkt an die Stelle).
-- **Original zeigen:** Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten (der Knopf wird dabei blau).
-- **Split-Ansicht:** Knopf „Split-Ansicht“ unter dem Bild oder Taste **S**; die Trennlinie mit der Maus ziehen.
+Das Programm hat zwei Ansichten wie RapidRaw: die **Übersicht** mit allen Bildern (Startseite) und die **Bearbeitung** eines Bildes.
+
+### Übersicht
+
+- **Links:** **Ordner öffnen …** (oder einen Ordner bzw. ein Bild ins Fenster ziehen, oder einen Ordner auf `UnderwaterPhotoLab.exe` ziehen), darunter **Bildgröße** (Doppelklick: Standard; bleibt beim nächsten Start), **Vorschaubilder Original | Korrigiert** und alle Angaben zum markierten Bild (Aufnahme, Kamera, Objektiv, Belichtung, Auto-Analyse …). Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner wieder.
+- **Auswählen:** Klick wählt ein Bild (Strg+Klick, Umschalt+Klick: mehrere), Pfeiltasten ← → ↑ ↓ wandern durch das Raster. **Doppelklick** oder **Enter** öffnet das Bild zum Bearbeiten.
+- **Filtern** (oben rechts): **Alle**, **Unbearbeitet** (noch keine Einstellung geändert) oder **Nicht exportiert** (noch nie oder mit anderen Einstellungen exportiert). Das markierte Bild bleibt immer sichtbar; Pfeiltasten und Strg+A gelten für die angezeigten Bilder.
+- Schärfere Vorschaubilder lädt das Programm nach dem Öffnen eines Ordners im Hintergrund nach (bei Olympus aus dem großen Vorschaubild der Kamera, wenige Sekunden).
+
+### Bearbeitung
+
+- **Pfeil links oben** (oder Taste **G**): zurück zur Übersicht. Darunter die Symbole **Original**, **Split-Ansicht**, **Zuschneiden** und **Partikel**; beim Darüberfahren erscheint ihr Name.
+- **Bild wechseln:** Klick in die Leiste unter dem Bild oder Pfeiltasten ← →. Mausrad über der Leiste oder den Scrollbalken darunter ziehen bzw. in seine Spur klicken blättert.
+- **Original zeigen:** Symbol mit dem Auge oder Leertaste gedrückt halten (das Symbol wird dabei blau).
+- **Split-Ansicht:** Symbol oder Taste **S**; die Trennlinie mit der Maus ziehen.
 - **Zoom:** Doppelklick ins Bild (100 % an dieser Stelle) oder Taste **Z** (100 % in der Mitte). **Mausrad** oder am Touchpad bzw. Touchbildschirm **zwei Finger auf- und zuziehen** zoomt stufenlos bis 400 %; die Stelle unter dem Mauszeiger bleibt stehen. **Ziehen** mit der Maus oder **zwei Finger schieben** am Touchpad verschiebt den Ausschnitt; die Trennlinie der Split-Ansicht greift man direkt an der Linie. Doppelklick, **Z** oder **Esc** zurück zur ganzen Ansicht. So lassen sich Schärfe, Rauschen und Schwebeteilchen beurteilen.
 - **Bildinformationen:** oben rechts auf den Dateinamen klicken; ein Fenster neben der Reglerleiste zeigt alle Angaben (Aufnahme, Kamera, Objektiv, Belichtung, Auto-Analyse …). Ein Klick daneben schließt es.
 - **Reglerleiste:** Bildinfo, Auto-Korrektur, Stärke und der Umschalter Farbe | Ton | Details stehen fest; nur die Regler der gewählten Gruppe scrollen.
-- **„Vorschaubilder: Original | Korrigiert“:** bei „Korrigiert“ erscheinen exportierte Bilder in Leiste und Raster korrigiert, alle anderen als Original – so sieht man, wo noch etwas zu tun ist.
+- **„Vorschaubilder Original | Korrigiert“** (links in der Übersicht): bei „Korrigiert“ erscheinen exportierte Bilder in Übersicht und Leiste korrigiert, alle anderen als Original – so sieht man, wo noch etwas zu tun ist.
 
 ![Split-Ansicht](img/ansicht-split.jpg)
 
@@ -70,7 +78,7 @@ Schärfen und Rauschreduzierung wirken auf einzelne Pixel; die verkleinerte Ansi
 
 ## Zuschneiden und Ausrichten
 
-**Zuschneiden** unter dem Bild oder Taste **C** zeigt das ganze Bild mit dem Zuschnittrahmen und einer Werkzeugleiste. **Fertig**, **C**, **Enter** oder **Esc** beenden den Modus; der Zuschnitt bleibt (Strg+Z nimmt ihn zurück).
+Das Symbol **Zuschneiden** links (Bearbeitung) oder Taste **C** zeigt das ganze Bild mit dem Zuschnittrahmen und einer Werkzeugleiste. **Fertig**, **C**, **Enter** oder **Esc** beenden den Modus; der Zuschnitt bleibt (Strg+Z nimmt ihn zurück).
 
 - **Rahmen:** an den Ecken oder Kanten ziehen ändert die Größe, innen ziehen verschiebt ihn. Das Drittel-Raster hilft beim Bildaufbau.
 - **Seitenverhältnis:** Frei, Original, 3:2, 4:3, 1:1, 16:9, 4:5; **Hoch-/Querformat** tauscht es. Mit festem Verhältnis wird nur an den Ecken gezogen.
@@ -80,7 +88,7 @@ Schärfen und Rauschreduzierung wirken auf einzelne Pixel; die verkleinerte Ansi
 
 ## Partikel entfernen
 
-**Partikel** unter dem Bild oder Taste **P** schaltet das Werkzeug ein; **Fertig**, **P**, **Enter** oder **Esc** beenden es.
+Das Symbol **Partikel** links (Bearbeitung) oder Taste **P** schaltet das Werkzeug ein; **Fertig**, **P**, **Enter** oder **Esc** beenden es.
 
 - **Klick** auf einen Schwebeteilchen-Fleck (Backscatter) füllt ihn aus der passenden Umgebung; der weiße Kreis zeigt die Stelle. **Klick auf einen Kreis** entfernt ihn wieder.
 - **Größe** (4–120 px am Bildschirm) – der blaue Kreis am Mauszeiger zeigt sie; der Kreis sollte den Fleck knapp umschließen. In der 100-%-Ansicht (Z) lassen sich kleine Flecken genauer treffen.

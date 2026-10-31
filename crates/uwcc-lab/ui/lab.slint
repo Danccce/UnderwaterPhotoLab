@@ -327,6 +327,64 @@ component SmallButton inherits Rectangle {
     }
 }
 
+// Quadratischer Symbolknopf der Werkzeugspalte (Pfad im Raster 20 × 20, nur Linien); meldet das
+// Darüberfahren mit der Mitte in Fensterkoordinaten, damit das Fenster einen Hinweis zeigen kann.
+component ToolButton inherits Rectangle {
+    in property <string> commands;
+    in property <bool> active;
+    in property <bool> enabled: true;
+    out property <bool> pressed: touch.pressed;
+    out property <bool> hovered: touch.has-hover;
+    callback clicked();
+    callback hover(bool, length);
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    background: root.active ? Palette.accent-background : touch.has-hover && root.enabled ? #ffffff1f : transparent;
+    changed hovered => {
+        root.hover(self.hovered, self.absolute-position.y + self.height / 2);
+    }
+    Path {
+        x: (parent.width - 20px) / 2;
+        y: (parent.height - 20px) / 2;
+        width: 20px;
+        height: 20px;
+        viewbox-width: 20;
+        viewbox-height: 20;
+        commands: root.commands;
+        stroke: root.active ? Palette.accent-foreground : root.enabled ? #d4d7dc : #5a5d65;
+        stroke-width: 1.6px;
+        fill: transparent;
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// Runder „?“-Knopf für die Hilfe.
+component HelpButton inherits Rectangle {
+    callback clicked();
+    width: 26px;
+    height: 26px;
+    border-radius: 13px;
+    border-width: 1px;
+    border-color: #5a5d65;
+    background: touch.has-hover ? #ffffff26 : #ffffff10;
+    Text {
+        text: "?";
+        font-weight: 700;
+    }
+    touch := TouchArea {
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
 // Waagerechter Scrollbalken, immer sichtbar (der eingebaute erscheint erst beim Darüberfahren):
 // Griff ziehen oder in die Spur klicken, dann springt der Griff mittig an die Stelle.
 component HScrollbar inherits Rectangle {
@@ -398,6 +456,9 @@ export component LabWindow inherits Window {
     min-width: 960px;
     min-height: 620px;
     forward-focus: keys;
+    // Aussehen wie RapidRaw: dunkler Grund, darauf abgerundete Flächen mit Abstand.
+    background: #0f1012;
+    property <color> panel-color: #1c1d21;
 
     in property <[Thumb]> thumbs;
     in-out property <int> current: -1;
@@ -516,16 +577,27 @@ export component LabWindow inherits Window {
         root.healing = on;
     }
 
-    // Rasteranzeige (Taste G): alle angezeigten Bilder statt Vorschau und Reglerleiste; Doppelklick
-    // oder Enter öffnet das gewählte zum Bearbeiten. Die Zellen füllen die Breite, mindestens
-    // `grid-size` (Regler „Größe“, wird in config.json gemerkt).
-    in-out property <bool> library;
+    // Übersicht (Startseite, Taste G): alle angezeigten Bilder als Raster; Doppelklick oder Enter
+    // öffnet das gewählte zum Bearbeiten, der Pfeil oben links führt zurück. Die Zellen füllen die
+    // Breite, mindestens `grid-size` (Regler „Bildgröße“, wird in config.json gemerkt).
+    in-out property <bool> library: true;
     in-out property <float> grid-size: 190;
     callback grid-size-changed(float);
     property <length> grid-min-width: root.grid-size * 1px;
     property <int> grid-cols: max(1, floor((grid.visible-width - root.cell-gap) / (root.grid-min-width + root.cell-gap)));
     property <length> grid-cell-width: (grid.visible-width - root.cell-gap * (root.grid-cols + 1)) / root.grid-cols;
-    property <length> grid-cell-height: root.grid-cell-width * 0.75 + 26px;
+    property <length> grid-cell-height: root.grid-cell-width;
+    // Hinweis neben der Werkzeugspalte für das Symbol unter dem Mauszeiger.
+    property <string> tip;
+    property <length> tip-y;
+    function show-tip(on: bool, text: string, y: length) {
+        if on {
+            root.tip = text;
+            root.tip-y = y;
+        } else if root.tip == text {
+            root.tip = "";
+        }
+    }
     function set-library(on: bool) {
         if on {
             root.set-cropping(false);
@@ -657,13 +729,12 @@ export component LabWindow inherits Window {
         {
             title: "Bilder auswählen und vergleichen",
             lines: [
-                "Ordner öffnen: Knopf links in der Leiste, Ordner oder Bild ins Fenster ziehen, oder Ordner auf die .exe ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner.",
-                "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
-                "Rasteransicht: Knopf „Raster (G)“ unter dem Bild oder Taste G zeigt alle Bilder als Raster, ohne Regler. Klick wählt (Strg/Umschalt wie in der Leiste), Pfeiltasten ← → ↑ ↓ wandern, Doppelklick oder Enter öffnet das Bild zum Bearbeiten. Unten: „Ordner öffnen …“ und „Größe“ der Bilder (Doppelklick: Standard).",
-                "Leiste durchblättern: Mausrad über der Leiste oder Scrollbalken darunter ziehen bzw. in die Spur klicken.",
-                "Leiste filtern (unter dem Bild): Alle, Unbearbeitet, Nicht exportiert. Das aktuelle Bild bleibt sichtbar; Pfeiltasten und Strg+A gelten für die angezeigten.",
-                "Original zeigen: Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten.",
-                "Split-Ansicht: Knopf „Split-Ansicht“ unter dem Bild oder Taste S; die Trennlinie mit der Maus ziehen.",
+                "Übersicht (Startseite): alle Bilder des Ordners. Links „Ordner öffnen …“ (oder Ordner bzw. Bild ins Fenster ziehen), „Bildgröße“ (Doppelklick: Standard), „Vorschaubilder Original | Korrigiert“ und alle Angaben zum markierten Bild. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner.",
+                "In der Übersicht: Klick wählt (Strg/Umschalt für mehrere), Pfeiltasten ← → ↑ ↓ wandern, Doppelklick oder Enter öffnet das Bild zum Bearbeiten. Oben filtern: Alle, Unbearbeitet, Nicht exportiert (das markierte Bild bleibt sichtbar).",
+                "Bearbeitung: der Pfeil links oben (oder Taste G) führt zurück zur Übersicht. Darunter die Symbole Original, Split-Ansicht, Zuschneiden und Partikel; beim Darüberfahren erscheint ihr Name.",
+                "Bild wechseln: Klick in die Leiste unter dem Bild oder Pfeiltasten ← →. Mausrad über der Leiste oder Scrollbalken blättert.",
+                "Original zeigen: Symbol „Original“ (Auge) oder Leertaste gedrückt halten.",
+                "Split-Ansicht: Symbol „Split-Ansicht“ oder Taste S; die Trennlinie mit der Maus ziehen.",
                 "Zoom: Doppelklick ins Bild (100 % an dieser Stelle) oder Taste Z; Mausrad oder zwei Finger auf- und zuziehen (Touchpad, Touchbildschirm) zoomt stufenlos bis 400 %. Ziehen oder zwei Finger schieben verschiebt den Ausschnitt. Doppelklick, Z oder Esc zurück.",
                 "Bildinformationen: oben rechts auf den Dateinamen klicken; ein Fenster mit allen Angaben öffnet sich, ein Klick daneben schließt es.",
             ],
@@ -701,7 +772,7 @@ export component LabWindow inherits Window {
         {
             title: "Zuschneiden und Ausrichten",
             lines: [
-                "„Zuschneiden“ unter dem Bild oder Taste C: ganzes Bild mit Zuschnittrahmen und Werkzeugleiste. Fertig, C, Enter oder Esc beenden; Strg+Z nimmt zurück.",
+                "Symbol „Zuschneiden“ links oder Taste C: ganzes Bild mit Zuschnittrahmen und Werkzeugleiste. Fertig, C, Enter oder Esc beenden; Strg+Z nimmt zurück.",
                 "Ecken oder Kanten ziehen ändert die Größe, innen ziehen verschiebt. Seitenverhältnis wählbar, Hoch-/Querformat tauscht es.",
                 "Geraderichten mit dem Regler (±45°) oder „Linie ziehen“: Linie entlang Horizont oder Riffkante ziehen, sie wird waagerecht bzw. senkrecht.",
                 "Links/Rechts drehen und Spiegeln; der Zuschnitt dreht mit. Der Export ist aufrecht und zugeschnitten.",
@@ -710,7 +781,7 @@ export component LabWindow inherits Window {
         {
             title: "Partikel entfernen",
             lines: [
-                "„Partikel“ unter dem Bild oder Taste P schaltet das Werkzeug ein; Fertig, P, Enter oder Esc beenden es.",
+                "Symbol „Partikel“ links oder Taste P schaltet das Werkzeug ein; Fertig, P, Enter oder Esc beenden es.",
                 "Klick auf einen Schwebeteilchen-Fleck füllt ihn aus der passenden Umgebung; Klick auf einen weißen Kreis entfernt ihn wieder.",
                 "Größe 4–120 px: der Kreis am Mauszeiger soll den Fleck knapp umschließen. In der 100-%-Ansicht (Z) trifft man kleine Flecken genauer.",
                 "Bis zu 100 Flecken je Bild; „Alle entfernen“ löscht sie, Strg+Z nimmt einzelne zurück. Sie werden nicht auf andere Bilder übertragen.",
@@ -788,7 +859,8 @@ export component LabWindow inherits Window {
     // Pipette: Klickposition als Anteil von Bildbreite und -höhe (0–1).
     callback pick(float, float);
 
-    property <length> cell-width: 132px;
+    property <length> cell-width: 104px;
+    property <length> cell-height: 78px;
     property <length> cell-gap: 8px;
     property <bool> space-held;
     // Leertaste oder „Vorher“-Knopf: das ganze Bild als Original, auch in der Split-Ansicht.
@@ -853,7 +925,7 @@ export component LabWindow inherits Window {
                 root.set-library(!root.library);
                 return accept;
             }
-            if root.library && event.text == Key.Return {
+            if root.library && event.text == Key.Return && root.current >= 0 {
                 root.set-library(false);
                 return accept;
             }
@@ -958,775 +1030,1134 @@ export component LabWindow inherits Window {
         }
 
         VerticalLayout {
-            // Trennlinie zur Titelleiste, die dieselbe Farbe wie die Reglerleiste hat.
-            Rectangle {
-                height: 1px;
-                background: #00000060;
-            }
+            padding: 8px;
+            // Abstände als eigene Elemente: die ausgeblendete Reglerleiste bekäme sonst auch einen.
             HorizontalLayout {
                 vertical-stretch: 1;
 
-                // Vorschau: unten das bearbeitete Bild, darüber das Original bis `original-fraction`.
-                preview-box := Rectangle {
-                    horizontal-stretch: 1;
-                    background: #141518;
+                // Übersicht links: Ordner öffnen, Bildgröße, Vorschaubilder und alle Angaben zum Bild.
+                if root.library: Rectangle {
+                    width: 260px;
+                    background: root.panel-color;
+                    border-radius: 10px;
                     clip: true;
-
-                    if root.has-preview && !root.zoomed && !root.cropping: Image {
-                        width: 100%;
-                        height: 100%;
-                        source: root.preview-corrected;
-                        image-fit: contain;
-                    }
-                    // Zoom: Ausschnitt maßstabsgerecht; über 100 % pixelgenau vergrößert.
-                    if root.has-preview && root.zoomed: Image {
-                        x: preview-box.width / 2 + (root.zoom-x - root.zoom-cx) * root.zoom-scale * 1phx;
-                        y: preview-box.height / 2 + (root.zoom-y - root.zoom-cy) * root.zoom-scale * 1phx;
-                        width: root.zoom-w * root.zoom-scale * 1phx;
-                        height: root.zoom-h * root.zoom-scale * 1phx;
-                        source: root.zoom-corrected;
-                        image-rendering: root.zoom-scale > 1.01 ? ImageRendering.pixelated : ImageRendering.smooth;
-                    }
-                    if root.has-preview && root.original-fraction > 0: Rectangle {
-                        x: 0;
-                        y: 0;
-                        width: preview-box.width * root.original-fraction;
-                        height: 100%;
-                        clip: true;
-                        if !root.zoomed: Image {
-                            x: 0;
-                            y: 0;
-                            width: preview-box.width;
-                            height: preview-box.height;
-                            source: root.preview-original;
-                            image-fit: contain;
-                        }
-                        if root.zoomed: Image {
-                            x: preview-box.width / 2 + (root.zoom-x - root.zoom-cx) * root.zoom-scale * 1phx;
-                            y: preview-box.height / 2 + (root.zoom-y - root.zoom-cy) * root.zoom-scale * 1phx;
-                            width: root.zoom-w * root.zoom-scale * 1phx;
-                            height: root.zoom-h * root.zoom-scale * 1phx;
-                            source: root.zoom-original;
-                            image-rendering: root.zoom-scale > 1.01 ? ImageRendering.pixelated : ImageRendering.smooth;
-                        }
-                    }
-                    if root.has-preview && root.split && !root.hold && !root.cropping: Rectangle {
-                        x: preview-box.width * root.split-pos - 1px;
-                        width: 2px;
-                        height: 100%;
-                        background: white;
-                    }
-                    if root.has-preview && root.split && !root.hold && !root.cropping: Rectangle {
-                        x: preview-box.width * root.split-pos - 14px;
-                        y: preview-box.height / 2 - 14px;
-                        width: 28px;
-                        height: 28px;
-                        border-radius: 14px;
-                        background: white;
-                        // Zwei Dreiecke selbst gezeichnet; Schriftzeichen sitzen nicht mittig.
-                        Path {
-                            width: 100%;
-                            height: 100%;
-                            viewbox-width: 28;
-                            viewbox-height: 28;
-                            commands: "M 11.5 8.5 L 5 14 L 11.5 19.5 Z M 16.5 8.5 L 23 14 L 16.5 19.5 Z";
-                            fill: Palette.accent-background;
-                            stroke-width: 0px;
-                        }
-                    }
-                    if root.has-preview && root.split && !root.hold && !root.cropping: Tag {
-                        x: 12px;
-                        y: 12px;
-                        text: "Original";
-                    }
-                    if root.has-preview && root.split && !root.hold && !root.cropping: Tag {
-                        x: preview-box.width - self.width - 12px;
-                        y: 12px;
-                        text: "Korrigiert";
-                    }
-                    if root.has-preview && root.hold && !root.cropping: Tag {
-                        x: 12px;
-                        y: 12px;
-                        text: "Original";
-                    }
-                    if root.loading || (root.zoomed && root.zoom-corrected.width == 0): Tag {
-                        x: (preview-box.width - self.width) / 2;
-                        y: 12px;
-                        text: "Lade …";
-                    }
-                    if root.has-preview && root.zoomed: Tag {
-                        x: 12px;
-                        y: preview-box.height - self.height - 12px;
-                        text: round(root.zoom-scale * 100) + " %";
-                    }
-                    if !root.has-preview: Text {
-                        text: root.thumbs.length == 0 ? "Ordner öffnen oder hierher ziehen" : "Bild in der Leiste auswählen";
-                        color: #8a8f98;
-                        font-size: 20px;
-                    }
-                    if root.drag-over: Rectangle {
-                        border-width: 3px;
-                        border-color: Palette.accent-background;
-                        background: Palette.accent-background.transparentize(0.87);
-                    }
-
-                    // Ohne Zoom verschiebt jeder Klick die Split-Linie; mit Zoom nur ein Griff an der
-                    // Linie, sonst verschiebt Ziehen den Ausschnitt.
-                    preview-touch := TouchArea {
-                        property <bool> panning;
-                        property <bool> splitting;
-                        property <length> start-x;
-                        property <length> start-y;
-                        property <float> start-cx;
-                        property <float> start-cy;
-                        property <bool> on-split: root.has-preview && root.split && !root.hold && !root.healing
-                            && (!root.zoomed || abs(self.mouse-x - preview-box.width * root.split-pos) < 12px);
-                        mouse-cursor: root.picking || root.healing ? MouseCursor.crosshair
-                            : self.on-split || self.splitting ? MouseCursor.ew-resize
-                            : self.panning ? MouseCursor.move
-                            : MouseCursor.default;
-                        pointer-event(event) => {
-                            // Partikel-Werkzeug: ein Klick ohne Ziehen setzt bzw. entfernt einen Partikel;
-                            // Ziehen verschiebt im Zoom weiterhin den Ausschnitt.
-                            if root.healing && event.button == PointerEventButton.left && event.kind == PointerEventKind.up
-                                && abs(self.mouse-x - self.start-x) < 4px && abs(self.mouse-y - self.start-y) < 4px {
-                                root.heal-click(root.image-x(self.mouse-x), root.image-y(self.mouse-y));
-                            }
-                            if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 12px;
+                        alignment: start;
+                        Button {
+                            text: "Ordner öffnen …";
+                            primary: true;
+                            clicked => {
+                                root.open-folder();
                                 keys.focus();
-                                self.start-x = self.mouse-x;
-                                self.start-y = self.mouse-y;
-                                if root.picking {
-                                    root.picking = false;
-                                    root.pick(root.image-x(self.mouse-x) / root.full-width, root.image-y(self.mouse-y) / root.full-height);
-                                } else if self.on-split {
-                                    self.splitting = true;
-                                    root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
-                                } else if root.zoomed {
-                                    self.panning = true;
-                                    self.start-x = self.mouse-x;
-                                    self.start-y = self.mouse-y;
-                                    self.start-cx = root.zoom-cx;
-                                    self.start-cy = root.zoom-cy;
+                            }
+                        }
+                        VerticalLayout {
+                            spacing: 2px;
+                            HorizontalLayout {
+                                Text {
+                                    text: "Bildgröße";
+                                    font-size: 12px;
+                                }
+                                Text {
+                                    text: round(root.grid-size) + " px";
+                                    font-size: 12px;
+                                    color: #c8ccd2;
+                                    horizontal-alignment: right;
                                 }
                             }
-                            // Beginnt eine Zwei-Finger-Geste, bricht Slint das Ziehen mit `cancel` ab.
-                            if event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel {
-                                self.panning = false;
-                                self.splitting = false;
-                            }
-                        }
-                        moved => {
-                            if self.splitting {
-                                root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
-                            } else if self.panning {
-                                root.set-center(self.start-cx - (self.mouse-x - self.start-x) / 1phx / root.zoom-scale,
-                                    self.start-cy - (self.mouse-y - self.start-y) / 1phx / root.zoom-scale);
-                                root.zoom-changed();
-                            }
-                        }
-                        // Mausrad und Pinch (kommt unter Windows als Strg+Rad) zoomen um den
-                        // Mauszeiger; zwei Finger auf dem Touchpad verschieben den Ausschnitt.
-                        scroll-event(event) => {
-                            if !root.has-preview || root.loading || root.picking || root.cropping {
-                                return reject;
-                            }
-                            if event.modifiers.control || !root.wheel-from-touchpad {
-                                root.zoom-to((root.zoomed ? root.zoom-scale : root.fit-scale) * pow(1.004, event.delta-y / 1px), self.mouse-x, self.mouse-y);
-                                return accept;
-                            }
-                            if root.zoomed {
-                                root.set-center(root.zoom-cx - event.delta-x / 1phx / root.zoom-scale, root.zoom-cy - event.delta-y / 1phx / root.zoom-scale);
-                                root.zoom-changed();
-                                return accept;
-                            }
-                            reject
-                        }
-                        double-clicked => {
-                            if root.has-preview && !root.picking && !root.cropping && !root.healing {
-                                if root.zoomed {
-                                    root.zoomed = false;
-                                } else {
-                                    root.zoom-to(1, self.mouse-x, self.mouse-y);
+                            ValueSlider {
+                                minimum: 110;
+                                maximum: 320;
+                                value <=> root.grid-size;
+                                released => {
+                                    root.grid-size-changed(root.grid-size);
+                                    keys.focus();
+                                }
+                                double-clicked => {
+                                    root.grid-size = 190;
+                                    root.grid-size-changed(root.grid-size);
+                                    keys.focus();
                                 }
                             }
                         }
-                    }
-                    // Zwei Finger auf dem Touchbildschirm: auseinanderziehen zoomt um den Mittelpunkt,
-                    // gemeinsam schieben verschiebt. Liegt über der TouchArea und lässt alles andere durch.
-                    ScaleRotateGestureHandler {
-                        property <float> start-scale;
-                        property <length> last-x;
-                        property <length> last-y;
-                        enabled: root.has-preview && !root.loading && !root.cropping;
-                        started => {
-                            self.start-scale = root.zoomed ? root.zoom-scale : root.fit-scale;
-                            self.last-x = self.center.x;
-                            self.last-y = self.center.y;
-                        }
-                        updated => {
-                            root.zoom-to(self.start-scale * self.scale, self.center.x, self.center.y);
-                            if root.zoomed {
-                                root.set-center(root.zoom-cx - (self.center.x - self.last-x) / 1phx / root.zoom-scale,
-                                    root.zoom-cy - (self.center.y - self.last-y) / 1phx / root.zoom-scale);
-                                root.zoom-changed();
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text {
+                                text: "Vorschaubilder";
+                                font-size: 12px;
                             }
-                            self.last-x = self.center.x;
-                            self.last-y = self.center.y;
-                        }
-                    }
-
-                    // Partikel-Werkzeug: Kreise der gesetzten Partikel, Vorschaukreis am Mauszeiger,
-                    // Werkzeugleiste oben.
-                    if root.has-preview && root.healing && !root.cropping: Rectangle {
-                        for m in root.spot-marks: Rectangle {
-                            x: root.screen-x(m.x) - root.screen-len(m.r);
-                            y: root.screen-y(m.y) - root.screen-len(m.r);
-                            width: 2 * root.screen-len(m.r);
-                            height: self.width;
-                            border-radius: self.width / 2;
-                            border-width: 1.5px;
-                            border-color: #ffffffd8;
-                        }
-                        if preview-touch.has-hover: Rectangle {
-                            x: preview-touch.mouse-x - root.screen-len(root.heal-size / 2);
-                            y: preview-touch.mouse-y - root.screen-len(root.heal-size / 2);
-                            width: root.screen-len(root.heal-size);
-                            height: self.width;
-                            border-radius: self.width / 2;
-                            border-width: 1px;
-                            border-color: Palette.accent-background;
+                            Segmented {
+                                options: ["Original", "Korrigiert"];
+                                selected: root.strip-corrected ? 1 : 0;
+                                changed(i) => {
+                                    root.strip-mode-changed(i == 1);
+                                    keys.focus();
+                                }
+                            }
                         }
                         Rectangle {
-                            x: (parent.width - self.width) / 2;
-                            y: 10px;
-                            width: min(parent.width - 20px, 640px);
-                            height: 44px;
-                            border-radius: 8px;
-                            background: #000000c8;
-                            TouchArea { }
-                            HorizontalLayout {
-                                padding: 8px;
+                            height: 1px;
+                            background: #ffffff14;
+                        }
+                        if root.info-title == "": Text {
+                            text: "Kein Bild ausgewählt";
+                            color: #8a8f98;
+                            font-size: 12px;
+                        }
+                        if root.info-title != "": Heading {
+                            text: root.info-title;
+                            overflow: elide;
+                        }
+                        if root.info-title != "": VerticalLayout {
+                            spacing: 5px;
+                            for row in root.info-rows: HorizontalLayout {
                                 spacing: 8px;
                                 Text {
-                                    text: "Partikel: Klick setzt, Klick auf Kreis entfernt";
-                                    vertical-alignment: center;
-                                    font-size: 12px;
+                                    width: 84px;
+                                    text: row.label;
+                                    color: #8a8f98;
+                                    font-size: 11px;
                                 }
                                 Text {
-                                    text: "Größe";
-                                    vertical-alignment: center;
-                                    font-size: 12px;
-                                    color: #c8ccd2;
+                                    horizontal-stretch: 1;
+                                    text: row.value;
+                                    wrap: word-wrap;
+                                    font-size: 11px;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bearbeitung links: zurück zur Übersicht, darunter die Ansichten und Werkzeuge.
+                if !root.library: Rectangle {
+                    width: 52px;
+                    background: root.panel-color;
+                    border-radius: 10px;
+                    VerticalLayout {
+                        padding: 8px;
+                        spacing: 8px;
+                        alignment: start;
+                        ToolButton {
+                            commands: "M 16 10 L 4 10 M 9 5 L 4 10 L 9 15";
+                            clicked => {
+                                root.set-library(true);
+                                keys.focus();
+                            }
+                            hover(on, y) => {
+                                root.show-tip(on, "Zurück zur Übersicht (G)", y);
+                            }
+                        }
+                        Rectangle {
+                            height: 10px;
+                        }
+                        ToolButton {
+                            commands: "M 2 10 C 4.5 5.5 15.5 5.5 18 10 C 15.5 14.5 4.5 14.5 2 10 Z M 7.5 10 A 2.5 2.5 0 1 1 12.5 10 A 2.5 2.5 0 1 1 7.5 10";
+                            active: self.pressed || root.space-held;
+                            enabled: root.has-preview;
+                            changed pressed => {
+                                root.before-pressed = self.pressed;
+                            }
+                            clicked => {
+                                keys.focus();
+                            }
+                            hover(on, y) => {
+                                root.show-tip(on, "Original (gedrückt halten oder Leertaste)", y);
+                            }
+                        }
+                        ToolButton {
+                            commands: "M 3 4 L 17 4 L 17 16 L 3 16 Z M 10 2 L 10 18";
+                            active: root.split && !root.cropping;
+                            enabled: root.has-preview && !root.cropping;
+                            clicked => {
+                                root.split = !root.split;
+                                keys.focus();
+                            }
+                            hover(on, y) => {
+                                root.show-tip(on, "Split-Ansicht (S)", y);
+                            }
+                        }
+                        ToolButton {
+                            commands: "M 5 1 L 5 15 L 19 15 M 1 5 L 15 5 L 15 19";
+                            active: root.cropping;
+                            enabled: root.has-preview && !root.loading;
+                            clicked => {
+                                root.set-cropping(!root.cropping);
+                                keys.focus();
+                            }
+                            hover(on, y) => {
+                                root.show-tip(on, "Zuschneiden und Ausrichten (C)", y);
+                            }
+                        }
+                        ToolButton {
+                            commands: "M 3 10 A 7 7 0 1 1 17 10 A 7 7 0 1 1 3 10 M 10 7 L 10 13 M 7 10 L 13 10";
+                            active: root.healing;
+                            enabled: root.has-preview && !root.loading;
+                            clicked => {
+                                root.set-healing(!root.healing);
+                                keys.focus();
+                            }
+                            hover(on, y) => {
+                                root.show-tip(on, "Partikel entfernen (P)", y);
+                            }
+                        }
+                    }
+                    HelpButton {
+                        x: (parent.width - self.width) / 2;
+                        y: parent.height - self.height - 12px;
+                        clicked => {
+                            root.show-help = true;
+                            keys.focus();
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 8px;
+                }
+
+                // Mitte: Kopf der Übersicht, Raster bzw. Bild, darunter in der Bearbeitung die Bildleiste.
+                Rectangle {
+                    horizontal-stretch: 1;
+                    background: root.panel-color;
+                    border-radius: 10px;
+                    clip: true;
+
+                    VerticalLayout {
+                        Rectangle {
+                            height: root.library ? 66px : 0px;
+                            visible: root.library;
+                            HorizontalLayout {
+                                padding-left: 18px;
+                                padding-right: 14px;
+                                padding-top: 10px;
+                                spacing: 12px;
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    alignment: center;
+                                    Text {
+                                        text: "Übersicht";
+                                        font-size: 20px;
+                                        font-weight: 700;
+                                    }
+                                    Text {
+                                        text: root.thumbs.length == 0 ? "Kein Ordner geöffnet"
+                                            : root.folder + "   ·   " + root.thumbs.length + " Bilder"
+                                            + (root.strip-filter != 0 ? ", " + root.shown-count + " angezeigt" : "");
+                                        color: #8a8f98;
+                                        font-size: 12px;
+                                        overflow: elide;
+                                    }
                                 }
                                 VerticalLayout {
                                     alignment: center;
-                                    horizontal-stretch: 1;
-                                    ValueSlider {
-                                        minimum: 4;
-                                        maximum: 120;
-                                        value <=> root.heal-size;
-                                        released => {
-                                            keys.focus();
-                                        }
-                                        double-clicked => {
-                                            root.heal-size = 24;
+                                    Segmented {
+                                        width: 270px;
+                                        options: ["Alle", "Unbearbeitet", "Nicht exportiert"];
+                                        selected: root.strip-filter;
+                                        changed(i) => {
+                                            root.strip-filter = i;
+                                            root.strip-filter-changed(i);
                                             keys.focus();
                                         }
                                     }
                                 }
-                                Text {
-                                    width: 44px;
-                                    text: round(root.heal-size) + " px";
-                                    horizontal-alignment: right;
-                                    vertical-alignment: center;
-                                    font-size: 12px;
-                                }
                                 VerticalLayout {
                                     alignment: center;
+                                    HelpButton {
+                                        clicked => {
+                                            root.show-help = true;
+                                            keys.focus();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Vorschau: unten das bearbeitete Bild, darüber das Original bis `original-fraction`.
+                        preview-box := Rectangle {
+                            vertical-stretch: 1;
+                            clip: true;
+
+                            if root.has-preview && !root.zoomed && !root.cropping: Image {
+                                width: 100%;
+                                height: 100%;
+                                source: root.preview-corrected;
+                                image-fit: contain;
+                            }
+                            // Zoom: Ausschnitt maßstabsgerecht; über 100 % pixelgenau vergrößert.
+                            if root.has-preview && root.zoomed: Image {
+                                x: preview-box.width / 2 + (root.zoom-x - root.zoom-cx) * root.zoom-scale * 1phx;
+                                y: preview-box.height / 2 + (root.zoom-y - root.zoom-cy) * root.zoom-scale * 1phx;
+                                width: root.zoom-w * root.zoom-scale * 1phx;
+                                height: root.zoom-h * root.zoom-scale * 1phx;
+                                source: root.zoom-corrected;
+                                image-rendering: root.zoom-scale > 1.01 ? ImageRendering.pixelated : ImageRendering.smooth;
+                            }
+                            if root.has-preview && root.original-fraction > 0: Rectangle {
+                                x: 0;
+                                y: 0;
+                                width: preview-box.width * root.original-fraction;
+                                height: 100%;
+                                clip: true;
+                                if !root.zoomed: Image {
+                                    x: 0;
+                                    y: 0;
+                                    width: preview-box.width;
+                                    height: preview-box.height;
+                                    source: root.preview-original;
+                                    image-fit: contain;
+                                }
+                                if root.zoomed: Image {
+                                    x: preview-box.width / 2 + (root.zoom-x - root.zoom-cx) * root.zoom-scale * 1phx;
+                                    y: preview-box.height / 2 + (root.zoom-y - root.zoom-cy) * root.zoom-scale * 1phx;
+                                    width: root.zoom-w * root.zoom-scale * 1phx;
+                                    height: root.zoom-h * root.zoom-scale * 1phx;
+                                    source: root.zoom-original;
+                                    image-rendering: root.zoom-scale > 1.01 ? ImageRendering.pixelated : ImageRendering.smooth;
+                                }
+                            }
+                            if root.has-preview && root.split && !root.hold && !root.cropping: Rectangle {
+                                x: preview-box.width * root.split-pos - 1px;
+                                width: 2px;
+                                height: 100%;
+                                background: white;
+                            }
+                            if root.has-preview && root.split && !root.hold && !root.cropping: Rectangle {
+                                x: preview-box.width * root.split-pos - 14px;
+                                y: preview-box.height / 2 - 14px;
+                                width: 28px;
+                                height: 28px;
+                                border-radius: 14px;
+                                background: white;
+                                // Zwei Dreiecke selbst gezeichnet; Schriftzeichen sitzen nicht mittig.
+                                Path {
+                                    width: 100%;
+                                    height: 100%;
+                                    viewbox-width: 28;
+                                    viewbox-height: 28;
+                                    commands: "M 11.5 8.5 L 5 14 L 11.5 19.5 Z M 16.5 8.5 L 23 14 L 16.5 19.5 Z";
+                                    fill: Palette.accent-background;
+                                    stroke-width: 0px;
+                                }
+                            }
+                            if root.has-preview && root.split && !root.hold && !root.cropping: Tag {
+                                x: 12px;
+                                y: 12px;
+                                text: "Original";
+                            }
+                            if root.has-preview && root.split && !root.hold && !root.cropping: Tag {
+                                x: preview-box.width - self.width - 12px;
+                                y: 12px;
+                                text: "Korrigiert";
+                            }
+                            if root.has-preview && root.hold && !root.cropping: Tag {
+                                x: 12px;
+                                y: 12px;
+                                text: "Original";
+                            }
+                            if root.loading || (root.zoomed && root.zoom-corrected.width == 0): Tag {
+                                x: (preview-box.width - self.width) / 2;
+                                y: 12px;
+                                text: "Lade …";
+                            }
+                            if root.has-preview && root.zoomed: Tag {
+                                x: 12px;
+                                y: preview-box.height - self.height - 12px;
+                                text: round(root.zoom-scale * 100) + " %";
+                            }
+                            if !root.has-preview: Text {
+                                text: root.thumbs.length == 0 ? "Ordner öffnen oder hierher ziehen" : "Bild in der Leiste auswählen";
+                                color: #8a8f98;
+                                font-size: 20px;
+                            }
+                            if root.drag-over: Rectangle {
+                                border-width: 3px;
+                                border-color: Palette.accent-background;
+                                background: Palette.accent-background.transparentize(0.87);
+                            }
+
+                            // Ohne Zoom verschiebt jeder Klick die Split-Linie; mit Zoom nur ein Griff an der
+                            // Linie, sonst verschiebt Ziehen den Ausschnitt.
+                            preview-touch := TouchArea {
+                                property <bool> panning;
+                                property <bool> splitting;
+                                property <length> start-x;
+                                property <length> start-y;
+                                property <float> start-cx;
+                                property <float> start-cy;
+                                property <bool> on-split: root.has-preview && root.split && !root.hold && !root.healing
+                                    && (!root.zoomed || abs(self.mouse-x - preview-box.width * root.split-pos) < 12px);
+                                mouse-cursor: root.picking || root.healing ? MouseCursor.crosshair
+                                    : self.on-split || self.splitting ? MouseCursor.ew-resize
+                                    : self.panning ? MouseCursor.move
+                                    : MouseCursor.default;
+                                pointer-event(event) => {
+                                    // Partikel-Werkzeug: ein Klick ohne Ziehen setzt bzw. entfernt einen Partikel;
+                                    // Ziehen verschiebt im Zoom weiterhin den Ausschnitt.
+                                    if root.healing && event.button == PointerEventButton.left && event.kind == PointerEventKind.up
+                                        && abs(self.mouse-x - self.start-x) < 4px && abs(self.mouse-y - self.start-y) < 4px {
+                                        root.heal-click(root.image-x(self.mouse-x), root.image-y(self.mouse-y));
+                                    }
+                                    if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                                        keys.focus();
+                                        self.start-x = self.mouse-x;
+                                        self.start-y = self.mouse-y;
+                                        if root.picking {
+                                            root.picking = false;
+                                            root.pick(root.image-x(self.mouse-x) / root.full-width, root.image-y(self.mouse-y) / root.full-height);
+                                        } else if self.on-split {
+                                            self.splitting = true;
+                                            root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
+                                        } else if root.zoomed {
+                                            self.panning = true;
+                                            self.start-x = self.mouse-x;
+                                            self.start-y = self.mouse-y;
+                                            self.start-cx = root.zoom-cx;
+                                            self.start-cy = root.zoom-cy;
+                                        }
+                                    }
+                                    // Beginnt eine Zwei-Finger-Geste, bricht Slint das Ziehen mit `cancel` ab.
+                                    if event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel {
+                                        self.panning = false;
+                                        self.splitting = false;
+                                    }
+                                }
+                                moved => {
+                                    if self.splitting {
+                                        root.split-pos = clamp(self.mouse-x / self.width, 0, 1);
+                                    } else if self.panning {
+                                        root.set-center(self.start-cx - (self.mouse-x - self.start-x) / 1phx / root.zoom-scale,
+                                            self.start-cy - (self.mouse-y - self.start-y) / 1phx / root.zoom-scale);
+                                        root.zoom-changed();
+                                    }
+                                }
+                                // Mausrad und Pinch (kommt unter Windows als Strg+Rad) zoomen um den
+                                // Mauszeiger; zwei Finger auf dem Touchpad verschieben den Ausschnitt.
+                                scroll-event(event) => {
+                                    if !root.has-preview || root.loading || root.picking || root.cropping {
+                                        return reject;
+                                    }
+                                    if event.modifiers.control || !root.wheel-from-touchpad {
+                                        root.zoom-to((root.zoomed ? root.zoom-scale : root.fit-scale) * pow(1.004, event.delta-y / 1px), self.mouse-x, self.mouse-y);
+                                        return accept;
+                                    }
+                                    if root.zoomed {
+                                        root.set-center(root.zoom-cx - event.delta-x / 1phx / root.zoom-scale, root.zoom-cy - event.delta-y / 1phx / root.zoom-scale);
+                                        root.zoom-changed();
+                                        return accept;
+                                    }
+                                    reject
+                                }
+                                double-clicked => {
+                                    if root.has-preview && !root.picking && !root.cropping && !root.healing {
+                                        if root.zoomed {
+                                            root.zoomed = false;
+                                        } else {
+                                            root.zoom-to(1, self.mouse-x, self.mouse-y);
+                                        }
+                                    }
+                                }
+                            }
+                            // Zwei Finger auf dem Touchbildschirm: auseinanderziehen zoomt um den Mittelpunkt,
+                            // gemeinsam schieben verschiebt. Liegt über der TouchArea und lässt alles andere durch.
+                            ScaleRotateGestureHandler {
+                                property <float> start-scale;
+                                property <length> last-x;
+                                property <length> last-y;
+                                enabled: root.has-preview && !root.loading && !root.cropping;
+                                started => {
+                                    self.start-scale = root.zoomed ? root.zoom-scale : root.fit-scale;
+                                    self.last-x = self.center.x;
+                                    self.last-y = self.center.y;
+                                }
+                                updated => {
+                                    root.zoom-to(self.start-scale * self.scale, self.center.x, self.center.y);
+                                    if root.zoomed {
+                                        root.set-center(root.zoom-cx - (self.center.x - self.last-x) / 1phx / root.zoom-scale,
+                                            root.zoom-cy - (self.center.y - self.last-y) / 1phx / root.zoom-scale);
+                                        root.zoom-changed();
+                                    }
+                                    self.last-x = self.center.x;
+                                    self.last-y = self.center.y;
+                                }
+                            }
+
+                            // Partikel-Werkzeug: Kreise der gesetzten Partikel, Vorschaukreis am Mauszeiger,
+                            // Werkzeugleiste oben.
+                            if root.has-preview && root.healing && !root.cropping: Rectangle {
+                                for m in root.spot-marks: Rectangle {
+                                    x: root.screen-x(m.x) - root.screen-len(m.r);
+                                    y: root.screen-y(m.y) - root.screen-len(m.r);
+                                    width: 2 * root.screen-len(m.r);
+                                    height: self.width;
+                                    border-radius: self.width / 2;
+                                    border-width: 1.5px;
+                                    border-color: #ffffffd8;
+                                }
+                                if preview-touch.has-hover: Rectangle {
+                                    x: preview-touch.mouse-x - root.screen-len(root.heal-size / 2);
+                                    y: preview-touch.mouse-y - root.screen-len(root.heal-size / 2);
+                                    width: root.screen-len(root.heal-size);
+                                    height: self.width;
+                                    border-radius: self.width / 2;
+                                    border-width: 1px;
+                                    border-color: Palette.accent-background;
+                                }
+                                Rectangle {
+                                    x: (parent.width - self.width) / 2;
+                                    y: 10px;
+                                    width: min(parent.width - 20px, 640px);
+                                    height: 44px;
+                                    border-radius: 8px;
+                                    background: #000000c8;
+                                    TouchArea { }
                                     HorizontalLayout {
-                                        spacing: 6px;
-                                        SmallButton {
-                                            text: "Alle entfernen (" + root.spot-marks.length + ")";
-                                            enabled: root.spot-marks.length > 0;
-                                            clicked => {
-                                                root.clear-spots();
-                                                keys.focus();
+                                        padding: 8px;
+                                        spacing: 8px;
+                                        Text {
+                                            text: "Partikel: Klick setzt, Klick auf Kreis entfernt";
+                                            vertical-alignment: center;
+                                            font-size: 12px;
+                                        }
+                                        Text {
+                                            text: "Größe";
+                                            vertical-alignment: center;
+                                            font-size: 12px;
+                                            color: #c8ccd2;
+                                        }
+                                        VerticalLayout {
+                                            alignment: center;
+                                            horizontal-stretch: 1;
+                                            ValueSlider {
+                                                minimum: 4;
+                                                maximum: 120;
+                                                value <=> root.heal-size;
+                                                released => {
+                                                    keys.focus();
+                                                }
+                                                double-clicked => {
+                                                    root.heal-size = 24;
+                                                    keys.focus();
+                                                }
                                             }
                                         }
-                                        SmallButton {
-                                            text: "Fertig (P)";
-                                            active: true;
-                                            clicked => {
-                                                root.set-healing(false);
+                                        Text {
+                                            width: 44px;
+                                            text: round(root.heal-size) + " px";
+                                            horizontal-alignment: right;
+                                            vertical-alignment: center;
+                                            font-size: 12px;
+                                        }
+                                        VerticalLayout {
+                                            alignment: center;
+                                            HorizontalLayout {
+                                                spacing: 6px;
+                                                SmallButton {
+                                                    text: "Alle entfernen (" + root.spot-marks.length + ")";
+                                                    enabled: root.spot-marks.length > 0;
+                                                    clicked => {
+                                                        root.clear-spots();
+                                                        keys.focus();
+                                                    }
+                                                }
+                                                SmallButton {
+                                                    text: "Fertig (P)";
+                                                    active: true;
+                                                    clicked => {
+                                                        root.set-healing(false);
+                                                        keys.focus();
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                visible: root.library;
+                                background: root.panel-color;
+
+                                if root.thumbs.length == 0: Text {
+                                    text: root.drag-over ? "Loslassen zum Öffnen" : "Ordner öffnen (links oben) oder hierher ziehen";
+                                    color: root.drag-over ? Palette.accent-background : #8a8f98;
+                                    font-size: 16px;
+                                }
+
+                                grid := ScrollView {
+                                    width: 100%;
+                                    height: 100%;
+                                    content-width: self.visible-width;
+                                    content-height: ceil(root.shown-count / root.grid-cols) * (root.grid-cell-height + root.cell-gap) + root.cell-gap;
+                                    horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+
+                                    for thumb[i] in root.thumbs: Rectangle {
+                                        visible: thumb.slot >= 0;
+                                        x: root.cell-gap + mod(thumb.slot, root.grid-cols) * (root.grid-cell-width + root.cell-gap);
+                                        y: root.cell-gap + floor(thumb.slot / root.grid-cols) * (root.grid-cell-height + root.cell-gap);
+                                        width: root.grid-cell-width;
+                                        height: root.grid-cell-height;
+                                        border-radius: 6px;
+                                        background: #26272c;
+                                        clip: true;
+
+                                        Image {
+                                            width: 100%;
+                                            height: 100%;
+                                            source: root.strip-corrected && thumb.has-corrected ? thumb.corrected : thumb.image;
+                                            image-fit: cover;
+                                        }
+                                        if !thumb.loaded: Text {
+                                            text: "…";
+                                            color: #6b7078;
+                                        }
+                                        if thumb.failed: Text {
+                                            text: "nicht lesbar";
+                                            color: #e5484d;
+                                            font-size: 11px;
+                                        }
+                                        // Name unten links auf einem Verlauf, damit er auf hellen Bildern lesbar bleibt.
+                                        Rectangle {
+                                            y: parent.height - self.height;
+                                            height: 30px;
+                                            background: @linear-gradient(0deg, #000000a0 0%, #00000000 100%);
+                                        }
+                                        Text {
+                                            x: 9px;
+                                            y: parent.height - 21px;
+                                            width: parent.width - 18px;
+                                            text: thumb.name;
+                                            font-size: 11px;
+                                            color: white;
+                                            overflow: elide;
+                                        }
+                                        if thumb.exported: Rectangle {
+                                            x: 8px;
+                                            y: 8px;
+                                            width: 18px;
+                                            height: 18px;
+                                            border-radius: 9px;
+                                            background: #2ea043;
+                                            border-width: 1px;
+                                            border-color: #141518;
+                                            Text {
+                                                text: "✓";
+                                                color: white;
+                                                font-size: 11px;
+                                                font-weight: 700;
+                                            }
+                                        }
+                                        if thumb.edited: Rectangle {
+                                            x: parent.width - 18px;
+                                            y: 10px;
+                                            width: 10px;
+                                            height: 10px;
+                                            border-radius: 5px;
+                                            background: #f5a623;
+                                            border-width: 1px;
+                                            border-color: #141518;
+                                        }
+                                        Rectangle {
+                                            border-radius: 6px;
+                                            border-width: i == root.current ? 3px : (thumb.selected ? 3px : 0px);
+                                            border-color: i == root.current ? Palette.accent-background : Palette.accent-background.transparentize(0.45);
+                                        }
+                                        TouchArea {
+                                            pointer-event(event) => {
+                                                if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                                                    keys.focus();
+                                                    root.thumb-pressed(i, event.modifiers.control, event.modifiers.shift);
+                                                }
+                                            }
+                                            double-clicked => {
+                                                root.set-library(false);
                                                 keys.focus();
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
-                    }
 
-                    Rectangle {
-                        visible: root.library;
-                        background: #141518;
-
-                        grid := ScrollView {
-                            width: 100%;
-                            height: 100%;
-                            content-width: self.visible-width;
-                            content-height: ceil(root.shown-count / root.grid-cols) * (root.grid-cell-height + root.cell-gap) + root.cell-gap;
-                            horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
-
-                            for thumb[i] in root.thumbs: Rectangle {
-                                visible: thumb.slot >= 0;
-                                x: root.cell-gap + mod(thumb.slot, root.grid-cols) * (root.grid-cell-width + root.cell-gap);
-                                y: root.cell-gap + floor(thumb.slot / root.grid-cols) * (root.grid-cell-height + root.cell-gap);
-                                width: root.grid-cell-width;
-                                height: root.grid-cell-height;
+                            if root.toast-on: Rectangle {
+                                x: (preview-box.width - self.width) / 2;
+                                y: preview-box.height - self.height - 48px;
+                                width: min(toast-text.preferred-width + 28px, preview-box.width * 0.8);
+                                height: toast-text.preferred-height + 16px;
                                 border-radius: 6px;
-                                border-width: 2px;
-                                border-color: i == root.current ? Palette.accent-background : (thumb.selected ? Palette.accent-background.transparentize(0.45) : transparent);
-                                background: i == root.current ? Palette.accent-background.transparentize(0.8) : (thumb.selected ? Palette.accent-background.transparentize(0.89) : #2b2d31);
-
-                                cell-image := Image {
-                                    x: 6px;
-                                    y: 6px;
-                                    width: parent.width - 12px;
-                                    height: parent.height - 32px;
-                                    source: root.strip-corrected && thumb.has-corrected ? thumb.corrected : thumb.image;
-                                    image-fit: contain;
-                                }
-                                if !thumb.loaded: Text {
-                                    y: cell-image.y + cell-image.height / 2 - 8px;
-                                    text: "…";
-                                    color: #6b7078;
-                                }
-                                if thumb.failed: Text {
-                                    y: cell-image.y + cell-image.height / 2 - 8px;
-                                    text: "nicht lesbar";
-                                    color: #e5484d;
-                                    font-size: 11px;
-                                }
-                                if thumb.exported: Rectangle {
-                                    x: 10px;
-                                    y: cell-image.y + cell-image.height - 22px;
-                                    width: 18px;
-                                    height: 18px;
-                                    border-radius: 9px;
-                                    background: #2ea043;
-                                    border-width: 1px;
-                                    border-color: #141518;
-                                    Text {
-                                        text: "✓";
-                                        color: white;
-                                        font-size: 11px;
-                                        font-weight: 700;
-                                    }
-                                }
-                                if thumb.edited: Rectangle {
-                                    x: parent.width - 18px;
-                                    y: 10px;
-                                    width: 10px;
-                                    height: 10px;
-                                    border-radius: 5px;
-                                    background: #f5a623;
-                                    border-width: 1px;
-                                    border-color: #141518;
-                                }
-                                Text {
-                                    x: 6px;
-                                    y: parent.height - 22px;
-                                    width: parent.width - 12px;
-                                    text: thumb.name;
-                                    font-size: 11px;
-                                    color: #c8ccd2;
-                                    overflow: elide;
+                                background: #000000c8;
+                                toast-text := Text {
+                                    x: 14px;
+                                    width: parent.width - 28px;
+                                    text: root.status;
+                                    wrap: word-wrap;
                                     horizontal-alignment: center;
+                                    color: white;
+                                    font-size: 13px;
                                 }
-                                TouchArea {
+                            }
+
+                            // Zuschneiden: ganzer Rahmen, außerhalb des Zuschnitts abgedunkelt, mit Drittel-Raster,
+                            // Griffen und Werkzeugleiste. Beim Loslassen geht der Zuschnitt an Rust (ein Schritt
+                            // fürs Rückgängigmachen).
+                            if root.has-preview && root.cropping: crop-box := Rectangle {
+                                property <length> top: 96px;
+                                property <length> margin: 24px;
+                                property <length> fit: min((self.width - 2 * self.margin) / root.frame-width,
+                                    (self.height - self.top - self.margin) / root.frame-height);
+                                property <length> iw: root.frame-width * self.fit;
+                                property <length> ih: root.frame-height * self.fit;
+                                property <length> ix: (self.width - self.iw) / 2;
+                                property <length> iy: self.top + (self.height - self.top - self.margin - self.ih) / 2;
+                                property <length> rx: self.ix + root.crop-x * self.iw;
+                                property <length> ry: self.iy + root.crop-y * self.ih;
+                                property <length> rw: root.crop-w * self.iw;
+                                property <length> rh: root.crop-h * self.ih;
+                                background: #141518;
+
+                                Image {
+                                    x: crop-box.ix;
+                                    y: crop-box.iy;
+                                    width: crop-box.iw;
+                                    height: crop-box.ih;
+                                    source: root.preview-corrected;
+                                }
+                                Rectangle {
+                                    x: crop-box.ix;
+                                    y: crop-box.iy;
+                                    width: crop-box.iw;
+                                    height: crop-box.ry - crop-box.iy;
+                                    background: #000000a8;
+                                }
+                                Rectangle {
+                                    x: crop-box.ix;
+                                    y: crop-box.ry + crop-box.rh;
+                                    width: crop-box.iw;
+                                    height: crop-box.iy + crop-box.ih - crop-box.ry - crop-box.rh;
+                                    background: #000000a8;
+                                }
+                                Rectangle {
+                                    x: crop-box.ix;
+                                    y: crop-box.ry;
+                                    width: crop-box.rx - crop-box.ix;
+                                    height: crop-box.rh;
+                                    background: #000000a8;
+                                }
+                                Rectangle {
+                                    x: crop-box.rx + crop-box.rw;
+                                    y: crop-box.ry;
+                                    width: crop-box.ix + crop-box.iw - crop-box.rx - crop-box.rw;
+                                    height: crop-box.rh;
+                                    background: #000000a8;
+                                }
+                                for k in [1, 2]: Rectangle {
+                                    x: crop-box.rx + crop-box.rw * k / 3;
+                                    y: crop-box.ry;
+                                    width: 1px;
+                                    height: crop-box.rh;
+                                    background: #ffffff60;
+                                }
+                                for k in [1, 2]: Rectangle {
+                                    x: crop-box.rx;
+                                    y: crop-box.ry + crop-box.rh * k / 3;
+                                    width: crop-box.rw;
+                                    height: 1px;
+                                    background: #ffffff60;
+                                }
+                                Rectangle {
+                                    x: crop-box.rx;
+                                    y: crop-box.ry;
+                                    width: crop-box.rw;
+                                    height: crop-box.rh;
+                                    border-width: 1px;
+                                    border-color: white;
+                                }
+                                // Griffe: Ecken immer, Kantenmitten nur ohne festes Seitenverhältnis.
+                                for c in [{x: 0, y: 0, edge: false}, {x: 1, y: 0, edge: false}, {x: 0, y: 1, edge: false},
+                                    {x: 1, y: 1, edge: false}, {x: 0.5, y: 0, edge: true}, {x: 0.5, y: 1, edge: true},
+                                    {x: 0, y: 0.5, edge: true}, {x: 1, y: 0.5, edge: true}]: Rectangle {
+                                    visible: !c.edge || root.crop-ratio == 0;
+                                    x: crop-box.rx + crop-box.rw * c.x - 6px;
+                                    y: crop-box.ry + crop-box.rh * c.y - 6px;
+                                    width: 12px;
+                                    height: 12px;
+                                    background: white;
+                                    border-width: 1px;
+                                    border-color: #00000080;
+                                }
+                                if crop-touch.mode == 4: Path {
+                                    width: 100%;
+                                    height: 100%;
+                                    viewbox-width: crop-box.width / 1px;
+                                    viewbox-height: crop-box.height / 1px;
+                                    commands: "M " + crop-touch.sx / 1px + " " + crop-touch.sy / 1px
+                                        + " L " + crop-touch.mouse-x / 1px + " " + crop-touch.mouse-y / 1px;
+                                    stroke: #ffd400;
+                                    stroke-width: 2px;
+                                    fill: transparent;
+                                }
+
+                                // Ziehen: Ecke oder Kante ändert die Größe, innen verschieben; mit „Linie ziehen“ eine
+                                // Linie, die danach waagerecht bzw. senkrecht wird.
+                                crop-touch := TouchArea {
+                                    property <int> mode; // 0 nichts, 1 verschieben, 2 Ecke, 3 Kante, 4 Linie
+                                    property <int> hx; // gezogene Seite waagerecht: 0 links, 1 rechts, −1 keine
+                                    property <int> hy; // senkrecht: 0 oben, 1 unten, −1 keine
+                                    property <length> sx;
+                                    property <length> sy;
+                                    property <float> x0;
+                                    property <float> y0;
+                                    property <float> w0;
+                                    property <float> h0;
+                                    property <length> near: 14px;
+                                    property <bool> at-left: abs(self.mouse-x - crop-box.rx) <= self.near;
+                                    property <bool> at-right: abs(self.mouse-x - crop-box.rx - crop-box.rw) <= self.near;
+                                    property <bool> at-top: abs(self.mouse-y - crop-box.ry) <= self.near;
+                                    property <bool> at-bottom: abs(self.mouse-y - crop-box.ry - crop-box.rh) <= self.near;
+                                    property <bool> in-x: self.mouse-x > crop-box.rx && self.mouse-x < crop-box.rx + crop-box.rw;
+                                    property <bool> in-y: self.mouse-y > crop-box.ry && self.mouse-y < crop-box.ry + crop-box.rh;
+                                    property <bool> on-corner: (self.at-left || self.at-right) && (self.at-top || self.at-bottom);
+                                    property <bool> on-side: root.crop-ratio == 0 && (((self.at-left || self.at-right) && self.in-y)
+                                        || ((self.at-top || self.at-bottom) && self.in-x));
+                                    mouse-cursor: root.line-tool ? MouseCursor.crosshair
+                                        : self.on-corner ? ((self.at-left == self.at-top) ? MouseCursor.nwse-resize : MouseCursor.nesw-resize)
+                                        : self.on-side ? ((self.at-left || self.at-right) ? MouseCursor.ew-resize : MouseCursor.ns-resize)
+                                        : self.in-x && self.in-y ? MouseCursor.move : MouseCursor.default;
+
                                     pointer-event(event) => {
                                         if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
                                             keys.focus();
-                                            root.thumb-pressed(i, event.modifiers.control, event.modifiers.shift);
+                                            self.sx = self.mouse-x;
+                                            self.sy = self.mouse-y;
+                                            self.x0 = root.crop-x;
+                                            self.y0 = root.crop-y;
+                                            self.w0 = root.crop-w;
+                                            self.h0 = root.crop-h;
+                                            if root.line-tool {
+                                                self.mode = 4;
+                                            } else if self.on-corner {
+                                                self.mode = 2;
+                                                self.hx = self.at-left ? 0 : 1;
+                                                self.hy = self.at-top ? 0 : 1;
+                                            } else if self.on-side {
+                                                self.mode = 3;
+                                                self.hx = self.at-left ? 0 : self.at-right ? 1 : -1;
+                                                self.hy = self.hx != -1 ? -1 : self.at-top ? 0 : 1;
+                                            } else if self.in-x && self.in-y {
+                                                self.mode = 1;
+                                            } else {
+                                                self.mode = 0;
+                                            }
+                                        }
+                                        if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
+                                            if self.mode == 4 {
+                                                let dx = (self.mouse-x - self.sx) / 1px;
+                                                let dy = (self.mouse-y - self.sy) / 1px;
+                                                if abs(dx) + abs(dy) > 10 {
+                                                    // Winkel der Linie auf −90 … 90°, dann zur nächsten Waagerechten bzw. Senkrechten.
+                                                    let raw = atan2(dy, dx) / 1deg;
+                                                    let a = raw > 90 ? raw - 180 : raw <= -90 ? raw + 180 : raw;
+                                                    let tilt = abs(a) <= 45 ? a : a > 0 ? a - 90 : a + 90;
+                                                    root.edited("straighten", clamp(root.v-straighten - tilt, -45, 45));
+                                                }
+                                                root.line-tool = false;
+                                            } else if self.mode != 0 {
+                                                root.crop-changed(root.crop-x, root.crop-y, root.crop-w, root.crop-h);
+                                            }
+                                            self.mode = 0;
                                         }
                                     }
-                                    double-clicked => {
-                                        root.set-library(false);
-                                        keys.focus();
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if root.toast-on: Rectangle {
-                        x: (preview-box.width - self.width) / 2;
-                        y: preview-box.height - self.height - 48px;
-                        width: min(toast-text.preferred-width + 28px, preview-box.width * 0.8);
-                        height: toast-text.preferred-height + 16px;
-                        border-radius: 6px;
-                        background: #000000c8;
-                        toast-text := Text {
-                            x: 14px;
-                            width: parent.width - 28px;
-                            text: root.status;
-                            wrap: word-wrap;
-                            horizontal-alignment: center;
-                            color: white;
-                            font-size: 13px;
-                        }
-                    }
-
-                    // Zuschneiden: ganzer Rahmen, außerhalb des Zuschnitts abgedunkelt, mit Drittel-Raster,
-                    // Griffen und Werkzeugleiste. Beim Loslassen geht der Zuschnitt an Rust (ein Schritt
-                    // fürs Rückgängigmachen).
-                    if root.has-preview && root.cropping: crop-box := Rectangle {
-                        property <length> top: 96px;
-                        property <length> margin: 24px;
-                        property <length> fit: min((self.width - 2 * self.margin) / root.frame-width,
-                            (self.height - self.top - self.margin) / root.frame-height);
-                        property <length> iw: root.frame-width * self.fit;
-                        property <length> ih: root.frame-height * self.fit;
-                        property <length> ix: (self.width - self.iw) / 2;
-                        property <length> iy: self.top + (self.height - self.top - self.margin - self.ih) / 2;
-                        property <length> rx: self.ix + root.crop-x * self.iw;
-                        property <length> ry: self.iy + root.crop-y * self.ih;
-                        property <length> rw: root.crop-w * self.iw;
-                        property <length> rh: root.crop-h * self.ih;
-                        background: #141518;
-
-                        Image {
-                            x: crop-box.ix;
-                            y: crop-box.iy;
-                            width: crop-box.iw;
-                            height: crop-box.ih;
-                            source: root.preview-corrected;
-                        }
-                        Rectangle {
-                            x: crop-box.ix;
-                            y: crop-box.iy;
-                            width: crop-box.iw;
-                            height: crop-box.ry - crop-box.iy;
-                            background: #000000a8;
-                        }
-                        Rectangle {
-                            x: crop-box.ix;
-                            y: crop-box.ry + crop-box.rh;
-                            width: crop-box.iw;
-                            height: crop-box.iy + crop-box.ih - crop-box.ry - crop-box.rh;
-                            background: #000000a8;
-                        }
-                        Rectangle {
-                            x: crop-box.ix;
-                            y: crop-box.ry;
-                            width: crop-box.rx - crop-box.ix;
-                            height: crop-box.rh;
-                            background: #000000a8;
-                        }
-                        Rectangle {
-                            x: crop-box.rx + crop-box.rw;
-                            y: crop-box.ry;
-                            width: crop-box.ix + crop-box.iw - crop-box.rx - crop-box.rw;
-                            height: crop-box.rh;
-                            background: #000000a8;
-                        }
-                        for k in [1, 2]: Rectangle {
-                            x: crop-box.rx + crop-box.rw * k / 3;
-                            y: crop-box.ry;
-                            width: 1px;
-                            height: crop-box.rh;
-                            background: #ffffff60;
-                        }
-                        for k in [1, 2]: Rectangle {
-                            x: crop-box.rx;
-                            y: crop-box.ry + crop-box.rh * k / 3;
-                            width: crop-box.rw;
-                            height: 1px;
-                            background: #ffffff60;
-                        }
-                        Rectangle {
-                            x: crop-box.rx;
-                            y: crop-box.ry;
-                            width: crop-box.rw;
-                            height: crop-box.rh;
-                            border-width: 1px;
-                            border-color: white;
-                        }
-                        // Griffe: Ecken immer, Kantenmitten nur ohne festes Seitenverhältnis.
-                        for c in [{x: 0, y: 0, edge: false}, {x: 1, y: 0, edge: false}, {x: 0, y: 1, edge: false},
-                            {x: 1, y: 1, edge: false}, {x: 0.5, y: 0, edge: true}, {x: 0.5, y: 1, edge: true},
-                            {x: 0, y: 0.5, edge: true}, {x: 1, y: 0.5, edge: true}]: Rectangle {
-                            visible: !c.edge || root.crop-ratio == 0;
-                            x: crop-box.rx + crop-box.rw * c.x - 6px;
-                            y: crop-box.ry + crop-box.rh * c.y - 6px;
-                            width: 12px;
-                            height: 12px;
-                            background: white;
-                            border-width: 1px;
-                            border-color: #00000080;
-                        }
-                        if crop-touch.mode == 4: Path {
-                            width: 100%;
-                            height: 100%;
-                            viewbox-width: crop-box.width / 1px;
-                            viewbox-height: crop-box.height / 1px;
-                            commands: "M " + crop-touch.sx / 1px + " " + crop-touch.sy / 1px
-                                + " L " + crop-touch.mouse-x / 1px + " " + crop-touch.mouse-y / 1px;
-                            stroke: #ffd400;
-                            stroke-width: 2px;
-                            fill: transparent;
-                        }
-
-                        // Ziehen: Ecke oder Kante ändert die Größe, innen verschieben; mit „Linie ziehen“ eine
-                        // Linie, die danach waagerecht bzw. senkrecht wird.
-                        crop-touch := TouchArea {
-                            property <int> mode; // 0 nichts, 1 verschieben, 2 Ecke, 3 Kante, 4 Linie
-                            property <int> hx; // gezogene Seite waagerecht: 0 links, 1 rechts, −1 keine
-                            property <int> hy; // senkrecht: 0 oben, 1 unten, −1 keine
-                            property <length> sx;
-                            property <length> sy;
-                            property <float> x0;
-                            property <float> y0;
-                            property <float> w0;
-                            property <float> h0;
-                            property <length> near: 14px;
-                            property <bool> at-left: abs(self.mouse-x - crop-box.rx) <= self.near;
-                            property <bool> at-right: abs(self.mouse-x - crop-box.rx - crop-box.rw) <= self.near;
-                            property <bool> at-top: abs(self.mouse-y - crop-box.ry) <= self.near;
-                            property <bool> at-bottom: abs(self.mouse-y - crop-box.ry - crop-box.rh) <= self.near;
-                            property <bool> in-x: self.mouse-x > crop-box.rx && self.mouse-x < crop-box.rx + crop-box.rw;
-                            property <bool> in-y: self.mouse-y > crop-box.ry && self.mouse-y < crop-box.ry + crop-box.rh;
-                            property <bool> on-corner: (self.at-left || self.at-right) && (self.at-top || self.at-bottom);
-                            property <bool> on-side: root.crop-ratio == 0 && (((self.at-left || self.at-right) && self.in-y)
-                                || ((self.at-top || self.at-bottom) && self.in-x));
-                            mouse-cursor: root.line-tool ? MouseCursor.crosshair
-                                : self.on-corner ? ((self.at-left == self.at-top) ? MouseCursor.nwse-resize : MouseCursor.nesw-resize)
-                                : self.on-side ? ((self.at-left || self.at-right) ? MouseCursor.ew-resize : MouseCursor.ns-resize)
-                                : self.in-x && self.in-y ? MouseCursor.move : MouseCursor.default;
-
-                            pointer-event(event) => {
-                                if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
-                                    keys.focus();
-                                    self.sx = self.mouse-x;
-                                    self.sy = self.mouse-y;
-                                    self.x0 = root.crop-x;
-                                    self.y0 = root.crop-y;
-                                    self.w0 = root.crop-w;
-                                    self.h0 = root.crop-h;
-                                    if root.line-tool {
-                                        self.mode = 4;
-                                    } else if self.on-corner {
-                                        self.mode = 2;
-                                        self.hx = self.at-left ? 0 : 1;
-                                        self.hy = self.at-top ? 0 : 1;
-                                    } else if self.on-side {
-                                        self.mode = 3;
-                                        self.hx = self.at-left ? 0 : self.at-right ? 1 : -1;
-                                        self.hy = self.hx != -1 ? -1 : self.at-top ? 0 : 1;
-                                    } else if self.in-x && self.in-y {
-                                        self.mode = 1;
-                                    } else {
-                                        self.mode = 0;
-                                    }
-                                }
-                                if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
-                                    if self.mode == 4 {
-                                        let dx = (self.mouse-x - self.sx) / 1px;
-                                        let dy = (self.mouse-y - self.sy) / 1px;
-                                        if abs(dx) + abs(dy) > 10 {
-                                            // Winkel der Linie auf −90 … 90°, dann zur nächsten Waagerechten bzw. Senkrechten.
-                                            let raw = atan2(dy, dx) / 1deg;
-                                            let a = raw > 90 ? raw - 180 : raw <= -90 ? raw + 180 : raw;
-                                            let tilt = abs(a) <= 45 ? a : a > 0 ? a - 90 : a + 90;
-                                            root.edited("straighten", clamp(root.v-straighten - tilt, -45, 45));
-                                        }
-                                        root.line-tool = false;
-                                    } else if self.mode != 0 {
-                                        root.crop-changed(root.crop-x, root.crop-y, root.crop-w, root.crop-h);
-                                    }
-                                    self.mode = 0;
-                                }
-                            }
-                            moved => {
-                                if self.pressed && (self.mode == 1 || self.mode == 2 || self.mode == 3) {
-                                    let dx = (self.mouse-x - self.sx) / crop-box.iw;
-                                    let dy = (self.mouse-y - self.sy) / crop-box.ih;
-                                    if self.mode == 1 {
-                                        root.crop-x = clamp(self.x0 + dx, 0, 1 - self.w0);
-                                        root.crop-y = clamp(self.y0 + dy, 0, 1 - self.h0);
-                                    } else if self.mode == 3 || root.crop-ratio == 0 {
-                                        if self.hx == 0 {
-                                            let left = clamp(self.x0 + dx, 0, self.x0 + self.w0 - 0.05);
-                                            root.crop-x = left;
-                                            root.crop-w = self.x0 + self.w0 - left;
-                                        }
-                                        if self.hx == 1 {
-                                            root.crop-w = clamp(self.w0 + dx, 0.05, 1 - self.x0);
-                                        }
-                                        if self.hy == 0 {
-                                            let upper = clamp(self.y0 + dy, 0, self.y0 + self.h0 - 0.05);
-                                            root.crop-y = upper;
-                                            root.crop-h = self.y0 + self.h0 - upper;
-                                        }
-                                        if self.hy == 1 {
-                                            root.crop-h = clamp(self.h0 + dy, 0.05, 1 - self.y0);
-                                        }
-                                    } else {
-                                        // Festes Verhältnis: die gegenüberliegende Ecke bleibt, Höhe = Breite · k.
-                                        let ax = self.hx == 0 ? self.x0 + self.w0 : self.x0;
-                                        let ay = self.hy == 0 ? self.y0 + self.h0 : self.y0;
-                                        let px = clamp((self.hx == 0 ? self.x0 : self.x0 + self.w0) + dx, 0, 1);
-                                        let room-x = self.hx == 0 ? ax : 1 - ax;
-                                        let room-y = self.hy == 0 ? ay : 1 - ay;
-                                        let k = root.frame-width / root.frame-height / root.ratio;
-                                        let w = min(clamp(abs(px - ax), 0.05, room-x), room-y / k);
-                                        let h = w * k;
-                                        root.crop-x = self.hx == 0 ? ax - w : ax;
-                                        root.crop-y = self.hy == 0 ? ay - h : ay;
-                                        root.crop-w = w;
-                                        root.crop-h = h;
-                                    }
-                                }
-                            }
-                        }
-
-                        // Werkzeugleiste
-                        Rectangle {
-                            x: (crop-box.width - self.width) / 2;
-                            y: 10px;
-                            width: min(crop-box.width - 20px, 780px);
-                            height: 76px;
-                            border-radius: 8px;
-                            background: #000000c8;
-                            // Klicks auf die Leiste erreichen den Zuschnitt darunter nicht.
-                            TouchArea { }
-                            VerticalLayout {
-                                padding: 8px;
-                                spacing: 6px;
-                                HorizontalLayout {
-                                    spacing: 6px;
-                                    Text {
-                                        text: "Seitenverhältnis";
-                                        vertical-alignment: center;
-                                        font-size: 12px;
-                                    }
-                                    ComboBox {
-                                        width: 110px;
-                                        model: ["Frei", "Original", "3:2", "4:3", "1:1", "16:9", "4:5"];
-                                        current-index <=> root.crop-ratio;
-                                        selected(value) => {
-                                            root.apply-ratio();
-                                            keys.focus();
-                                        }
-                                    }
-                                    VerticalLayout {
-                                        alignment: center;
-                                        SmallButton {
-                                            text: root.crop-portrait ? "Hochformat" : "Querformat";
-                                            enabled: root.crop-ratio != 0 && root.crop-ratio != 4;
-                                            clicked => {
-                                                root.crop-portrait = !root.crop-portrait;
-                                                root.apply-ratio();
-                                                keys.focus();
+                                    moved => {
+                                        if self.pressed && (self.mode == 1 || self.mode == 2 || self.mode == 3) {
+                                            let dx = (self.mouse-x - self.sx) / crop-box.iw;
+                                            let dy = (self.mouse-y - self.sy) / crop-box.ih;
+                                            if self.mode == 1 {
+                                                root.crop-x = clamp(self.x0 + dx, 0, 1 - self.w0);
+                                                root.crop-y = clamp(self.y0 + dy, 0, 1 - self.h0);
+                                            } else if self.mode == 3 || root.crop-ratio == 0 {
+                                                if self.hx == 0 {
+                                                    let left = clamp(self.x0 + dx, 0, self.x0 + self.w0 - 0.05);
+                                                    root.crop-x = left;
+                                                    root.crop-w = self.x0 + self.w0 - left;
+                                                }
+                                                if self.hx == 1 {
+                                                    root.crop-w = clamp(self.w0 + dx, 0.05, 1 - self.x0);
+                                                }
+                                                if self.hy == 0 {
+                                                    let upper = clamp(self.y0 + dy, 0, self.y0 + self.h0 - 0.05);
+                                                    root.crop-y = upper;
+                                                    root.crop-h = self.y0 + self.h0 - upper;
+                                                }
+                                                if self.hy == 1 {
+                                                    root.crop-h = clamp(self.h0 + dy, 0.05, 1 - self.y0);
+                                                }
+                                            } else {
+                                                // Festes Verhältnis: die gegenüberliegende Ecke bleibt, Höhe = Breite · k.
+                                                let ax = self.hx == 0 ? self.x0 + self.w0 : self.x0;
+                                                let ay = self.hy == 0 ? self.y0 + self.h0 : self.y0;
+                                                let px = clamp((self.hx == 0 ? self.x0 : self.x0 + self.w0) + dx, 0, 1);
+                                                let room-x = self.hx == 0 ? ax : 1 - ax;
+                                                let room-y = self.hy == 0 ? ay : 1 - ay;
+                                                let k = root.frame-width / root.frame-height / root.ratio;
+                                                let w = min(clamp(abs(px - ax), 0.05, room-x), room-y / k);
+                                                let h = w * k;
+                                                root.crop-x = self.hx == 0 ? ax - w : ax;
+                                                root.crop-y = self.hy == 0 ? ay - h : ay;
+                                                root.crop-w = w;
+                                                root.crop-h = h;
                                             }
                                         }
                                     }
-                                    Rectangle {
-                                        horizontal-stretch: 1;
-                                    }
+                                }
+
+                                // Werkzeugleiste
+                                Rectangle {
+                                    x: (crop-box.width - self.width) / 2;
+                                    y: 10px;
+                                    width: min(crop-box.width - 20px, 780px);
+                                    height: 76px;
+                                    border-radius: 8px;
+                                    background: #000000c8;
+                                    // Klicks auf die Leiste erreichen den Zuschnitt darunter nicht.
+                                    TouchArea { }
                                     VerticalLayout {
-                                        alignment: center;
+                                        padding: 8px;
+                                        spacing: 6px;
                                         HorizontalLayout {
                                             spacing: 6px;
-                                            SmallButton {
-                                                text: "Links drehen";
-                                                clicked => {
-                                                    root.rotate(false);
+                                            Text {
+                                                text: "Seitenverhältnis";
+                                                vertical-alignment: center;
+                                                font-size: 12px;
+                                            }
+                                            ComboBox {
+                                                width: 110px;
+                                                model: ["Frei", "Original", "3:2", "4:3", "1:1", "16:9", "4:5"];
+                                                current-index <=> root.crop-ratio;
+                                                selected(value) => {
+                                                    root.apply-ratio();
                                                     keys.focus();
                                                 }
                                             }
-                                            SmallButton {
-                                                text: "Rechts drehen";
-                                                clicked => {
-                                                    root.rotate(true);
-                                                    keys.focus();
+                                            VerticalLayout {
+                                                alignment: center;
+                                                SmallButton {
+                                                    text: root.crop-portrait ? "Hochformat" : "Querformat";
+                                                    enabled: root.crop-ratio != 0 && root.crop-ratio != 4;
+                                                    clicked => {
+                                                        root.crop-portrait = !root.crop-portrait;
+                                                        root.apply-ratio();
+                                                        keys.focus();
+                                                    }
                                                 }
                                             }
-                                            SmallButton {
-                                                text: "Spiegeln";
-                                                clicked => {
-                                                    root.flip();
-                                                    keys.focus();
-                                                }
+                                            Rectangle {
+                                                horizontal-stretch: 1;
                                             }
-                                            SmallButton {
-                                                text: "Zurücksetzen";
-                                                clicked => {
-                                                    root.reset-geometry();
-                                                    keys.focus();
-                                                }
-                                            }
-                                            SmallButton {
-                                                text: "Fertig (C)";
-                                                active: true;
-                                                clicked => {
-                                                    root.set-cropping(false);
-                                                    keys.focus();
+                                            VerticalLayout {
+                                                alignment: center;
+                                                HorizontalLayout {
+                                                    spacing: 6px;
+                                                    SmallButton {
+                                                        text: "Links drehen";
+                                                        clicked => {
+                                                            root.rotate(false);
+                                                            keys.focus();
+                                                        }
+                                                    }
+                                                    SmallButton {
+                                                        text: "Rechts drehen";
+                                                        clicked => {
+                                                            root.rotate(true);
+                                                            keys.focus();
+                                                        }
+                                                    }
+                                                    SmallButton {
+                                                        text: "Spiegeln";
+                                                        clicked => {
+                                                            root.flip();
+                                                            keys.focus();
+                                                        }
+                                                    }
+                                                    SmallButton {
+                                                        text: "Zurücksetzen";
+                                                        clicked => {
+                                                            root.reset-geometry();
+                                                            keys.focus();
+                                                        }
+                                                    }
+                                                    SmallButton {
+                                                        text: "Fertig (C)";
+                                                        active: true;
+                                                        clicked => {
+                                                            root.set-cropping(false);
+                                                            keys.focus();
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
-                                }
-                                HorizontalLayout {
-                                    spacing: 8px;
-                                    Text {
-                                        text: "Geraderichten";
-                                        vertical-alignment: center;
-                                        font-size: 12px;
-                                    }
-                                    VerticalLayout {
-                                        alignment: center;
-                                        horizontal-stretch: 1;
-                                        ValueSlider {
-                                            minimum: -45;
-                                            maximum: 45;
-                                            value <=> root.v-straighten;
-                                            changed(v) => {
-                                                root.edited("straighten", v);
+                                        HorizontalLayout {
+                                            spacing: 8px;
+                                            Text {
+                                                text: "Geraderichten";
+                                                vertical-alignment: center;
+                                                font-size: 12px;
                                             }
-                                            released => {
-                                                keys.focus();
+                                            VerticalLayout {
+                                                alignment: center;
+                                                horizontal-stretch: 1;
+                                                ValueSlider {
+                                                    minimum: -45;
+                                                    maximum: 45;
+                                                    value <=> root.v-straighten;
+                                                    changed(v) => {
+                                                        root.edited("straighten", v);
+                                                    }
+                                                    released => {
+                                                        keys.focus();
+                                                    }
+                                                    double-clicked => {
+                                                        root.reset-field("straighten");
+                                                        keys.focus();
+                                                    }
+                                                }
                                             }
-                                            double-clicked => {
-                                                root.reset-field("straighten");
-                                                keys.focus();
+                                            Text {
+                                                width: 48px;
+                                                text: round(root.v-straighten * 10) / 10 + "°";
+                                                horizontal-alignment: right;
+                                                vertical-alignment: center;
+                                                font-size: 12px;
                                             }
-                                        }
-                                    }
-                                    Text {
-                                        width: 48px;
-                                        text: round(root.v-straighten * 10) / 10 + "°";
-                                        horizontal-alignment: right;
-                                        vertical-alignment: center;
-                                        font-size: 12px;
-                                    }
-                                    VerticalLayout {
-                                        alignment: center;
-                                        SmallButton {
-                                            text: "Linie ziehen";
-                                            active: root.line-tool;
-                                            clicked => {
-                                                root.line-tool = !root.line-tool;
-                                                keys.focus();
+                                            VerticalLayout {
+                                                alignment: center;
+                                                SmallButton {
+                                                    text: "Linie ziehen";
+                                                    active: root.line-tool;
+                                                    clicked => {
+                                                        root.line-tool = !root.line-tool;
+                                                        keys.focus();
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
+
+                        // Bildleiste unter dem Bild (nur in der Bearbeitung): Bilder füllen die Zellen wie in der
+                        // Übersicht; Name und Angaben stehen in der Reglerleiste.
+                        Rectangle {
+                            height: root.library ? 0px : root.cell-height + 32px;
+                            visible: !root.library;
+
+                            // Slint scrollt eine nur waagerecht scrollbare Liste nicht mit dem senkrechten Mausrad.
+                            TouchArea {
+                                scroll-event(event) => {
+                                    if event.delta-y == 0px {
+                                        return reject;
+                                    }
+                                    strip.content-x = clamp(
+                                        strip.content-x + event.delta-y,
+                                        min(0px, strip.visible-width - strip.content-width),
+                                        0px);
+                                    accept
+                                }
+
+                                strip := ScrollView {
+                                    width: 100%;
+                                    height: root.cell-height + 12px;
+                                    y: 0;
+                                    content-width: root.shown-count * (root.cell-width + root.cell-gap) + root.cell-gap;
+                                    content-height: self.visible-height;
+                                    horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+
+                                    for thumb[i] in root.thumbs: Rectangle {
+                                        visible: thumb.slot >= 0;
+                                        x: root.cell-gap + thumb.slot * (root.cell-width + root.cell-gap);
+                                        y: 6px;
+                                        width: root.cell-width;
+                                        height: root.cell-height;
+                                        border-radius: 5px;
+                                        background: #26272c;
+                                        clip: true;
+
+                                        Image {
+                                            width: 100%;
+                                            height: 100%;
+                                            source: root.strip-corrected && thumb.has-corrected ? thumb.corrected : thumb.image;
+                                            image-fit: cover;
+                                        }
+                                        if !thumb.loaded: Text {
+                                            text: "…";
+                                            color: #6b7078;
+                                        }
+                                        if thumb.failed: Text {
+                                            text: "nicht lesbar";
+                                            color: #e5484d;
+                                            font-size: 11px;
+                                        }
+                                        if thumb.exported: Rectangle {
+                                            x: 5px;
+                                            y: parent.height - 21px;
+                                            width: 16px;
+                                            height: 16px;
+                                            border-radius: 8px;
+                                            background: #2ea043;
+                                            border-width: 1px;
+                                            border-color: #141518;
+                                            Text {
+                                                text: "✓";
+                                                color: white;
+                                                font-size: 10px;
+                                                font-weight: 700;
+                                            }
+                                        }
+                                        if thumb.edited: Rectangle {
+                                            x: parent.width - 15px;
+                                            y: 5px;
+                                            width: 10px;
+                                            height: 10px;
+                                            border-radius: 5px;
+                                            background: #f5a623;
+                                            border-width: 1px;
+                                            border-color: #141518;
+                                        }
+                                        Rectangle {
+                                            border-radius: 5px;
+                                            border-width: i == root.current ? 2px : (thumb.selected ? 2px : 0px);
+                                            border-color: i == root.current ? Palette.accent-background : Palette.accent-background.transparentize(0.45);
+                                        }
+                                        TouchArea {
+                                            pointer-event(event) => {
+                                                if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                                                    keys.focus();
+                                                    root.thumb-pressed(i, event.modifiers.control, event.modifiers.shift);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                HScrollbar {
+                                    x: 8px;
+                                    y: root.cell-height + 16px;
+                                    width: parent.width - 16px;
+                                    height: 8px;
+                                    content-width: strip.content-width;
+                                    visible-width: strip.visible-width;
+                                    content-x <=> strip.content-x;
+                                }
+                            }
+                        }
                     }
+                }
+
+                Rectangle {
+                    width: root.library ? 0px : 8px;
                 }
 
                 // Reglerleiste; in der Rasteranzeige ausgeblendet. Der Inhalt bleibt 300 px breit: zu
@@ -1736,7 +2167,8 @@ export component LabWindow inherits Window {
                     width: root.library ? 0px : 300px;
                     visible: !root.library;
                     clip: root.library;
-                    background: Palette.alternate-background;
+                    background: root.panel-color;
+                    border-radius: 10px;
 
                     VerticalLayout {
                         x: 0;
@@ -2498,325 +2930,19 @@ export component LabWindow inherits Window {
                     }
                 }
             }
+        }
 
-            Rectangle {
-                height: 36px;
-                background: Palette.alternate-background;
-
-                Rectangle {
-                    y: 0;
-                    height: 1px;
-                    background: #00000060;
-                }
-                HorizontalLayout {
-                    padding-left: 10px;
-                    padding-right: 10px;
-                    padding-top: 4px;
-                    padding-bottom: 4px;
-                    spacing: 8px;
-
-                    // Ansicht des Bildes darüber. Gedrückt halten (oder Leertaste): ganzes Bild als Original.
-                    VerticalLayout {
-                        alignment: center;
-                        HorizontalLayout {
-                            spacing: 6px;
-                            SmallButton {
-                                text: "Raster (G)";
-                                active: root.library;
-                                enabled: root.thumbs.length > 0;
-                                clicked => {
-                                    root.set-library(!root.library);
-                                    keys.focus();
-                                }
-                            }
-                            if !root.library: HorizontalLayout {
-                                spacing: 6px;
-                                SmallButton {
-                                    text: "Original";
-                                    active: self.pressed || root.space-held;
-                                    enabled: root.has-preview;
-                                    changed pressed => {
-                                        root.before-pressed = self.pressed;
-                                    }
-                                    clicked => {
-                                        keys.focus();
-                                    }
-                                }
-                                SmallButton {
-                                    text: "Split-Ansicht";
-                                    active: root.split && !root.cropping;
-                                    enabled: root.has-preview && !root.cropping;
-                                    clicked => {
-                                        root.split = !root.split;
-                                        keys.focus();
-                                    }
-                                }
-                                SmallButton {
-                                    text: "Zuschneiden";
-                                    active: root.cropping;
-                                    enabled: root.has-preview && !root.loading;
-                                    clicked => {
-                                        root.set-cropping(!root.cropping);
-                                        keys.focus();
-                                    }
-                                }
-                                SmallButton {
-                                    text: "Partikel";
-                                    active: root.healing;
-                                    enabled: root.has-preview && !root.loading;
-                                    clicked => {
-                                        root.set-healing(!root.healing);
-                                        keys.focus();
-                                    }
-                                }
-                            }
-                            // In der Rasteranzeige: Ordner öffnen und Größe der Bilder.
-                            if root.library: HorizontalLayout {
-                                spacing: 8px;
-                                SmallButton {
-                                    text: "Ordner öffnen …";
-                                    clicked => {
-                                        root.open-folder();
-                                        keys.focus();
-                                    }
-                                }
-                                Text {
-                                    text: "Größe";
-                                    vertical-alignment: center;
-                                    font-size: 12px;
-                                }
-                                VerticalLayout {
-                                    alignment: center;
-                                    width: 140px;
-                                    ValueSlider {
-                                        minimum: 110;
-                                        maximum: 320;
-                                        value <=> root.grid-size;
-                                        released => {
-                                            root.grid-size-changed(root.grid-size);
-                                            keys.focus();
-                                        }
-                                        double-clicked => {
-                                            root.grid-size = 190;
-                                            root.grid-size-changed(root.grid-size);
-                                            keys.focus();
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Rectangle {
-                        width: 1px;
-                        background: #00000060;
-                    }
-
-                    Text {
-                        text: root.thumbs.length == 0 ? "Kein Ordner geöffnet"
-                            : root.folder + "   ·   " + root.thumbs.length + " Bilder"
-                            + (root.strip-filter != 0 ? ", " + root.shown-count + " angezeigt" : "");
-                        horizontal-stretch: 1;
-                        vertical-alignment: center;
-                        overflow: elide;
-                        font-size: 12px;
-                    }
-                    VerticalLayout {
-                        alignment: center;
-                        Segmented {
-                            width: 270px;
-                            options: ["Alle", "Unbearbeitet", "Nicht exportiert"];
-                            selected: root.strip-filter;
-                            changed(i) => {
-                                root.strip-filter = i;
-                                root.strip-filter-changed(i);
-                                keys.focus();
-                            }
-                        }
-                    }
-                    Text {
-                        text: "Vorschaubilder:";
-                        vertical-alignment: center;
-                        font-size: 12px;
-                    }
-                    VerticalLayout {
-                        alignment: center;
-                        Segmented {
-                            width: 190px;
-                            options: ["Original", "Korrigiert"];
-                            selected: root.strip-corrected ? 1 : 0;
-                            changed(i) => {
-                                root.strip-mode-changed(i == 1);
-                                keys.focus();
-                            }
-                        }
-                    }
-                    VerticalLayout {
-                        alignment: center;
-                        Rectangle {
-                            width: 26px;
-                            height: 26px;
-                            border-radius: 13px;
-                            border-width: 1px;
-                            border-color: #5a5d65;
-                            background: help-touch.has-hover ? #ffffff26 : #ffffff10;
-                            Text {
-                                text: "?";
-                                font-weight: 700;
-                            }
-                            help-touch := TouchArea {
-                                clicked => {
-                                    root.show-help = true;
-                                    keys.focus();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Bildleiste; in der Rasteranzeige überflüssig.
-            Rectangle {
-                height: root.library ? 0px : 150px;
-                visible: !root.library;
-                background: Palette.alternate-background;
-
-                Rectangle {
-                    y: 0;
-                    height: 1px;
-                    background: #00000060;
-                }
-
-                HorizontalLayout {
-                // „Ordner öffnen“ steht fest am Anfang der Leiste; nur die Bilder daneben scrollen.
-                Rectangle {
-                    width: root.cell-width + 2 * root.cell-gap;
-                    Button {
-                        x: root.cell-gap;
-                        y: 10px;
-                        width: root.cell-width;
-                        height: 118px;
-                        text: "Ordner öffnen …";
-                        primary: root.thumbs.length == 0;
-                        clicked => {
-                            root.open-folder();
-                            keys.focus();
-                        }
-                    }
-                    Rectangle {
-                        x: parent.width - 1px;
-                        width: 1px;
-                        background: #00000060;
-                    }
-                }
-
-                // Slint scrollt eine nur waagerecht scrollbare Liste nicht mit dem senkrechten Mausrad.
-                TouchArea {
-                    horizontal-stretch: 1;
-                    scroll-event(event) => {
-                        if event.delta-y == 0px {
-                            return reject;
-                        }
-                        strip.content-x = clamp(
-                            strip.content-x + event.delta-y,
-                            min(0px, strip.visible-width - strip.content-width),
-                            0px);
-                        accept
-                    }
-
-                    strip := ScrollView {
-                        width: 100%;
-                        height: parent.height - 18px;
-                        content-width: root.shown-count * (root.cell-width + root.cell-gap) + root.cell-gap;
-                        content-height: self.visible-height;
-                        horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
-
-                        for thumb[i] in root.thumbs: Rectangle {
-                            visible: thumb.slot >= 0;
-                            x: root.cell-gap + thumb.slot * (root.cell-width + root.cell-gap);
-                            y: 10px;
-                            width: root.cell-width;
-                            height: 118px;
-                            border-radius: 6px;
-                            border-width: 2px;
-                            border-color: i == root.current ? Palette.accent-background : (thumb.selected ? Palette.accent-background.transparentize(0.45) : transparent);
-                            background: i == root.current ? Palette.accent-background.transparentize(0.8) : (thumb.selected ? Palette.accent-background.transparentize(0.89) : #2b2d31);
-
-                            Image {
-                                x: 6px;
-                                y: 6px;
-                                width: parent.width - 12px;
-                                height: 88px;
-                                source: root.strip-corrected && thumb.has-corrected ? thumb.corrected : thumb.image;
-                                image-fit: contain;
-                            }
-                            if !thumb.loaded: Text {
-                                y: 40px;
-                                text: "…";
-                                color: #6b7078;
-                            }
-                            if thumb.exported: Rectangle {
-                                x: 10px;
-                                y: 74px;
-                                width: 18px;
-                                height: 18px;
-                                border-radius: 9px;
-                                background: #2ea043;
-                                border-width: 1px;
-                                border-color: #141518;
-                                Text {
-                                    text: "✓";
-                                    color: white;
-                                    font-size: 11px;
-                                    font-weight: 700;
-                                }
-                            }
-                            if thumb.edited: Rectangle {
-                                x: parent.width - 18px;
-                                y: 10px;
-                                width: 10px;
-                                height: 10px;
-                                border-radius: 5px;
-                                background: #f5a623;
-                                border-width: 1px;
-                                border-color: #141518;
-                            }
-                            if thumb.failed: Text {
-                                y: 40px;
-                                text: "nicht lesbar";
-                                color: #e5484d;
-                                font-size: 11px;
-                            }
-                            Text {
-                                x: 6px;
-                                y: 98px;
-                                width: parent.width - 12px;
-                                text: thumb.name;
-                                font-size: 11px;
-                                color: #c8ccd2;
-                                overflow: elide;
-                                horizontal-alignment: center;
-                            }
-                            TouchArea {
-                                pointer-event(event) => {
-                                    if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
-                                        keys.focus();
-                                        root.thumb-pressed(i, event.modifiers.control, event.modifiers.shift);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    HScrollbar {
-                        x: 8px;
-                        y: parent.height - 16px;
-                        width: parent.width - 16px;
-                        height: 10px;
-                        content-width: strip.content-width;
-                        visible-width: strip.visible-width;
-                        content-x <=> strip.content-x;
-                    }
-                }
-                }
+        if root.tip != "" && !root.library: Rectangle {
+            x: 8px + 52px + 6px;
+            y: root.tip-y - self.height / 2;
+            width: tip-label.preferred-width + 18px;
+            height: 26px;
+            border-radius: 5px;
+            background: #000000e0;
+            tip-label := Text {
+                text: root.tip;
+                color: white;
+                font-size: 12px;
             }
         }
 
