@@ -111,6 +111,9 @@ fn main() -> Result<(), slint::PlatformError> {
     splash.on_open_link(|| {
         let _ = std::process::Command::new("explorer.exe").arg(splash::ALGORITHM_URL).spawn();
     });
+    splash.on_open_coffee(|| {
+        let _ = std::process::Command::new("explorer.exe").arg(splash::COFFEE_URL).spawn();
+    });
     splash.show()?;
 
     let app = LabWindow::new()?;

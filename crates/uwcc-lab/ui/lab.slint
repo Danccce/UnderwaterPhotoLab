@@ -474,13 +474,14 @@ export component Splash inherits Window {
     no-frame: true;
     always-on-top: true;
     width: 460px;
-    height: 290px;
+    height: 310px;
     background: #16171a;
     forward-focus: splash-keys;
     in property <string> version;
     // Über „Impressum & Lizenz“ geöffnet: bleibt, bis man hineinklickt oder Esc drückt.
     in-out property <bool> manual;
     callback open-link();
+    callback open-coffee();
     callback dismiss();
 
     Rectangle {
@@ -566,6 +567,27 @@ export component Splash inherits Window {
             SplashRow {
                 label: "Auto-Korrektur";
                 value: "Algorithmus von Nikolaj Bech Andersen";
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                Text {
+                    text: "Unterstützen";
+                    color: #8a8f98;
+                    font-size: 12px;
+                }
+                Text {
+                    horizontal-stretch: 1;
+                    text: "Buy me a coffee";
+                    color: coffee-touch.has-hover ? #ffe08a : #ffd23f;
+                    font-size: 12px;
+                    horizontal-alignment: right;
+                    coffee-touch := TouchArea {
+                        mouse-cursor: MouseCursor.pointer;
+                        clicked => {
+                            root.open-coffee();
+                        }
+                    }
+                }
             }
         }
         Rectangle {

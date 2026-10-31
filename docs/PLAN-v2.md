@@ -350,7 +350,9 @@ Größe 4–120 px (Bildschirm), „Alle entfernen“; Strg+Z nimmt zurück.
   (`Splash`, `splash.rs`): kleines rahmenloses Fenster in der Bildschirmmitte, immer im Vordergrund, ohne
   Taskleisteneintrag; links- und rechtsbündig statt zentriert: Symbol oben links mit Name und Untertitel,
   darunter Version, Autor („© Marc Lob“), Lizenz GPL-3.0 und Algorithmus (Nikolaj Bech Andersen) als Zeilen
-  mit Bezeichnung links und Wert rechts, unten links der Link (Klick öffnet den Browser). Es steht 1,2 s allein, dann erscheint das Hauptfenster,
+  mit Bezeichnung links und Wert rechts, unten links der Link (Klick öffnet den Browser). Zeile
+  „Unterstützen: Buy me a coffee“ (buymeacoffee.com/marclob); auf GitHub zeigt `.github/FUNDING.yml` den
+  Sponsor-Knopf. Es steht 1,2 s allein, dann erscheint das Hauptfenster,
   3 s später schließt es sich. „Impressum & Lizenz“ links unten in der Übersicht zeigt es erneut; dann bleibt
   es, bis man hineinklickt oder Esc drückt (beim Start nicht: dort wäre es das einzige Fenster). Die Mitte wird vor dem Anzeigen berechnet (Prozess früh DPI-bewusst wie
   winit); der Fenster-Hook kennt Titel und Größe noch nicht und erkennt den Startbildschirm als erstes Fenster.

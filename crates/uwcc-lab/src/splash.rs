@@ -18,9 +18,10 @@ pub const BEFORE_MAIN: Duration = Duration::from_millis(1200);
 pub const AFTER_MAIN: Duration = Duration::from_millis(3000);
 
 pub const ALGORITHM_URL: &str = "https://github.com/nikolajbech/underwater-image-color-correction";
+pub const COFFEE_URL: &str = "https://buymeacoffee.com/marclob";
 
 /// Größe von `Splash` in lab.slint (logische Pixel).
-const SIZE: (f32, f32) = (460.0, 290.0);
+const SIZE: (f32, f32) = (460.0, 310.0);
 
 #[link(name = "user32")]
 extern "system" {
