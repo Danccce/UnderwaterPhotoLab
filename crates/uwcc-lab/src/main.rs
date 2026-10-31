@@ -152,6 +152,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         w.set_maximized(false);
                         w.set_maximized(true);
                     });
+                    style_title_bar(&app);
                 }
             });
         }
@@ -410,14 +411,6 @@ fn main() -> Result<(), slint::PlatformError> {
     } else if let Some(dir) = with_state(|st| st.config.last_folder.clone()).filter(|d| d.is_dir()) {
         open(&app, &dir);
     }
-
-    // Das winit-Fenster gibt es erst, wenn die Ereignisschleife läuft.
-    let weak = app.as_weak();
-    slint::Timer::single_shot(std::time::Duration::ZERO, move || {
-        if let Some(app) = weak.upgrade() {
-            style_title_bar(&app);
-        }
-    });
 
     let result = app.run();
     store::save_now(&app);

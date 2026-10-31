@@ -1605,12 +1605,14 @@ export component LabWindow inherits Window {
                                         clip: true;
 
                                         Image {
-                                            // Beim Darüberfahren sanft etwas größer, wie in RapidRaw; die Zelle schneidet ab.
-                                            width: parent.width * (cell-touch.has-hover ? 1.06 : 1);
-                                            height: parent.height * (cell-touch.has-hover ? 1.06 : 1);
+                                            // Beim Darüberfahren sanft hineinzoomen, wie in RapidRaw; die Zelle schneidet ab. Animiert wird
+                                            // nur der Faktor, Größe und Lage folgen ihm gemeinsam (sonst verrutscht das Bild).
+                                            property <float> zoom: cell-touch.has-hover ? 1.08 : 1;
+                                            animate zoom { duration: 250ms; easing: ease-out; }
+                                            width: parent.width * self.zoom;
+                                            height: parent.height * self.zoom;
                                             x: (parent.width - self.width) / 2;
                                             y: (parent.height - self.height) / 2;
-                                            animate width, height, x, y { duration: 180ms; easing: ease-out; }
                                             source: root.strip-corrected && thumb.has-corrected ? thumb.corrected : thumb.image;
                                             image-fit: cover;
                                         }
@@ -2091,12 +2093,14 @@ export component LabWindow inherits Window {
                                         clip: true;
 
                                         Image {
-                                            // Beim Darüberfahren sanft etwas größer, wie in RapidRaw; die Zelle schneidet ab.
-                                            width: parent.width * (strip-touch.has-hover ? 1.06 : 1);
-                                            height: parent.height * (strip-touch.has-hover ? 1.06 : 1);
+                                            // Beim Darüberfahren sanft hineinzoomen, wie in RapidRaw; die Zelle schneidet ab. Animiert wird
+                                            // nur der Faktor, Größe und Lage folgen ihm gemeinsam (sonst verrutscht das Bild).
+                                            property <float> zoom: strip-touch.has-hover ? 1.08 : 1;
+                                            animate zoom { duration: 250ms; easing: ease-out; }
+                                            width: parent.width * self.zoom;
+                                            height: parent.height * self.zoom;
                                             x: (parent.width - self.width) / 2;
                                             y: (parent.height - self.height) / 2;
-                                            animate width, height, x, y { duration: 180ms; easing: ease-out; }
                                             source: root.strip-corrected && thumb.has-corrected ? thumb.corrected : thumb.image;
                                             image-fit: cover;
                                         }

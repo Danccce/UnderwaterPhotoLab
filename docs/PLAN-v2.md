@@ -340,8 +340,10 @@ Größe 4–120 px (Bildschirm), „Alle entfernen“; Strg+Z nimmt zurück.
   „Zurück zur Übersicht“ und darunter den Symbolen Original, Split-Ansicht, Zuschneiden, Partikel
   (`ToolButton`, Hinweis beim Darüberfahren); die Bildleiste ohne „Ordner öffnen“ und ohne Namen sitzt unter
   dem Bild. Die Leiste unter dem Bild mit „Raster“, Filter und Pfad entfällt; G wechselt weiter.
-  Dazu: Bilder in Übersicht und Bildleiste werden beim Darüberfahren sanft um 6 % größer (180 ms); die
-  Kopfleiste des Fensters hat die Fensterfarbe (winit `WindowExtWindows`, ab Windows 11).
+  Dazu: Bilder in Übersicht und Bildleiste zoomen beim Darüberfahren sanft um 8 % hinein (250 ms) und
+  bleiben so, bis die Maus geht; animiert wird nur der Faktor, Größe und Lage folgen ihm (getrennt animiert
+  verrutschte das Bild). Die Kopfleiste hat die Fensterfarbe (winit `WindowExtWindows`, ab Windows 11),
+  gesetzt beim ersten Zeichnen – vorher gibt es das winit-Fenster noch nicht.
 
 Nachgeschärft – weniger Regler (27 → 18): Rot-Obergrenze ohne Regler (bleibt beim gespeicherten Wert,
 Standard 4). Schärfen ein Regler mit festem Radius 1 px und Maskieren 30 (`Detail::with_sharpen`;
