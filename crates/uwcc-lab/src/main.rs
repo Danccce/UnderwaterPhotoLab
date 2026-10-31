@@ -14,6 +14,7 @@ mod preview;
 mod presets;
 mod programs;
 mod selection;
+mod splash;
 mod store;
 mod strip;
 mod zoom;
@@ -42,7 +43,6 @@ use slint::{
 };
 
 slint::include_modules!();
-
 #[derive(Default)]
 struct State {
     dir: Option<PathBuf>,
@@ -84,6 +84,7 @@ fn with_state<R>(f: impl FnOnce(&mut State) -> R) -> R {
 }
 
 fn main() -> Result<(), slint::PlatformError> {
+    splash::dpi_aware();
     slint::BackendSelector::new()
         .backend_name("winit".into())
         .with_winit_window_attributes_hook(|a| {
@@ -91,17 +92,28 @@ fn main() -> Result<(), slint::PlatformError> {
                 platform::windows::{Color, WindowAttributesExtWindows},
                 window::Theme,
             };
-            // Titelleiste im Grau der Reglerleiste (Fluent dunkel: #2C2C2C).
-            let panel = Color::from_rgb(0x2C, 0x2C, 0x2C);
-            a.with_theme(Some(Theme::Dark))
-                .with_title_background_color(Some(panel))
-                .with_title_text_color(Color::from_rgb(0xE6, 0xE6, 0xE6))
-                .with_border_color(Some(panel))
+            // Kopfleiste in der Fensterfarbe (`background` in lab.slint); wirkt ab Windows 11.
+            let window = Color::from_rgb(0x0F, 0x10, 0x12);
+            splash::attributes(
+                a.with_theme(Some(Theme::Dark))
+                    .with_title_background_color(Some(window))
+                    .with_title_text_color(Color::from_rgb(0xC8, 0xCC, 0xD2))
+                    .with_border_color(Some(window)),
+            )
         })
         .select()?;
 
+    // Startbildschirm zuerst; das Hauptfenster folgt kurz danach, der Startbildschirm bleibt noch
+    // davor stehen.
+    let splash = Splash::new()?;
+    splash.set_version(env!("CARGO_PKG_VERSION").into());
+    splash::center(&splash);
+    splash.on_open_link(|| {
+        let _ = std::process::Command::new("explorer.exe").arg(splash::ALGORITHM_URL).spawn();
+    });
+    splash.show()?;
+
     let app = LabWindow::new()?;
-    app.set_version(env!("CARGO_PKG_VERSION").into());
     let cfg = config::load();
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
     app.set_strip_corrected(cfg.strip_corrected);
@@ -153,7 +165,6 @@ fn main() -> Result<(), slint::PlatformError> {
                         w.set_maximized(false);
                         w.set_maximized(true);
                     });
-                    style_title_bar(&app);
                 }
             });
         }
@@ -413,19 +424,23 @@ fn main() -> Result<(), slint::PlatformError> {
         open(&app, &dir);
     }
 
-    let result = app.run();
+    let weak = app.as_weak();
+    let splash_weak = splash.as_weak();
+    slint::Timer::single_shot(splash::BEFORE_MAIN, move || {
+        if let Some(app) = weak.upgrade() {
+            let _ = app.show();
+        }
+        slint::Timer::single_shot(splash::AFTER_MAIN, move || {
+            if let Some(splash) = splash_weak.upgrade() {
+                let _ = splash.hide();
+            }
+        });
+    });
+
+    // Endet, wenn das letzte Fenster geschlossen ist; der Startbildschirm schließt sich selbst.
+    let result = slint::run_event_loop();
     store::save_now(&app);
     result
-}
-
-/// Kopfleiste in der Farbe des Fensters (`background` in lab.slint); wirkt ab Windows 11.
-fn style_title_bar(app: &LabWindow) {
-    use slint::winit_030::winit::platform::windows::{Color, WindowExtWindows};
-    app.window().with_winit_window(|w| {
-        w.set_title_background_color(Some(Color::from_rgb(0x0f, 0x10, 0x12)));
-        w.set_title_text_color(Color::from_rgb(0xc8, 0xcc, 0xd2));
-        w.set_border_color(Some(Color::from_rgb(0x0f, 0x10, 0x12)));
-    });
 }
 
 fn update_config(app: &LabWindow, f: impl FnOnce(&mut config::Config)) {

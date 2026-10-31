@@ -346,9 +346,12 @@ Größe 4–120 px (Bildschirm), „Alle entfernen“; Strg+Z nimmt zurück.
   gesetzt beim ersten Zeichnen – vorher gibt es das winit-Fenster noch nicht. Die Flächen reichen bis unter
   die Kopfleiste, unter dem Raster bleiben 14 px frei; die Übersicht zeigt die Bildangaben ohne Auto-Analyse
   (`info-photo-rows`), die steht in der Bearbeitung. Die Bildgröße kommt aus dem Dateikopf
-  (`uwcc_photo::upright_size`), also sofort statt erst nach dem Laden des ganzen Bildes. Startbildschirm:
-  Symbol, Name, Untertitel und Version decken das Fenster 1,6 s ab (Maximieren, Ordner laden) und
-  blenden aus.
+  (`uwcc_photo::upright_size`), also sofort statt erst nach dem Laden des ganzen Bildes. Startbildschirm
+  (`Splash`, `splash.rs`): kleines rahmenloses Fenster in der Bildschirmmitte, immer im Vordergrund, ohne
+  Taskleisteneintrag; Symbol, Name, Version, „© Marc Lob“, Lizenz GPL-3.0 und der Algorithmus von Nikolaj
+  Bech Andersen mit Link (Klick öffnet den Browser). Es steht 0,7 s allein, dann erscheint das Hauptfenster,
+  1,8 s später schließt es sich. Die Mitte wird vor dem Anzeigen berechnet (Prozess früh DPI-bewusst wie
+  winit); der Fenster-Hook kennt Titel und Größe noch nicht und erkennt den Startbildschirm als erstes Fenster.
 
 Nachgeschärft – weniger Regler (27 → 18): Rot-Obergrenze ohne Regler (bleibt beim gespeicherten Wert,
 Standard 4). Schärfen ein Regler mit festem Radius 1 px und Maskieren 30 (`Detail::with_sharpen`;

@@ -448,6 +448,90 @@ component Tag inherits Rectangle {
     }
 }
 
+// Startbildschirm: kleines rahmenloses Fenster in der Bildschirmmitte (Lage setzt `splash.rs`, dort
+// steht auch die Größe), vor dem Hauptfenster und noch kurz darüber.
+export component Splash inherits Window {
+    title: "UnderwaterPhotoLab";
+    icon: @image-url("../../../assets/icon-256.png");
+    no-frame: true;
+    always-on-top: true;
+    width: 440px;
+    height: 330px;
+    background: #16171a;
+    in property <string> version;
+    callback open-link();
+
+    Rectangle {
+        border-width: 1px;
+        border-color: #2e3036;
+    }
+    VerticalLayout {
+        padding: 26px;
+        spacing: 4px;
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            Image {
+                width: 72px;
+                height: 72px;
+                source: @image-url("../../../assets/icon-256.png");
+            }
+        }
+        Rectangle {
+            height: 8px;
+        }
+        Text {
+            text: "UnderwaterPhotoLab";
+            color: white;
+            font-size: 22px;
+            font-weight: 700;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: "Farbkorrektur für Unterwasserfotos";
+            color: #8a8f98;
+            font-size: 13px;
+            horizontal-alignment: center;
+        }
+        Rectangle {
+            height: 14px;
+        }
+        Text {
+            text: "Version " + root.version + "  ·  © Marc Lob";
+            color: #d4d7dc;
+            font-size: 12px;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: "Lizenz: GNU General Public License v3 (GPL-3.0)";
+            color: #8a8f98;
+            font-size: 12px;
+            horizontal-alignment: center;
+        }
+        Rectangle {
+            height: 10px;
+        }
+        Text {
+            text: "Auto-Korrektur nach dem Algorithmus von Nikolaj Bech Andersen:";
+            color: #8a8f98;
+            font-size: 11px;
+            horizontal-alignment: center;
+        }
+        Text {
+            text: "github.com/nikolajbech/underwater-image-color-correction";
+            color: link-touch.has-hover ? #9cc8ff : #5aa0ff;
+            font-size: 11px;
+            horizontal-alignment: center;
+            link-touch := TouchArea {
+                mouse-cursor: MouseCursor.pointer;
+                clicked => {
+                    root.open-link();
+                }
+            }
+        }
+    }
+}
+
 export component LabWindow inherits Window {
     title: "UnderwaterPhotoLab";
     icon: @image-url("../../../assets/icon-256.png");
@@ -880,17 +964,6 @@ export component LabWindow inherits Window {
 
     init => {
         Palette.color-scheme = ColorScheme.dark;
-    }
-
-    // Startbildschirm beim Programmstart.
-    in property <string> version;
-    property <bool> splash: true;
-    Timer {
-        interval: 1600ms;
-        running: root.splash;
-        triggered => {
-            root.splash = false;
-        }
     }
 
     // Meldungen (Export, Pipette, Presets …) kurz unten im Bild statt in einer festen Zeile.
@@ -2957,48 +3030,6 @@ export component LabWindow inherits Window {
                             }
                         }
                     }
-                }
-            }
-        }
-
-        // Startbildschirm: deckt das Fenster ab, während es maximiert wird und der Ordner lädt.
-        Rectangle {
-            opacity: root.splash ? 1 : 0;
-            animate opacity { duration: 450ms; easing: ease-in; }
-            visible: self.opacity > 0;
-            background: #0f1012;
-            TouchArea { }
-            VerticalLayout {
-                alignment: center;
-                spacing: 12px;
-                HorizontalLayout {
-                    alignment: center;
-                    Image {
-                        width: 128px;
-                        height: 128px;
-                        source: @image-url("../../../assets/icon-256.png");
-                    }
-                }
-                Rectangle {
-                    height: 6px;
-                }
-                Text {
-                    text: "UnderwaterPhotoLab";
-                    font-size: 30px;
-                    font-weight: 700;
-                    horizontal-alignment: center;
-                }
-                Text {
-                    text: "Farbkorrektur für Unterwasserfotos";
-                    color: #8a8f98;
-                    font-size: 14px;
-                    horizontal-alignment: center;
-                }
-                Text {
-                    text: "Version " + root.version;
-                    color: #5a5d65;
-                    font-size: 12px;
-                    horizontal-alignment: center;
                 }
             }
         }
