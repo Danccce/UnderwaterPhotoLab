@@ -431,10 +431,30 @@ fn main() -> Result<(), slint::PlatformError> {
             let _ = app.show();
         }
         slint::Timer::single_shot(splash::AFTER_MAIN, move || {
-            if let Some(splash) = splash_weak.upgrade() {
+            // Inzwischen über „Impressum & Lizenz“ geöffnet: offen lassen.
+            if let Some(splash) = splash_weak.upgrade().filter(|s| !s.get_manual()) {
                 let _ = splash.hide();
             }
         });
+    });
+
+    // „Impressum & Lizenz“ in der Übersicht zeigt den Startbildschirm, bis man hineinklickt.
+    let splash_weak = splash.as_weak();
+    app.on_show_about(move || {
+        if let Some(splash) = splash_weak.upgrade() {
+            splash.set_manual(true);
+            splash::center(&splash);
+            let _ = splash.show();
+        }
+    });
+    // Nur ein selbst geöffneter Startbildschirm schließt sich per Klick: beim Programmstart wäre
+    // er sonst das einzige Fenster, und das Programm endete.
+    let splash_weak = splash.as_weak();
+    splash.on_dismiss(move || {
+        if let Some(splash) = splash_weak.upgrade().filter(|s| s.get_manual()) {
+            splash.set_manual(false);
+            let _ = splash.hide();
+        }
     });
 
     // Endet, wenn das letzte Fenster geschlossen ist; der Startbildschirm schließt sich selbst.

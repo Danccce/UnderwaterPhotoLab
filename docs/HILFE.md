@@ -15,6 +15,7 @@ Das Programm hat zwei Ansichten wie RapidRaw: die **Übersicht** mit allen Bilde
 - **Links:** **Ordner öffnen …** (oder einen Ordner bzw. ein Bild ins Fenster ziehen, oder einen Ordner auf `UnderwaterPhotoLab.exe` ziehen), darunter **Bildgröße** (Doppelklick: Standard; bleibt beim nächsten Start), **Vorschaubilder Original | Korrigiert** und alle Angaben zum markierten Bild (Aufnahme, Kamera, Objektiv, Belichtung, Auto-Analyse …). Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner wieder.
 - **Auswählen:** Klick wählt ein Bild (Strg+Klick, Umschalt+Klick: mehrere), Pfeiltasten ← → ↑ ↓ wandern durch das Raster. **Doppelklick** oder **Enter** öffnet das Bild zum Bearbeiten.
 - **Filtern** (oben rechts): **Alle**, **Unbearbeitet** (noch keine Einstellung geändert) oder **Nicht exportiert** (noch nie oder mit anderen Einstellungen exportiert). Das markierte Bild bleibt immer sichtbar; Pfeiltasten und Strg+A gelten für die angezeigten Bilder.
+- **Impressum & Lizenz** (links unten): zeigt den Startbildschirm mit Autor, Lizenz (GPL-3.0) und dem Link zum ursprünglichen Algorithmus; ein Klick hinein oder Esc schließt ihn.
 - Schärfere Vorschaubilder lädt das Programm nach dem Öffnen eines Ordners im Hintergrund nach (bei Olympus aus dem großen Vorschaubild der Kamera, wenige Sekunden).
 
 ### Bearbeitung

@@ -13,14 +13,14 @@ use slint::{
 use crate::Splash;
 
 /// So lange steht der Startbildschirm allein, bevor das Hauptfenster erscheint …
-pub const BEFORE_MAIN: Duration = Duration::from_millis(700);
+pub const BEFORE_MAIN: Duration = Duration::from_millis(1200);
 /// … und so lange bleibt er danach noch davor.
-pub const AFTER_MAIN: Duration = Duration::from_millis(1800);
+pub const AFTER_MAIN: Duration = Duration::from_millis(3000);
 
 pub const ALGORITHM_URL: &str = "https://github.com/nikolajbech/underwater-image-color-correction";
 
 /// Größe von `Splash` in lab.slint (logische Pixel).
-const SIZE: (f32, f32) = (440.0, 330.0);
+const SIZE: (f32, f32) = (440.0, 350.0);
 
 #[link(name = "user32")]
 extern "system" {

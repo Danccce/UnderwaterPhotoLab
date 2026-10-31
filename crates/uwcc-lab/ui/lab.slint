@@ -456,14 +456,40 @@ export component Splash inherits Window {
     no-frame: true;
     always-on-top: true;
     width: 440px;
-    height: 330px;
+    height: 350px;
     background: #16171a;
+    forward-focus: splash-keys;
     in property <string> version;
+    // Über „Impressum & Lizenz“ geöffnet: bleibt, bis man hineinklickt oder Esc drückt.
+    in-out property <bool> manual;
     callback open-link();
+    callback dismiss();
 
     Rectangle {
         border-width: 1px;
         border-color: #2e3036;
+    }
+    splash-keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.dismiss();
+                return accept;
+            }
+            reject
+        }
+        TouchArea {
+            clicked => {
+                root.dismiss();
+            }
+        }
+    }
+    if root.manual: Text {
+        y: parent.height - 24px;
+        width: parent.width;
+        text: "Zum Schließen klicken";
+        color: #5a5d65;
+        font-size: 10px;
+        horizontal-alignment: center;
     }
     VerticalLayout {
         padding: 26px;
@@ -770,6 +796,8 @@ export component LabWindow inherits Window {
     }
 
     callback open-folder();
+    // Startbildschirm mit Autor, Lizenz und Herkunft des Algorithmus erneut zeigen.
+    callback show-about();
     // Klick in der Leiste: Index, Strg gedrückt, Umschalt gedrückt.
     callback thumb-pressed(int, bool, bool);
     callback navigate(int);
@@ -816,7 +844,7 @@ export component LabWindow inherits Window {
         {
             title: "Bilder auswählen und vergleichen",
             lines: [
-                "Übersicht (Startseite): alle Bilder des Ordners. Links „Ordner öffnen …“ (oder Ordner bzw. Bild ins Fenster ziehen), „Bildgröße“ (Doppelklick: Standard), „Vorschaubilder Original | Korrigiert“ und alle Angaben zum markierten Bild. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner.",
+                "Übersicht (Startseite): alle Bilder des Ordners. Links „Ordner öffnen …“ (oder Ordner bzw. Bild ins Fenster ziehen), „Bildgröße“ (Doppelklick: Standard), „Vorschaubilder Original | Korrigiert“ und alle Angaben zum markierten Bild. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner. Links unten: „Impressum & Lizenz“.",
                 "In der Übersicht: Klick wählt (Strg/Umschalt für mehrere), Pfeiltasten ← → ↑ ↓ wandern, Doppelklick oder Enter öffnet das Bild zum Bearbeiten. Oben filtern: Alle, Unbearbeitet, Nicht exportiert (das markierte Bild bleibt sichtbar).",
                 "Bearbeitung: der Pfeil links oben (oder Taste G) führt zurück zur Übersicht. Darunter die Symbole Original, Split-Ansicht, Zuschneiden und Partikel; beim Darüberfahren erscheint ihr Name.",
                 "Bild wechseln: Klick in die Leiste unter dem Bild oder Pfeiltasten ← →. Mausrad über der Leiste oder Scrollbalken blättert.",
@@ -1129,6 +1157,21 @@ export component LabWindow inherits Window {
                     background: root.panel-color;
                     border-radius: 10px;
                     clip: true;
+                    // Links unten: Autor, Lizenz und Herkunft des Algorithmus (der Startbildschirm).
+                    Text {
+                        x: 14px;
+                        y: parent.height - self.height - 12px;
+                        text: "Impressum & Lizenz";
+                        font-size: 11px;
+                        color: about-touch.has-hover ? #c8ccd2 : #6b7078;
+                        about-touch := TouchArea {
+                            mouse-cursor: MouseCursor.pointer;
+                            clicked => {
+                                root.show-about();
+                                keys.focus();
+                            }
+                        }
+                    }
                     VerticalLayout {
                         padding: 14px;
                         spacing: 12px;
