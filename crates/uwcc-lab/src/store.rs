@@ -79,7 +79,7 @@ pub fn save_now(app: &LabWindow) {
 }
 
 /// Orangefarbener Punkt (bearbeitet) und Haken (aktuell exportiert) für alle Bilder, dazu die
-/// Plätze in der gefilterten Leiste (Filter „Unbearbeitet“ bzw. „Nicht exportiert“). Das aktuelle
+/// Plätze in der gefilterten Leiste (Filter „Unbearbeitet“, „Nicht exportiert“ bzw. „Exportiert“). Das aktuelle
 /// Bild bleibt immer sichtbar, sonst verschwände es beim ersten Regler aus „Unbearbeitet“.
 pub fn refresh_marks(app: &LabWindow) {
     let filter = app.get_strip_filter();
@@ -98,6 +98,7 @@ pub fn refresh_marks(app: &LabWindow) {
             || match filter {
                 1 => !edited,
                 2 => !exported,
+                3 => exported,
                 _ => true,
             };
         let slot = if visible {

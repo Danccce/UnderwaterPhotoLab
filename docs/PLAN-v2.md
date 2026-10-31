@@ -342,7 +342,7 @@ Größe 4–120 px (Bildschirm), „Alle entfernen“; Strg+Z nimmt zurück.
   dem Bild. Die Leiste unter dem Bild mit „Raster“, Filter und Pfad entfällt; G wechselt weiter.
   Dazu: Bilder in Übersicht und Bildleiste zoomen beim Darüberfahren sanft um 8 % hinein (250 ms) und
   bleiben so, bis die Maus geht; animiert wird nur der Faktor, Größe und Lage folgen ihm (getrennt animiert
-  verrutschte das Bild). Die Kopfleiste hat die Fensterfarbe (winit `WindowExtWindows`, ab Windows 11),
+  verrutschte das Bild). Filter der Übersicht zusätzlich „Exportiert“ (aktuell exportiert, grüner Haken). Die Kopfleiste hat die Fensterfarbe (winit `WindowExtWindows`, ab Windows 11),
   gesetzt beim ersten Zeichnen – vorher gibt es das winit-Fenster noch nicht. Die Flächen reichen bis unter
   die Kopfleiste, unter dem Raster bleiben 14 px frei; die Übersicht zeigt die Bildangaben ohne Auto-Analyse
   (`info-photo-rows`), die steht in der Bearbeitung. Die Bildgröße kommt aus dem Dateikopf

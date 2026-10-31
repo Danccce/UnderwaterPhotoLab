@@ -876,7 +876,7 @@ export component LabWindow inherits Window {
             title: "Bilder auswählen und vergleichen",
             lines: [
                 "Übersicht (Startseite): alle Bilder des Ordners. Links „Ordner öffnen …“ (oder Ordner bzw. Bild ins Fenster ziehen), „Bildgröße“ (Doppelklick: Standard), „Vorschaubilder Original | Korrigiert“ und alle Angaben zum markierten Bild. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner. Links unten: „Impressum & Lizenz“.",
-                "In der Übersicht: Klick wählt (Strg/Umschalt für mehrere), Pfeiltasten ← → ↑ ↓ wandern, Doppelklick oder Enter öffnet das Bild zum Bearbeiten. Oben filtern: Alle, Unbearbeitet, Nicht exportiert (das markierte Bild bleibt sichtbar).",
+                "In der Übersicht: Klick wählt (Strg/Umschalt für mehrere), Pfeiltasten ← → ↑ ↓ wandern, Doppelklick oder Enter öffnet das Bild zum Bearbeiten. Oben filtern: Alle, Unbearbeitet, Nicht exportiert, Exportiert (das markierte Bild bleibt sichtbar).",
                 "Bearbeitung: der Pfeil links oben (oder Taste G) führt zurück zur Übersicht. Darunter die Symbole Original, Split-Ansicht, Zuschneiden und Partikel; beim Darüberfahren erscheint ihr Name.",
                 "Bild wechseln: Klick in die Leiste unter dem Bild oder Pfeiltasten ← →. Mausrad über der Leiste oder Scrollbalken blättert.",
                 "Original zeigen: Symbol „Original“ (Auge) oder Leertaste gedrückt halten.",
@@ -1013,7 +1013,7 @@ export component LabWindow inherits Window {
     property <bool> before-pressed;
     property <bool> hold: root.space-held || root.before-pressed;
     property <float> original-fraction: root.cropping ? 0 : root.hold ? 1 : (root.split ? root.split-pos : 0);
-    // Leiste filtern: 0 alle, 1 unbearbeitet, 2 nicht (aktuell) exportiert. Rust setzt die Plätze
+    // Leiste filtern: 0 alle, 1 unbearbeitet, 2 nicht (aktuell) exportiert, 3 exportiert. Rust setzt die Plätze
     // (`Thumb.slot`), die Anzahl und den Platz des aktuellen Bildes, das immer sichtbar bleibt.
     in-out property <int> strip-filter;
     callback strip-filter-changed(int);
@@ -1416,8 +1416,8 @@ export component LabWindow inherits Window {
                                 VerticalLayout {
                                     alignment: center;
                                     Segmented {
-                                        width: 270px;
-                                        options: ["Alle", "Unbearbeitet", "Nicht exportiert"];
+                                        width: 360px;
+                                        options: ["Alle", "Unbearbeitet", "Nicht exportiert", "Exportiert"];
                                         selected: root.strip-filter;
                                         changed(i) => {
                                             root.strip-filter = i;
