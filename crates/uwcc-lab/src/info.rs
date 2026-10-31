@@ -1,5 +1,6 @@
 //! Bildinformationen in der Reglerleiste: Aufnahmedaten aus dem EXIF sofort beim Auswählen,
-//! Bildgröße und Auto-Analyse, sobald das Bild geladen ist.
+//! Bildgröße und Auto-Analyse, sobald das Bild geladen ist. Die Übersicht zeigt dieselben Angaben
+//! ohne die Auto-Analyse (`info-photo-rows`); die gehört zur Bearbeitung.
 
 use std::path::Path;
 
@@ -11,7 +12,10 @@ pub fn clear(app: &LabWindow) {
     app.set_info_title("".into());
     app.set_info_summary("".into());
     app.set_info_rows(ModelRc::default());
+    app.set_info_photo_rows(ModelRc::default());
 }
+
+const ANALYSIS: &str = "Auto-Analyse";
 
 /// Zeigt die Informationen zu `path`; mit `loaded` zusätzlich Bildgröße und Auto-Analyse.
 pub fn show(app: &LabWindow, path: &Path, loaded: Option<&Loaded>) {
@@ -39,7 +43,7 @@ pub fn show(app: &LabWindow, path: &Path, loaded: Option<&Loaded>) {
         let a = &l.auto;
         rows.insert(7, ("Bildgröße", Some(format!("{} × {} px", l.full.width(), l.full.height()))));
         rows.push((
-            "Auto-Analyse",
+            ANALYSIS,
             Some(format!(
                 "Rot wiederherstellen {}°, Levels Rot {}–{}, Grün {}–{}, Blau {}–{}",
                 a.hue_shift, a.red.low, a.red.high, a.green.low, a.green.high, a.blue.low, a.blue.high
@@ -53,11 +57,15 @@ pub fn show(app: &LabWindow, path: &Path, loaded: Option<&Loaded>) {
 
     app.set_info_title(uwcc_photo::file_name(path).into());
     app.set_info_summary(if summary.is_empty() { "Keine Aufnahmedaten (EXIF) vorhanden.".into() } else { summary.join(" · ").into() });
+    let photo_rows: Vec<InfoRow> = rows.iter().filter(|r| r.label != ANALYSIS).cloned().collect();
     app.set_info_rows(ModelRc::new(VecModel::from(rows)));
+    app.set_info_photo_rows(ModelRc::new(VecModel::from(photo_rows)));
 }
 
 /// Das Bild ließ sich nicht laden: Der Titel bleibt, Zusammenfassung und Zeilen zeigen den Fehler.
 pub fn show_error(app: &LabWindow, error: &str) {
     app.set_info_summary(error.into());
-    app.set_info_rows(ModelRc::new(VecModel::from(vec![InfoRow { label: "Fehler".into(), value: error.into() }])));
+    let rows = ModelRc::new(VecModel::from(vec![InfoRow { label: "Fehler".into(), value: error.into() }]));
+    app.set_info_rows(rows.clone());
+    app.set_info_photo_rows(rows);
 }

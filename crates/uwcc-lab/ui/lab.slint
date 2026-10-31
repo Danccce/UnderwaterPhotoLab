@@ -468,6 +468,8 @@ export component LabWindow inherits Window {
     in property <string> info-title;
     in property <string> info-summary;
     in property <[InfoRow]> info-rows;
+    // Dieselben Angaben ohne Auto-Analyse, für die Übersicht.
+    in property <[InfoRow]> info-photo-rows;
     in property <bool> drag-over;
     in property <image> preview-original;
     in property <image> preview-corrected;
@@ -606,13 +608,14 @@ export component LabWindow inherits Window {
         }
         root.library = on;
     }
+    // Vor dem ersten Layout ist die Fläche noch ohne Höhe; dann nichts verschieben.
     function show-current-in-grid() {
-        if root.current-slot >= 0 {
+        if root.current-slot >= 0 && grid.visible-height > root.grid-cell-height {
             let top = root.cell-gap + floor(root.current-slot / root.grid-cols) * (root.grid-cell-height + root.cell-gap);
             if top + grid.content-y < 0 {
-                grid.content-y = root.cell-gap - top;
+                grid.content-y = min(0px, root.cell-gap - top);
             } else if top + root.grid-cell-height + grid.content-y > grid.visible-height {
-                grid.content-y = grid.visible-height - top - root.grid-cell-height - root.cell-gap;
+                grid.content-y = min(0px, grid.visible-height - top - root.grid-cell-height - root.cell-gap);
             }
         }
     }
@@ -1031,6 +1034,7 @@ export component LabWindow inherits Window {
 
         VerticalLayout {
             padding: 8px;
+            padding-top: 0px;
             // Abstände als eigene Elemente: die ausgeblendete Reglerleiste bekäme sonst auch einen.
             HorizontalLayout {
                 vertical-stretch: 1;
@@ -1112,7 +1116,7 @@ export component LabWindow inherits Window {
                         }
                         if root.info-title != "": VerticalLayout {
                             spacing: 5px;
-                            for row in root.info-rows: HorizontalLayout {
+                            for row in root.info-photo-rows: HorizontalLayout {
                                 spacing: 8px;
                                 Text {
                                     width: 84px;
@@ -1587,9 +1591,11 @@ export component LabWindow inherits Window {
                                     font-size: 16px;
                                 }
 
+                                // Unten Abstand zum Rand der Fläche, damit angeschnittene Bilder nicht am Rand kleben.
                                 grid := ScrollView {
+                                    y: 0;
                                     width: 100%;
-                                    height: 100%;
+                                    height: parent.height - 14px;
                                     content-width: self.visible-width;
                                     content-height: ceil(root.shown-count / root.grid-cols) * (root.grid-cell-height + root.cell-gap) + root.cell-gap;
                                     horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
