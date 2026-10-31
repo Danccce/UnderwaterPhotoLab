@@ -326,8 +326,12 @@ Größe 4–120 px (Bildschirm), „Alle entfernen“; Strg+Z nimmt zurück.
 - [x] 13.5 Rasteransicht wie bei RapidRaw: Knopf „Raster (G)“ unter dem Bild oder Taste G zeigt statt der
   Vorschau alle angezeigten (gefilterten) Bilder als Raster; die Zellen (mind. 190 px) füllen die Breite.
   Klick wählt (Strg/Umschalt wie in der Leiste), ← → ↑ ↓ wandern (↑ ↓ eine Zeile, `store::next_shown` mit
-  Schrittweite), Doppelklick oder Enter öffnet das Bild zum Bearbeiten. Bildleiste und Ansicht-Knöpfe sind im
-  Raster aus; die Reglerleiste bleibt, damit Übernehmen und Export der Auswahl auch dort gehen.
+  Schrittweite), Doppelklick oder Enter öffnet das Bild zum Bearbeiten. Im Raster sind Bildleiste,
+  Reglerleiste und Ansicht-Knöpfe aus (Bearbeiten erst nach dem Öffnen); unten stattdessen „Ordner öffnen …“
+  und „Größe“ (110–320 px Mindestbreite, `gridSize` in config.json). Schärfere Vorschaubilder (320 px) lädt
+  `strip::load` in einem zweiten Durchgang: `uwcc_photo::sharp_thumbnail` nimmt das an die Datei angehängte
+  große Vorschaubild der Kamera (Olympus 1920 × 1440, ~17 ms je Bild), sonst JPG mit IDCT-Verkleinerung
+  (`jpeg-decoder`, ~240 ms), sonst ganz dekodiert.
 
 Nachgeschärft – weniger Regler (27 → 18): Rot-Obergrenze ohne Regler (bleibt beim gespeicherten Wert,
 Standard 4). Schärfen ein Regler mit festem Radius 1 px und Maskieren 30 (`Detail::with_sharpen`;

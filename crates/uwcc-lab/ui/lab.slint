@@ -516,10 +516,13 @@ export component LabWindow inherits Window {
         root.healing = on;
     }
 
-    // Rasteranzeige (Taste G): alle angezeigten Bilder statt der Vorschau; Doppelklick oder Enter
-    // öffnet das gewählte zum Bearbeiten. Die Zellen füllen die Breite, mindestens `grid-min-width`.
+    // Rasteranzeige (Taste G): alle angezeigten Bilder statt Vorschau und Reglerleiste; Doppelklick
+    // oder Enter öffnet das gewählte zum Bearbeiten. Die Zellen füllen die Breite, mindestens
+    // `grid-size` (Regler „Größe“, wird in config.json gemerkt).
     in-out property <bool> library;
-    property <length> grid-min-width: 190px;
+    in-out property <float> grid-size: 190;
+    callback grid-size-changed(float);
+    property <length> grid-min-width: root.grid-size * 1px;
     property <int> grid-cols: max(1, floor((grid.visible-width - root.cell-gap) / (root.grid-min-width + root.cell-gap)));
     property <length> grid-cell-width: (grid.visible-width - root.cell-gap * (root.grid-cols + 1)) / root.grid-cols;
     property <length> grid-cell-height: root.grid-cell-width * 0.75 + 26px;
@@ -527,6 +530,7 @@ export component LabWindow inherits Window {
         if on {
             root.set-cropping(false);
             root.healing = false;
+            root.before-pressed = false;
         }
         root.library = on;
     }
@@ -655,7 +659,7 @@ export component LabWindow inherits Window {
             lines: [
                 "Ordner öffnen: Knopf links in der Leiste, Ordner oder Bild ins Fenster ziehen, oder Ordner auf die .exe ziehen. Beim nächsten Start öffnet sich der zuletzt geöffnete Ordner.",
                 "Bild wechseln: Klick in die Leiste oder Pfeiltasten ← →.",
-                "Rasteransicht: Knopf „Raster (G)“ unter dem Bild oder Taste G zeigt alle Bilder als Raster. Klick wählt (Strg/Umschalt wie in der Leiste), Pfeiltasten ← → ↑ ↓ wandern, Doppelklick oder Enter öffnet das Bild zum Bearbeiten.",
+                "Rasteransicht: Knopf „Raster (G)“ unter dem Bild oder Taste G zeigt alle Bilder als Raster, ohne Regler. Klick wählt (Strg/Umschalt wie in der Leiste), Pfeiltasten ← → ↑ ↓ wandern, Doppelklick oder Enter öffnet das Bild zum Bearbeiten. Unten: „Ordner öffnen …“ und „Größe“ der Bilder (Doppelklick: Standard).",
                 "Leiste durchblättern: Mausrad über der Leiste oder Scrollbalken darunter ziehen bzw. in die Spur klicken.",
                 "Leiste filtern (unter dem Bild): Alle, Unbearbeitet, Nicht exportiert. Das aktuelle Bild bleibt sichtbar; Pfeiltasten und Strg+A gelten für die angezeigten.",
                 "Original zeigen: Knopf „Original“ unter dem Bild oder Leertaste gedrückt halten.",
@@ -788,7 +792,8 @@ export component LabWindow inherits Window {
     property <length> cell-gap: 8px;
     property <bool> space-held;
     // Leertaste oder „Vorher“-Knopf: das ganze Bild als Original, auch in der Split-Ansicht.
-    property <bool> hold: root.space-held || before-button.pressed;
+    property <bool> before-pressed;
+    property <bool> hold: root.space-held || root.before-pressed;
     property <float> original-fraction: root.cropping ? 0 : root.hold ? 1 : (root.split ? root.split-pos : 0);
     // Leiste filtern: 0 alle, 1 unbearbeitet, 2 nicht (aktuell) exportiert. Rust setzt die Plätze
     // (`Thumb.slot`), die Anzahl und den Platz des aktuellen Bildes, das immer sichtbar bleibt.
@@ -1724,12 +1729,18 @@ export component LabWindow inherits Window {
                     }
                 }
 
-                // Reglerleiste
+                // Reglerleiste; in der Rasteranzeige ausgeblendet. Der Inhalt bleibt 300 px breit: zu
+                // Breite 0 zusammengedrückt bräche jeder Text Wort für Wort um, die Leiste würde sehr
+                // hoch und schöbe die Leiste unter dem Bild aus dem Fenster.
                 Rectangle {
-                    width: 300px;
+                    width: root.library ? 0px : 300px;
+                    visible: !root.library;
+                    clip: root.library;
                     background: Palette.alternate-background;
 
                     VerticalLayout {
+                        x: 0;
+                        width: 300px;
                         padding: 14px;
                         spacing: 10px;
 
@@ -2518,39 +2529,79 @@ export component LabWindow inherits Window {
                                     keys.focus();
                                 }
                             }
-                            before-button := SmallButton {
-                                text: "Original";
-                                active: self.pressed || root.space-held;
-                                enabled: root.has-preview && !root.library;
-                                clicked => {
-                                    keys.focus();
+                            if !root.library: HorizontalLayout {
+                                spacing: 6px;
+                                SmallButton {
+                                    text: "Original";
+                                    active: self.pressed || root.space-held;
+                                    enabled: root.has-preview;
+                                    changed pressed => {
+                                        root.before-pressed = self.pressed;
+                                    }
+                                    clicked => {
+                                        keys.focus();
+                                    }
+                                }
+                                SmallButton {
+                                    text: "Split-Ansicht";
+                                    active: root.split && !root.cropping;
+                                    enabled: root.has-preview && !root.cropping;
+                                    clicked => {
+                                        root.split = !root.split;
+                                        keys.focus();
+                                    }
+                                }
+                                SmallButton {
+                                    text: "Zuschneiden";
+                                    active: root.cropping;
+                                    enabled: root.has-preview && !root.loading;
+                                    clicked => {
+                                        root.set-cropping(!root.cropping);
+                                        keys.focus();
+                                    }
+                                }
+                                SmallButton {
+                                    text: "Partikel";
+                                    active: root.healing;
+                                    enabled: root.has-preview && !root.loading;
+                                    clicked => {
+                                        root.set-healing(!root.healing);
+                                        keys.focus();
+                                    }
                                 }
                             }
-                            SmallButton {
-                                text: "Split-Ansicht";
-                                active: root.split && !root.cropping && !root.library;
-                                enabled: root.has-preview && !root.cropping && !root.library;
-                                clicked => {
-                                    root.split = !root.split;
-                                    keys.focus();
+                            // In der Rasteranzeige: Ordner öffnen und Größe der Bilder.
+                            if root.library: HorizontalLayout {
+                                spacing: 8px;
+                                SmallButton {
+                                    text: "Ordner öffnen …";
+                                    clicked => {
+                                        root.open-folder();
+                                        keys.focus();
+                                    }
                                 }
-                            }
-                            SmallButton {
-                                text: "Zuschneiden";
-                                active: root.cropping;
-                                enabled: root.has-preview && !root.loading && !root.library;
-                                clicked => {
-                                    root.set-cropping(!root.cropping);
-                                    keys.focus();
+                                Text {
+                                    text: "Größe";
+                                    vertical-alignment: center;
+                                    font-size: 12px;
                                 }
-                            }
-                            SmallButton {
-                                text: "Partikel";
-                                active: root.healing;
-                                enabled: root.has-preview && !root.loading && !root.library;
-                                clicked => {
-                                    root.set-healing(!root.healing);
-                                    keys.focus();
+                                VerticalLayout {
+                                    alignment: center;
+                                    width: 140px;
+                                    ValueSlider {
+                                        minimum: 110;
+                                        maximum: 320;
+                                        value <=> root.grid-size;
+                                        released => {
+                                            root.grid-size-changed(root.grid-size);
+                                            keys.focus();
+                                        }
+                                        double-clicked => {
+                                            root.grid-size = 190;
+                                            root.grid-size-changed(root.grid-size);
+                                            keys.focus();
+                                        }
+                                    }
                                 }
                             }
                         }

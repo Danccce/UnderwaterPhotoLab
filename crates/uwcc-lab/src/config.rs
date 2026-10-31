@@ -9,6 +9,11 @@ use uwcc_photo::{sidecar, DEFAULT_JPEG_QUALITY};
 
 pub const MIN_JPEG_QUALITY: u8 = 50;
 
+/// Mindestbreite der Zellen der Rasteranzeige in px; die scharfen Vorschaubilder reichen bis 320.
+pub fn clamp_grid_size(px: i64) -> i32 {
+    px.clamp(110, 320) as i32
+}
+
 /// Ein selbst gewählter Programmpfad: ersetzt die Suche für ein bekanntes Programm (`id` wie
 /// `rapidraw`) oder ist ein eigenes Programm (`id` beginnt mit `custom-`). In `args` steht
 /// `{files}` für die exportierten Dateien und `{folder}` für den Ordner `uw-korrigiert`.
@@ -32,6 +37,8 @@ pub struct Config {
     pub last_folder: Option<PathBuf>,
     /// Zuletzt gewählte Reglergruppe: 0 Farbe, 1 Ton, 2 Details.
     pub panel_tab: i32,
+    /// Mindestbreite der Rasterzellen in px (Regler „Größe“).
+    pub grid_size: i32,
     /// Gruppen, die „Mehrere Bilder“ überträgt.
     pub transfer_groups: Groups,
 }
@@ -45,6 +52,7 @@ impl Default for Config {
             programs: Vec::new(),
             last_folder: None,
             panel_tab: 0,
+            grid_size: 190,
             transfer_groups: Groups::default(),
         }
     }
@@ -94,6 +102,7 @@ pub fn load() -> Config {
             .unwrap_or_default(),
         last_folder: o.get("lastFolder").and_then(Value::as_str).map(PathBuf::from),
         panel_tab: o.get("panelTab").and_then(Value::as_i64).map_or(d.panel_tab, |t| t.clamp(0, 2) as i32),
+        grid_size: o.get("gridSize").and_then(Value::as_i64).map_or(d.grid_size, clamp_grid_size),
         transfer_groups: o.get("transferGroups").map_or(d.transfer_groups, |g| {
             let flag = |k: &str, default: bool| g.get(k).and_then(Value::as_bool).unwrap_or(default);
             let t = d.transfer_groups;
@@ -121,6 +130,7 @@ pub fn save(config: &Config) -> Result<(), String> {
         .collect();
     o.insert("programs".into(), programs.into());
     o.insert("panelTab".into(), config.panel_tab.into());
+    o.insert("gridSize".into(), config.grid_size.into());
     let g = config.transfer_groups;
     o.insert("transferGroups".into(), json!({"color": g.color, "tone": g.tone, "detail": g.detail, "geometry": g.geometry}));
     match &config.last_folder {

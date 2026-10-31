@@ -49,7 +49,7 @@ pub fn start(app: &LabWindow, paths: Vec<PathBuf>) {
                 let i = next.fetch_add(1, Ordering::SeqCst);
                 let Some((path, settings)) = jobs.get(i).cloned() else { break };
                 let result = uwcc_photo::export_file(&path, &settings, target, quality);
-                let thumb = result.as_ref().ok().and_then(|out| strip::thumbnail_buffer(out));
+                let thumb = result.as_ref().ok().and_then(|out| strip::sharp_buffer(out));
                 let finished = done.fetch_add(1, Ordering::SeqCst) + 1;
                 let _ = weak.upgrade_in_event_loop(move |app| {
                     let index = with_state(|st| {

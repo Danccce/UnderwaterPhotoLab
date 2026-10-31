@@ -11,4 +11,5 @@ publish.workspace = true
 uwcc-core.workspace = true
 uwcc-filters.workspace = true
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
+jpeg-decoder = { version = "0.3", default-features = false }
 serde_json = "1"

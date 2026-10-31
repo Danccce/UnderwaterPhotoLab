@@ -105,6 +105,7 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_jpeg_quality(cfg.jpeg_quality as f32);
     app.set_strip_corrected(cfg.strip_corrected);
     app.set_panel_tab(cfg.panel_tab);
+    app.set_grid_size(cfg.grid_size as f32);
     with_state(|st| st.presets = presets::load_user());
     presets::show(&app);
     app.set_transfer_color(cfg.transfer_groups.color);
@@ -380,6 +381,12 @@ fn main() -> Result<(), slint::PlatformError> {
     app.on_panel_tab_changed(move |tab| {
         if let Some(app) = weak.upgrade() {
             update_config(&app, |c| c.panel_tab = tab);
+        }
+    });
+    let weak = app.as_weak();
+    app.on_grid_size_changed(move |size| {
+        if let Some(app) = weak.upgrade() {
+            update_config(&app, |c| c.grid_size = config::clamp_grid_size(size.round() as i64));
         }
     });
     let weak = app.as_weak();

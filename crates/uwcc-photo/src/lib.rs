@@ -201,6 +201,76 @@ pub fn thumbnail(path: &Path, max: u32) -> Result<RgbaImage, String> {
     }
 }
 
+/// Schärferes Vorschaubild als das EXIF-Vorschaubild (meist nur 160 px), für große Rasterzellen.
+/// Bevorzugt das große Vorschaubild, das viele Kameras hinter das Bild hängen (Olympus: 1920 × 1440);
+/// sonst wird das JPG schon beim Dekodieren bis auf 1/8 verkleinert. Beides ist ein Vielfaches
+/// schneller, als das ganze Bild zu dekodieren.
+pub fn sharp_thumbnail(path: &Path, max: u32) -> Result<RgbaImage, String> {
+    let jpeg = (|| {
+        let mut decoder = jpeg_decoder::Decoder::new(std::io::BufReader::new(File::open(path).ok()?));
+        decoder.read_info().ok()?;
+        let info = decoder.info()?;
+        let mut img = embedded_preview(path, max, (info.width, info.height)).or_else(|| scaled_jpeg(decoder, max))?;
+        if img.width() > max || img.height() > max {
+            img = img.thumbnail(max, max);
+        }
+        let orientation = exif::read_segment(path).and_then(|tiff| Orientation::from_exif_chunk(&tiff));
+        img.apply_orientation(orientation.unwrap_or(Orientation::NoTransforms));
+        Some(img.into_rgba8())
+    })();
+    match jpeg {
+        Some(t) => Ok(t),
+        None => Ok(Photo::open(path)?.preview(max)),
+    }
+}
+
+/// Ein angehängtes Vorschaubild steht in den letzten Bytes; `FF D8` (Bildanfang) kommt in den
+/// komprimierten Bilddaten sonst nicht vor. Nur mit demselben Seitenverhältnis wie das Bild.
+fn embedded_preview(path: &Path, max: u32, (w, h): (u16, u16)) -> Option<DynamicImage> {
+    use std::io::{Read, Seek, SeekFrom};
+    const TAIL: u64 = 2 << 20;
+    let mut file = File::open(path).ok()?;
+    let len = file.metadata().ok()?.len();
+    if len < 2 * TAIL {
+        return None;
+    }
+    file.seek(SeekFrom::Start(len - TAIL)).ok()?;
+    let mut tail = Vec::with_capacity(TAIL as usize);
+    file.read_to_end(&mut tail).ok()?;
+    let ratio = w as f64 / h as f64;
+    let mut from = 0;
+    while let Some(p) = tail[from..].windows(3).position(|x| x == [0xFF, 0xD8, 0xFF]) {
+        let start = from + p;
+        let mut decoder = jpeg_decoder::Decoder::new(&tail[start..]);
+        if let Some(info) = decoder.read_info().ok().and_then(|_| decoder.info()) {
+            let big = u32::from(info.width.max(info.height)) >= max;
+            if big && (info.width as f64 / info.height as f64 - ratio).abs() < 0.01 {
+                if let Some(img) = scaled_jpeg(decoder, max) {
+                    return Some(img);
+                }
+            }
+        }
+        from = start + 3;
+    }
+    None
+}
+
+/// Dekodiert mit IDCT-Verkleinerung auf die kleinste Stufe (1/2 … 1/8), die noch `max` erreicht.
+fn scaled_jpeg<R: std::io::Read>(mut decoder: jpeg_decoder::Decoder<R>, max: u32) -> Option<DynamicImage> {
+    use jpeg_decoder::PixelFormat;
+    let info = decoder.info()?;
+    let k = max as f64 / info.width.max(info.height) as f64;
+    let want = |v: u16| ((v as f64 * k).ceil() as u16).max(1);
+    let (w, h) = decoder.scale(want(info.width), want(info.height)).ok()?;
+    let pixels = decoder.decode().ok()?;
+    let (w, h) = (w as u32, h as u32);
+    match decoder.info()?.pixel_format {
+        PixelFormat::RGB24 => Some(DynamicImage::ImageRgb8(image::RgbImage::from_raw(w, h, pixels)?)),
+        PixelFormat::L8 => Some(DynamicImage::ImageLuma8(image::GrayImage::from_raw(w, h, pixels)?)),
+        _ => None,
+    }
+}
+
 /// Nur das EXIF-Vorschaubild, gedreht wie das Bild; `None`, wenn es keins gibt.
 pub fn exif_thumbnail(path: &Path, max: u32) -> Option<RgbaImage> {
     let tiff = exif::read_segment(path)?;
@@ -289,6 +359,18 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn sharp_thumbnail_scales_jpegs_while_decoding() {
+        let dir = temp_dir("sharp-thumbnail");
+        let path = dir.join("big.jpg");
+        let img = image::RgbImage::from_fn(1600, 1200, |x, y| image::Rgb([(x / 7) as u8, (y / 5) as u8, 90]));
+        img.save(&path).unwrap();
+        let t = sharp_thumbnail(&path, 320).unwrap();
+        assert_eq!(t.dimensions(), (320, 240));
+        let p = t.get_pixel(160, 120);
+        assert!((p[0] as i32 - 114).abs() < 6 && (p[1] as i32 - 120).abs() < 6, "{p:?}");
     }
 
     /// Größe des aufrechten Bildes.
@@ -551,6 +633,12 @@ mod tests {
         println!("EXIF-Vorschaubilder: {:?} für {} Bilder", start.elapsed(), files.len());
         println!("ohne EXIF-Vorschaubild: {without:?}");
         println!("Hochformat laut Vorschaubild: {:?}", rotated.iter().map(|p| file_name(p)).collect::<Vec<_>>());
+
+        let start = std::time::Instant::now();
+        for f in files.iter().take(20) {
+            sharp_thumbnail(f, 320).unwrap();
+        }
+        println!("Scharfe Vorschaubilder (320 px): {:?} je Bild", start.elapsed() / 20);
 
         let mut cameras = std::collections::BTreeMap::new();
         for f in &files {
