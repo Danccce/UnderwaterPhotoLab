@@ -411,9 +411,27 @@ fn main() -> Result<(), slint::PlatformError> {
         open(&app, &dir);
     }
 
+    // Das winit-Fenster gibt es erst, wenn die Ereignisschleife läuft.
+    let weak = app.as_weak();
+    slint::Timer::single_shot(std::time::Duration::ZERO, move || {
+        if let Some(app) = weak.upgrade() {
+            style_title_bar(&app);
+        }
+    });
+
     let result = app.run();
     store::save_now(&app);
     result
+}
+
+/// Kopfleiste in der Farbe des Fensters (`background` in lab.slint); wirkt ab Windows 11.
+fn style_title_bar(app: &LabWindow) {
+    use slint::winit_030::winit::platform::windows::{Color, WindowExtWindows};
+    app.window().with_winit_window(|w| {
+        w.set_title_background_color(Some(Color::from_rgb(0x0f, 0x10, 0x12)));
+        w.set_title_text_color(Color::from_rgb(0xc8, 0xcc, 0xd2));
+        w.set_border_color(Some(Color::from_rgb(0x0f, 0x10, 0x12)));
+    });
 }
 
 fn update_config(app: &LabWindow, f: impl FnOnce(&mut config::Config)) {
